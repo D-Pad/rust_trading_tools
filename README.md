@@ -1,3 +1,3 @@
 # Rust Trading Tools
-Add instructions on how to use it here, when there's actually usable code
+An SQL database is required to use this code.
 
