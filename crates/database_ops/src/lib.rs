@@ -1,73 +1,8 @@
-use std::{cmp::min, env};
+use std::{cmp::min};
 use mysql_async::{self, prelude::*, Conn};
 pub mod connection;
-pub use connection::Db;
+pub use connection::{Db, DbLogin, DbError, FetchError};
 pub mod kraken;
-
-
-pub enum DbError {
-    ConnectionFailed,
-    CredentialsMissing,
-    QueryFailed,
-}
-
-pub enum FetchError {
-    Db(DbError),
-    MySql(mysql_async::Error),
-    Api(kraken::RequestError)
-}
-
-impl From<DbError> for FetchError {
-    fn from(e: DbError) -> Self {
-        FetchError::Db(e)
-    }
-}
-
-impl From<mysql_async::Error> for FetchError {
-    fn from(e: mysql_async::Error) -> Self {
-        FetchError::MySql(e)
-    }
-}
-
-impl From<kraken::RequestError> for FetchError {
-    fn from(e: kraken::RequestError) -> Self {
-        FetchError::Api(e)
-    }
-}
-
-struct DbLogin {
-    host: String,
-    user: String,
-    password: String
-}
-
-impl DbLogin {
-    
-    fn new() -> DbLogin {
-        let host: String = match env::var("DB_HOST") {
-            Ok(s) => s,
-            Err(_) => String::from("")
-        };
-        let user: String = match env::var("DB_USER_NAME") {
-            Ok(s) => s,
-            Err(_) => String::from("")
-        };
-        let password: String = match env::var("DB_PASSWORD") {
-            Ok(s) => s,
-            Err(_) => String::from("")
-        };
-        DbLogin { host, user, password } 
-    }
-
-    fn is_valid(&self) -> bool {
-        let mut valid = true;
-        let vals: [&str; 3] = [&self.user, &self.host, &self.password];
-        for value in vals {
-            if value == "" { valid = false }
-        };
-        valid 
-    }
-}
 
 
 pub async fn download_new_data_to_db_table(
@@ -203,52 +138,54 @@ async fn get_db_connection(
 }
 
 
-pub async fn initialize() -> Result<(), DbError> {
-    
-    let db: Db = get_db_connection(None, "kraken").await?;
+pub async fn initialize(active_exchanges: Vec<String>) -> Result<(), DbError> {
+   
+    for exchange_name in active_exchanges {
+   
+        println!(
+            "\x1b[1;36mInitializing {} database and tables\x1b[0m",
+            &exchange_name
+        );
 
-    let mut conn = match db.conn().await {
-        Ok(d) => d,
-        Err(_) => { 
-            return Err(DbError::ConnectionFailed)
-        }
-    };
+        if exchange_name == "kraken" {
+       
+            let db: Db = get_db_connection(None, "kraken").await?;
 
-    let table_request = conn.exec("SHOW TABLES;", ()).await;
-    let existing_tables: Vec<(String)> = match table_request {
-        Ok(d) => d,
-        Err(_) => return Err(DbError::QueryFailed)
-    };
+            let mut conn = match db.conn().await {
+                Ok(d) => d,
+                Err(_) => { 
+                    return Err(DbError::ConnectionFailed)
+                }
+            };
 
-    if !existing_tables.contains(&String::from("_last_tick_history")) {
-        let query: &'static str = r#"
-            CREATE TABLE IF NOT EXISTS _last_tick_history (
-                asset VARCHAR(12) NOT NULL,
-                id BIGINT NOT NULL,
-                timestamp VARCHAR(20)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4; 
-        "#;
-        if let Err(_) = conn.query_drop(query).await {
-            return Err(DbError::QueryFailed); 
+            let table_request = conn.exec("SHOW TABLES;", ()).await;
+            let existing_tables: Vec<(String)> = match table_request {
+                Ok(d) => d,
+                Err(_) => return Err(DbError::QueryFailed)
+            };
+
+            if !existing_tables.contains(&"_last_tick_history".to_string()) {
+                let query: &'static str = r#"
+                    CREATE TABLE IF NOT EXISTS _last_tick_history (
+                        asset VARCHAR(12) NOT NULL,
+                        id BIGINT NOT NULL,
+                        timestamp VARCHAR(20)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4; 
+                "#;
+                if let Err(_) = conn.query_drop(query).await {
+                    return Err(DbError::QueryFailed); 
+                };
+            };
         };
     };
 
     Ok(())
     
     // 1767850856060224
-    // q = (
-    //     f"UPDATE {HIST} SET "
-    //     f"id = '{values['id']}', "
-    //     f"timestamp = '{values['timestamp']}' "
-    //     f"WHERE asset = '{values['asset']}';"
-    // )
-
-    // q = (
-    //     f"CREATE TABLE IF NOT EXISTS {HIST} ("
-    //     "asset VARCHAR(64), "
-    //     "id VARCHAR(255), " 
-    //     "timestamp VARCHAR(20));"
-    // )
+    // UPDATE _last_tick_history SET
+    // id = '{values['id']}',
+    // timestamp = '{values['timestamp']}'
+    // WHERE asset = '{values['asset']}';
 
 }
 

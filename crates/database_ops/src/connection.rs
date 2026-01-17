@@ -1,7 +1,10 @@
 use mysql_async::{Pool, Conn, Result, OptsBuilder};
+use std::env;
+use crate::kraken;
+
 
 pub struct Db {
-    pool: Pool,
+    pub pool: Pool,
 }
 
 impl Db {
@@ -36,4 +39,67 @@ impl Db {
     }
 }
 
+pub enum DbError {
+    ConnectionFailed,
+    CredentialsMissing,
+    QueryFailed,
+}
+
+pub enum FetchError {
+    Db(DbError),
+    MySql(mysql_async::Error),
+    Api(kraken::RequestError)
+}
+
+impl From<DbError> for FetchError {
+    fn from(e: DbError) -> Self {
+        FetchError::Db(e)
+    }
+}
+
+impl From<mysql_async::Error> for FetchError {
+    fn from(e: mysql_async::Error) -> Self {
+        FetchError::MySql(e)
+    }
+}
+
+impl From<kraken::RequestError> for FetchError {
+    fn from(e: kraken::RequestError) -> Self {
+        FetchError::Api(e)
+    }
+}
+
+pub struct DbLogin {
+    pub host: String,
+    pub user: String,
+    pub password: String
+}
+
+impl DbLogin {
+    
+    pub fn new() -> DbLogin {
+        let host: String = match env::var("DB_HOST") {
+            Ok(s) => s,
+            Err(_) => String::from("")
+        };
+        let user: String = match env::var("DB_USER_NAME") {
+            Ok(s) => s,
+            Err(_) => String::from("")
+        };
+        let password: String = match env::var("DB_PASSWORD") {
+            Ok(s) => s,
+            Err(_) => String::from("")
+        };
+        DbLogin { host, user, password } 
+    }
+
+    pub fn is_valid(&self) -> bool {
+        let mut valid = true;
+        let vals: [&str; 3] = [&self.user, &self.host, &self.password];
+        for value in vals {
+            if value == "" { valid = false }
+        };
+        valid 
+    }
+}
 

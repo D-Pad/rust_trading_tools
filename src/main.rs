@@ -10,7 +10,7 @@ async fn main() {
 
     let config_path: &'static str = "../config.toml";
 
-    let _config = match trading_app::config::load_toml_config(config_path) {
+    let config = match trading_app::config::load_toml_config(config_path) {
         Ok(c) => c,
         Err(_) => {
             println!("\x1b[1;31mCould not load config\x1b[0m");
@@ -18,12 +18,14 @@ async fn main() {
         } 
     };
 
+    trading_app::initiailze(&config).await;
+
     // let data = trading_app::add_new_data_to_db_table("XBTUSD");
 
     // let bars = trading_app::fetch_data_and_build_bars(
     //     "kraken", "SOLUSD", "100t", None 
     // ).await;
 
-    trading_app::dev_test().await;
+    // trading_app::dev_test().await;
 }
 

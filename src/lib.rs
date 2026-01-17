@@ -1,5 +1,6 @@
 use database_ops;
 use bars;
+use crate::config::AppConfig;
 pub mod config;
 
 
@@ -46,6 +47,19 @@ pub async fn fetch_data_and_build_bars(
 pub async fn dev_test() {
     // kraken::download_new_data_to_db_table("SOLUSD").await;
     database_ops::kraken::request_asset_info_from_kraken("BTCUSD").await;
+}
+
+
+pub async fn initiailze(config: &AppConfig) {
+
+    let mut active_exchanges: Vec<String> = Vec::new();
+    
+    for (exchange, activated) in &config.supported_exchanges.active {
+        if *activated { active_exchanges.push(exchange.clone()) }
+    };
+    
+    database_ops::initialize(active_exchanges).await; 
+
 }
 
 

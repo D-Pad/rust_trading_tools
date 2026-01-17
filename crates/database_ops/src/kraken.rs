@@ -1,6 +1,7 @@
 use reqwest;
 use serde::Deserialize;
 use std::collections::HashMap;
+pub use crate::connection;
 
 // Tick data structs
 #[derive(Deserialize, Debug)]
@@ -94,6 +95,22 @@ impl From<serde_json::Error> for RequestError {
 }
 
 
+pub async fn add_new_db_table(ticker: &str) 
+    -> Result<(), connection::FetchError> {
+    
+    let tick_info = match request_asset_info_from_kraken(&ticker).await {
+        Ok(d) => d,
+        Err(e) => return Err(
+            connection::FetchError::Api(RequestError::Http(e))
+        ) 
+    };
+    
+    println!("{:?}", tick_info);
+    Ok(())
+
+}
+
+
 pub async fn request_tick_data_from_kraken(
     ticker: &str, since_unix_timestamp: String 
 ) -> Result<TickDataResponse, RequestError> {
@@ -116,7 +133,7 @@ pub async fn request_tick_data_from_kraken(
     let kraken_resp: TickDataResponse = serde_json::from_str(&raw_text)
         .map_err(|e| {
             println!("\x1b[1;31mDeserialization error:\n\x1b[0m{}", e);
-            e
+            RequestError::Deserialize(e) 
         })?;
 
     Ok(kraken_resp)

@@ -146,13 +146,11 @@ impl BarSeries {
         let close_date: DateTime<Utc> = close_dates[index];
         let tick_slice = tick_data[start_idx..].to_vec(); 
         bars.push(Bar::new(tick_slice, open_date, close_date));
-        
-        Ok(
-            BarSeries {
-                tick_data,
-                bars        
-            }
-        )
+       
+        match bar_type {
+            BarType::Candle =>  Ok(BarSeries { tick_data, bars })
+        }
+
     }
 
     pub fn empty() -> Self {
