@@ -220,7 +220,6 @@ pub async fn initialize() -> Result<(), DbError> {
         Err(_) => return Err(DbError::QueryFailed)
     };
 
-    println!("EXISTING TABLES: {:?}", existing_tables);
     if !existing_tables.contains(&String::from("_last_tick_history")) {
         let query: &'static str = r#"
             CREATE TABLE IF NOT EXISTS _last_tick_history (
