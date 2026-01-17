@@ -24,6 +24,6 @@ async fn main() {
     //     "kraken", "SOLUSD", "100t", None 
     // ).await;
 
-    let last = trading_app::dev_test().await;
+    trading_app::dev_test().await;
 }
 

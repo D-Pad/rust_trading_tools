@@ -1,5 +1,5 @@
-use database_ops::*;
-use bars::*;
+use database_ops;
+use bars;
 pub mod config;
 
 
@@ -8,7 +8,7 @@ pub async fn fetch_data_and_build_bars(
     ticker: &str,
     period: &str,
     number_of_ticks: Option<u64>
-) -> BarSeries {
+) -> bars::BarSeries {
  
     let num_ticks = match number_of_ticks {
         Some(t) => Some(t),
@@ -16,28 +16,36 @@ pub async fn fetch_data_and_build_bars(
     };
 
     let tick_data: Vec<(u64, u64, f64, f64)> = 
-        match fetch_rows(exchange, ticker, num_ticks).await {
+        match database_ops::fetch_rows(exchange, ticker, num_ticks).await {
             Ok(d) => d,
             Err(_) => {
                 println!("Failed to fetch ticks");
-                return BarSeries::empty(); 
+                return bars::BarSeries::empty(); 
             }
         };
 
     let bar_type = bars::BarType::Candle;
     
-    match BarSeries::new(tick_data, period, bar_type) {
+    match bars::BarSeries::new(tick_data, period, bar_type) {
         Ok(b) => b,
-        Err(_) => BarSeries::empty()
+        Err(_) => bars::BarSeries::empty()
     } 
 
 }
 
+// MariaDB [kraken_history]> SELECT id, timestamp 
+// FROM SOLUSD ORDER BY id DESC LIMIT 1;
+// +----------+------------------+
+// | id       | timestamp        |
+// +----------+------------------+
+// | 27637179 | 1767850856060224 |
+// +----------+------------------+
+// 1 row in set (0.000 sec)
+
 
 pub async fn dev_test() {
-    let row = fetch_last_row("kraken", "SOLUSD", None).await;
-    println!("{:?}", row);
+    // kraken::download_new_data_to_db_table("SOLUSD").await;
+    database_ops::initialize().await;
 }
-
 
 

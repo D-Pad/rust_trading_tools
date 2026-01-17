@@ -6,8 +6,8 @@ use std::error::Error;
 
 #[derive(Deserialize, Debug)]
 pub struct KrakenResponse {
-    error: Vec<String>,
-    result: Option<KrakenResult>,
+    pub error: Vec<String>,
+    pub result: Option<KrakenResult>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -29,20 +29,29 @@ struct Trade {
 }
 
 
-pub async fn add_new_data_to_db_table(
-    ticker: &str
-) -> Result<KrakenResponse, String> {
-    let resp = request_tick_data_from_kraken(ticker, 1767152112);
-    match resp.await {
-        Ok(s) => Ok(s),
-        Err(_) => Err("Failed to fetch data".to_string())
-    } 
+pub enum RequestError {
+    Http(reqwest::Error),
+    BadStatus(reqwest::StatusCode),
+    Deserialize(serde_json::Error),
+    NoData,
+}
+
+impl From<reqwest::Error> for RequestError {
+    fn from(e: reqwest::Error) -> Self {
+        RequestError::Http(e)
+    }
+}
+
+impl From<serde_json::Error> for RequestError {
+    fn from(e: serde_json::Error) -> Self {
+        RequestError::Deserialize(e)
+    }
 }
 
 
 pub async fn request_tick_data_from_kraken(
-    ticker: &str, since_unix_timestamp: u64 
-) -> Result<KrakenResponse, Box<dyn Error>> {
+    ticker: &str, since_unix_timestamp: String 
+) -> Result<KrakenResponse, RequestError> {
     
     let mut url = format!(
         "https://api.kraken.com/0/public/Trades?pair={}&since={}", 
@@ -54,7 +63,7 @@ pub async fn request_tick_data_from_kraken(
     let response = client.get(&url).send().await?;
 
     if !response.status().is_success() {
-        return Err(format!("Failed to fetch data from Kraken").into());
+        return Err(RequestError::BadStatus(response.status()));
     }
 
     let raw_text = response.text().await?;
@@ -68,8 +77,5 @@ pub async fn request_tick_data_from_kraken(
     Ok(kraken_resp)
 
 }
-
-
-
 
 
