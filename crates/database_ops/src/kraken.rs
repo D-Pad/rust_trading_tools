@@ -1,13 +1,18 @@
 use reqwest;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap, 
+    time::{SystemTime, UNIX_EPOCH}
+};
+use mysql_async::{prelude::Queryable, Conn};
+use crate::{DbError, FetchError};
 pub use crate::connection;
 
 // Tick data structs
 #[derive(Deserialize, Debug)]
 pub struct TickDataResponse {
-    pub error: Vec<String>,
-    pub result: Option<TickDataResult>,
+    error: Vec<String>,
+    result: Option<TickDataResult>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -17,7 +22,7 @@ struct TickDataResult {
     last: String,  // The 'since' value for pagination 
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 struct Trade {
     price: String,         // Price as string
     volume: String,        // Volume as string
@@ -79,6 +84,7 @@ pub enum RequestError {
     Http(reqwest::Error),
     BadStatus(reqwest::StatusCode),
     Deserialize(serde_json::Error),
+    RequestFailed(String),
     NoData,
 }
 
@@ -97,7 +103,66 @@ impl From<serde_json::Error> for RequestError {
 
 pub async fn add_new_db_table(ticker: &str) 
     -> Result<(), connection::FetchError> {
-    
+     
+    const TIME_OFFSET: u64 = 60 * 60 * 24 * 14;  // 2 weeks of seconds
+    let initial_fetch_time = match SystemTime::now()
+        .duration_since(UNIX_EPOCH) {
+            Ok(t) => format!("{}", t.as_secs() - TIME_OFFSET),
+            Err(_) => return Err(
+                connection::FetchError::SystemError(
+                    "Couldn't retrieve system time".to_string()
+                )
+            ) 
+        };
+
+    let last_trade: Trade = match request_tick_data_from_kraken(
+        ticker, 
+        initial_fetch_time 
+    ).await {
+        Ok(d) => {
+       
+            let result = d.result.ok_or_else(|| {
+                connection::FetchError::Api(
+                    RequestError::RequestFailed(
+                        "Could not fetch trade data".to_string()
+                    )
+                )
+            })?;
+
+            let trades_vec = result 
+                .trades 
+                .values() 
+                .next() 
+                .ok_or_else(|| {
+                    connection::FetchError::SystemError(
+                        "No trades detected in response".to_string()
+                    )
+                })?;
+
+            trades_vec.last().cloned().ok_or_else(|| {
+                connection::FetchError::SystemError(
+                    "Trades list was empty".to_string()
+                )
+            })?
+
+        },
+        Err(_) => return Err(
+            connection::FetchError::Api(
+                RequestError::RequestFailed(
+                    "Could not fetch trade data".to_string()
+                )
+            )
+        )
+    };
+
+    let price_string = last_trade.price.to_string();
+    let left_digits = match price_string.split_once(".") {
+        Some((left, _right)) => left.len(),
+        None => price_string.len()
+    };
+
+    let price_digits_for_db_table = left_digits + 5;
+
     let tick_info = match request_asset_info_from_kraken(&ticker).await {
         Ok(d) => d,
         Err(e) => return Err(
@@ -105,9 +170,37 @@ pub async fn add_new_db_table(ticker: &str)
         ) 
     };
     
-    println!("{:?}", tick_info);
-    Ok(())
+    let query: String = format!(r#"
+        CREATE TABLE IF NOT EXISTS {} (
+            id BIGINT PRIMARY KEY,
+            price DECIMAL({},{}) NOT NULL, 
+            volume DECIMAL({},{}) NOT NULL, 
+            timestamp BIGINT NOT NULL, 
+            buy_sell CHAR(1) NOT NULL, 
+            market_limit CHAR(1) NOT NULL, 
+            misc VARCHAR(16)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        "#,
+        ticker,
+        price_digits_for_db_table,
+        tick_info.pair_decimals,
+        price_digits_for_db_table,
+        tick_info.lot_decimals
+    ); 
 
+    let db: connection::Db = connection::get_db_connection(None, "kraken")
+        .await?;
+    
+    let mut conn: Conn = match db.conn().await {
+        Ok(c) => c,
+        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
+    }; 
+    
+    if let Err(_) = conn.query_drop(query).await {
+        return Err(FetchError::Db(DbError::QueryFailed)); 
+    };
+
+    Ok(())
 }
 
 
@@ -115,7 +208,7 @@ pub async fn request_tick_data_from_kraken(
     ticker: &str, since_unix_timestamp: String 
 ) -> Result<TickDataResponse, RequestError> {
     
-    let mut url = format!(
+    let url = format!(
         "https://api.kraken.com/0/public/Trades?pair={}&since={}", 
         ticker,
         since_unix_timestamp
@@ -135,6 +228,12 @@ pub async fn request_tick_data_from_kraken(
             println!("\x1b[1;31mDeserialization error:\n\x1b[0m{}", e);
             RequestError::Deserialize(e) 
         })?;
+
+    if kraken_resp.error.len() > 0 {
+        return Err(RequestError::RequestFailed(
+            format!("Request failed: {:?}", kraken_resp.error)
+        ))
+    }; 
 
     Ok(kraken_resp)
 

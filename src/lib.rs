@@ -4,6 +4,11 @@ use crate::config::AppConfig;
 pub mod config;
 
 
+pub enum InitializationError {
+    InitFailure
+}
+
+
 pub async fn fetch_data_and_build_bars(
     exchange: &str,
     ticker: &str,
@@ -46,11 +51,11 @@ pub async fn fetch_data_and_build_bars(
 
 pub async fn dev_test() {
     // kraken::download_new_data_to_db_table("SOLUSD").await;
-    database_ops::kraken::request_asset_info_from_kraken("BTCUSD").await;
+    // database_ops::kraken::add_new_db_table("BTCUSD").await;
 }
 
 
-pub async fn initiailze(config: &AppConfig) {
+pub async fn initiailze(config: &AppConfig) -> Result<(), InitializationError> {
 
     let mut active_exchanges: Vec<String> = Vec::new();
     
@@ -58,8 +63,11 @@ pub async fn initiailze(config: &AppConfig) {
         if *activated { active_exchanges.push(exchange.clone()) }
     };
     
-    database_ops::initialize(active_exchanges).await; 
+    if let Err(_) = database_ops::initialize(active_exchanges).await {
+        return Err(InitializationError::InitFailure) 
+    }; 
 
+    Ok(())
 }
 
 

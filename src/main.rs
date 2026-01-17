@@ -18,13 +18,9 @@ async fn main() {
         } 
     };
 
-    trading_app::initiailze(&config).await;
-
-    // let data = trading_app::add_new_data_to_db_table("XBTUSD");
-
-    // let bars = trading_app::fetch_data_and_build_bars(
-    //     "kraken", "SOLUSD", "100t", None 
-    // ).await;
+    if let Err(_) = trading_app::initiailze(&config).await {
+        process::exit(1); 
+    };
 
     // trading_app::dev_test().await;
 }

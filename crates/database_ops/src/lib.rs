@@ -9,7 +9,7 @@ pub async fn download_new_data_to_db_table(
     exchange: &str, ticker: &str
 ) -> Result<(), FetchError> {
    
-    let db: Db = get_db_connection(None, exchange).await?;
+    let _db: Db = connection::get_db_connection(None, exchange).await?;
 
     let data = kraken::request_tick_data_from_kraken(
         ticker, 
@@ -28,9 +28,9 @@ pub async fn fetch_last_row(
     existing_db: Option<Db>
 ) -> Result<Vec<(u64, u64, f64, f64)>, FetchError> {
 
-    let db_connector: Db = get_db_connection(existing_db, exchange).await?;
+    let db: Db = connection::get_db_connection(existing_db, exchange).await?;
     
-    let mut conn: Conn = db_connector.conn().await?;
+    let mut conn: Conn = db.conn().await?;
    
     type TickRow = Vec<(u64, u64, f64, f64)>;
     let last_row: TickRow = conn.exec(
@@ -50,7 +50,7 @@ pub async fn fetch_rows(
     limit: Option<u64>
 ) -> Result<Vec<(u64, u64, f64, f64)>, FetchError> {
 
-    let db: Db = get_db_connection(None, exchange).await?;
+    let db: Db = connection::get_db_connection(None, exchange).await?;
 
     let limit: u64 = match limit {
         Some(i) => i,
@@ -62,7 +62,7 @@ pub async fn fetch_rows(
         exchange_name.push_str("_history");
     };
 
-    let mut conn = db.conn().await?;
+    let mut conn: Conn = db.conn().await?;
 
     let first_id: u64 = match conn.exec_first::<u64, _, _>(
         &format!(
@@ -100,44 +100,6 @@ pub async fn fetch_rows(
 }
 
 
-async fn get_db_connection(
-    existing_db: Option<Db>,
-    exchange: &str
-) -> Result<Db, DbError> {
-    
-    let db_connector: Db = match existing_db {
-        Some(db) => db,
-        None => { 
-            
-            let db_login: DbLogin = DbLogin::new(); 
-            if !&db_login.is_valid() {
-                println!("\x1b[1;31mMissing DB credentials\x1b[0m"); 
-                return Err(DbError::CredentialsMissing) 
-            };
-            
-            let mut exchange_name = exchange.to_string();
-            if !exchange_name.contains("_history") {
-                exchange_name.push_str("_history");
-            };
-            
-            let db = match Db::new(
-                &db_login.host,
-                3306,
-                &db_login.user,
-                &db_login.password,
-                &exchange_name,
-            ).await {
-                Ok(d) => d,
-                Err(_) => return Err(DbError::ConnectionFailed)
-            };
-            db
-        }
-    };
-
-    Ok(db_connector)
-}
-
-
 pub async fn initialize(active_exchanges: Vec<String>) -> Result<(), DbError> {
    
     for exchange_name in active_exchanges {
@@ -149,9 +111,9 @@ pub async fn initialize(active_exchanges: Vec<String>) -> Result<(), DbError> {
 
         if exchange_name == "kraken" {
        
-            let db: Db = get_db_connection(None, "kraken").await?;
+            let db: Db = connection::get_db_connection(None, "kraken").await?;
 
-            let mut conn = match db.conn().await {
+            let mut conn: Conn = match db.conn().await {
                 Ok(d) => d,
                 Err(_) => { 
                     return Err(DbError::ConnectionFailed)
@@ -159,7 +121,7 @@ pub async fn initialize(active_exchanges: Vec<String>) -> Result<(), DbError> {
             };
 
             let table_request = conn.exec("SHOW TABLES;", ()).await;
-            let existing_tables: Vec<(String)> = match table_request {
+            let existing_tables: Vec<String> = match table_request {
                 Ok(d) => d,
                 Err(_) => return Err(DbError::QueryFailed)
             };
