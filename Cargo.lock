@@ -1944,6 +1944,7 @@ dependencies = [
  "dotenvy",
  "indicators",
  "serde",
+ "serde_json",
  "tokio",
  "toml",
 ]

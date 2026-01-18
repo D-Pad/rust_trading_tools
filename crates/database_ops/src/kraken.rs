@@ -8,6 +8,7 @@ use mysql_async::{prelude::Queryable, Conn};
 use crate::{DbError, FetchError};
 pub use crate::connection;
 
+
 // Tick data structs
 #[derive(Deserialize, Debug)]
 pub struct TickDataResponse {

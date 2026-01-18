@@ -1,4 +1,7 @@
 
+# This is only the intial setup file. App state will be stored as a JSON
+# file after the initial startup. 
+
 [backtesting]
 inside_bar = true
 
