@@ -6,6 +6,7 @@ use std::{collections::HashMap, fs};
 pub struct AppConfig {
     pub backtesting: BackTestSettings,
     pub supported_exchanges: SupportedExchanges,
+    pub data_download: DataDownload, 
 }
 
 
@@ -18,6 +19,19 @@ pub struct BackTestSettings {
 #[derive(Debug, Deserialize)]
 pub struct SupportedExchanges {
     pub active: HashMap<String, bool>,
+}
+
+
+#[derive(Debug, Deserialize)]
+pub struct DataDownload {
+    pub cache_size_units: u8,
+    pub cache_size_period: String,
+}
+
+impl DataDownload {
+    pub fn get_time_period(&self) -> String {
+        format!("{}{}", self.cache_size_units, self.cache_size_period)
+    }
 }
 
 

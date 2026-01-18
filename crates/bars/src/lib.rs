@@ -1,13 +1,19 @@
 use std::fmt;
 use chrono::{DateTime, Datelike, TimeZone, Utc, Duration};
-use num_traits::{PrimInt, Unsigned};
+use timestamp_tools::{
+    calculate_seconds_in_period,
+    TimePeriodError,
+    get_period_portions_from_string,
+    candle_close_timestamp,
+    candle_open_timestamp,
+};
 
 pub enum BarBuildError {
     TickFetch,
-    InvalidPeriod,
     NotEnoughData,
     BuildFailed,
-    DateConversion
+    DateConversion,
+    Period(TimePeriodError),
 }
 
 #[derive(Debug)]
@@ -102,28 +108,21 @@ impl BarSeries {
     ) -> Result<Self, BarBuildError> {
     
         if period.len() < 2 {
-            return Err(BarBuildError::InvalidPeriod)
+            return Err(BarBuildError::Period(TimePeriodError::InvalidPeriod))
         };
-    
-        let period_key = match period.chars().last() {
-            Some(c) => c, 
-            None => { return Err(BarBuildError::InvalidPeriod) } 
-        };
-       
-        if !VALID_PERIODS.contains(&period_key) {
-            return Err(BarBuildError::InvalidPeriod)
-        };
-    
-        let period_n: u64 = match period[0..period.len() - 1].parse::<u64>() {
-            Ok(v) => v,
-            Err(_) => return Err(BarBuildError::InvalidPeriod)
-        };
-        
-        let mut bars: Vec<Bar> = Vec::new();
            
+        let mut bars: Vec<Bar> = Vec::new();
+         
+        let period_keys = match get_period_portions_from_string(period) {
+            Ok(d) => d,
+            Err(e) => return Err(BarBuildError::Period(e))
+        };
+
+        let (period_char, period_n) = period_keys;
+
         // START PARSING DATA
         let (tick_indices, open_dates, close_dates) = 
-            get_tick_indices_and_open_dates(&tick_data, period_n, period_key)?;
+            get_tick_indices_and_dates(&tick_data, period_n, period_char)?;
         
         let mut index: usize = 0;
    
@@ -211,28 +210,10 @@ fn unix_ts_i64_to_datetime(
 
 
 // --------------------------- CANDLE PERIOD ------------------------------- //
-const VALID_PERIODS: &[char; 7] = &['s', 'm', 'h', 'd', 'w', 'M', 't'];
-
-fn calculate_seconds_in_period(
-    periods: u64, 
-    symbol: char
-) -> Result<u64, BarBuildError> {
-    
-    let num_seconds = match symbol {
-        's' => 1,
-        'm' => 60,
-        'h' => 3600,
-        'd' => 86400,
-        _ => return Err(BarBuildError::InvalidPeriod)
-    };
-    
-    Ok(num_seconds * periods) 
-}
-
-fn get_tick_indices_and_open_dates<'a> (
+fn get_tick_indices_and_dates<'a> (
     tick_data: &'a [(u64, u64, f64, f64)],
-    period_number_portion: u64,
-    period_symbol_portion: char
+    period_number: u64,
+    period_symbol: char
 ) -> Result<(Vec<usize>, Vec<DateTime<Utc>>, Vec<DateTime<Utc>>), BarBuildError> {
 
     fn err_msg(msg: &'static str) {
@@ -316,24 +297,24 @@ fn get_tick_indices_and_open_dates<'a> (
         }
     }
 
-    let p = period_number_portion;
-    let sym = period_symbol_portion;
     let mut indices: Vec<usize> = Vec::new(); 
     let mut close_dates: Vec<DateTime<Utc>> = Vec::new(); 
     let mut open_dates: Vec<DateTime<Utc>> = Vec::new(); 
    
-    if period_symbol_portion == 't' {  // is tick based
+    if period_symbol == 't' {  // is tick based
         
         let first_id = tick_data[0].0 / 1_000_000;
-        let start_idx: usize = (p - (first_id % p as u64) - 1) as usize;
+        let start_idx: usize = (
+            period_number - (first_id % period_number as u64) - 1
+        ) as usize;
         
-        if tick_data.len() < p as usize {
+        if tick_data.len() < period_number as usize {
             return Err(BarBuildError::NotEnoughData)
         }
 
         let max_index = tick_data.len() - 1; 
         indices = (start_idx..=max_index)
-            .step_by(p as usize)
+            .step_by(period_number as usize)
             .collect(); 
 
         for &index in &indices {
@@ -341,7 +322,7 @@ fn get_tick_indices_and_open_dates<'a> (
             let open_date = micros_u64_to_datetime(open_row.1)?;
             open_dates.push(open_date);
            
-            let mut close_index = index + (p as usize);
+            let mut close_index = index + (period_number as usize);
             if close_index > max_index { 
                 close_index = max_index; 
             }; 
@@ -354,18 +335,20 @@ fn get_tick_indices_and_open_dates<'a> (
     }
     else {  // is time based
       
-        let num_seconds: u64 = match calculate_seconds_in_period(p, sym) {
+        let num_seconds: u64 = match calculate_seconds_in_period(
+            period_number, period_symbol 
+        ) {
             Ok(s) => s,
             Err(_) => 0 
         };
         
-        let is_week_or_month = ['w', 'M'].contains(&period_symbol_portion);
+        let is_week_or_month = ['w', 'M'].contains(&period_symbol);
         let first_ts: u64 = tick_data[0].1 / 1_000_000;
 
         let mut next_open_date = match is_week_or_month {
             
             true => {
-                this_week_or_month(tick_data[0].1, &sym)?
+                this_week_or_month(tick_data[0].1, &period_symbol)?
             },
             
             false => {
@@ -383,7 +366,7 @@ fn get_tick_indices_and_open_dates<'a> (
         let mut next_close_date = match is_week_or_month {
             
             true => {
-                next_week_or_month(next_open_date, &sym)?
+                next_week_or_month(next_open_date, &period_symbol)?
             },
 
             false => {
@@ -410,10 +393,12 @@ fn get_tick_indices_and_open_dates<'a> (
                 
                 match is_week_or_month {
                     true => {
-                        next_open_date = this_week_or_month(row.1, &sym)?;
+                        next_open_date = this_week_or_month(
+                            row.1, &period_symbol
+                        )?;
                         next_close_date = next_week_or_month(
                             next_open_date, 
-                            &sym
+                            &period_symbol
                         )?;
                     },
                     false => {
@@ -442,21 +427,6 @@ fn get_tick_indices_and_open_dates<'a> (
         true => Ok((indices, open_dates, close_dates)),
         false => Err(BarBuildError::NotEnoughData)
     }
-}
-
-
-fn candle_open_timestamp<T>(timestamp: T, num_seconds: T) -> T 
-where 
-    T: PrimInt + Unsigned
-{
-    timestamp - (timestamp % num_seconds)
-}
-
-fn candle_close_timestamp<T>(timestamp: T, num_seconds: T) -> T 
-where 
-    T: PrimInt + Unsigned
-{
-    candle_open_timestamp(timestamp, num_seconds) + num_seconds 
 }
 
 

@@ -6,3 +6,8 @@ inside_bar = true
 [supported_exchanges]
 active = { kraken = true }
 
+
+[data_download]
+cache_size_units = 6 
+cache_size_period = "M" 
+

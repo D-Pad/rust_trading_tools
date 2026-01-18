@@ -101,10 +101,14 @@ impl From<serde_json::Error> for RequestError {
 }
 
 
-pub async fn add_new_db_table(ticker: &str) 
+pub async fn add_new_db_table(
+    ticker: &str, 
+    http_client: Option<reqwest::Client>
+) 
     -> Result<(), connection::FetchError> {
      
     const TIME_OFFSET: u64 = 60 * 60 * 24 * 14;  // 2 weeks of seconds
+    
     let initial_fetch_time = match SystemTime::now()
         .duration_since(UNIX_EPOCH) {
             Ok(t) => format!("{}", t.as_secs() - TIME_OFFSET),
@@ -117,7 +121,8 @@ pub async fn add_new_db_table(ticker: &str)
 
     let last_trade: Trade = match request_tick_data_from_kraken(
         ticker, 
-        initial_fetch_time 
+        initial_fetch_time,
+        http_client
     ).await {
         Ok(d) => {
        
@@ -205,7 +210,9 @@ pub async fn add_new_db_table(ticker: &str)
 
 
 pub async fn request_tick_data_from_kraken(
-    ticker: &str, since_unix_timestamp: String 
+    ticker: &str, 
+    since_unix_timestamp: String, 
+    http_client: Option<reqwest::Client> 
 ) -> Result<TickDataResponse, RequestError> {
     
     let url = format!(
@@ -213,8 +220,12 @@ pub async fn request_tick_data_from_kraken(
         ticker,
         since_unix_timestamp
     );
-   
-    let client = reqwest::Client::new();
+  
+    let client = match http_client {
+        Some(c) => c,
+        None => reqwest::Client::new()
+    };
+    
     let response = client.get(&url).send().await?;
 
     if !response.status().is_success() {

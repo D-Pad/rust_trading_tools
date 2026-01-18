@@ -1,5 +1,6 @@
 use std::{cmp::min};
 use mysql_async::{self, prelude::*, Conn};
+use reqwest;
 pub mod connection;
 pub use connection::{Db, DbLogin, DbError, FetchError};
 pub mod kraken;
@@ -11,9 +12,12 @@ pub async fn download_new_data_to_db_table(
    
     let _db: Db = connection::get_db_connection(None, exchange).await?;
 
+    let client = reqwest::Client::new();
+
     let data = kraken::request_tick_data_from_kraken(
         ticker, 
-        "1767850856".to_string()
+        "1767850856".to_string(),
+        Some(client)
     ).await?; 
 
     println!("DATA: {:?}", data);

@@ -71,7 +71,7 @@ name = "bars"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "num-traits",
+ "timestamp_tools",
 ]
 
 [[package]]
@@ -1734,6 +1734,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "timestamp_tools"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
