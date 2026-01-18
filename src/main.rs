@@ -18,12 +18,10 @@ async fn main() {
         } 
     };
 
-    println!("{:?}", config);
-
     if let Err(_) = trading_app::initiailze(&config).await {
         process::exit(1); 
     };
 
-    // trading_app::dev_test().await;
+    trading_app::dev_test().await;
 }
 

@@ -52,6 +52,10 @@ pub async fn fetch_data_and_build_bars(
 pub async fn dev_test() {
     // kraken::download_new_data_to_db_table("SOLUSD").await;
     // database_ops::kraken::add_new_db_table("BTCUSD").await;
+    let bars = fetch_data_and_build_bars("kraken", "SOLUSD", "1w", None).await;
+    for bar in &bars {
+        println!("{}", bar);
+    }
 }
 
 

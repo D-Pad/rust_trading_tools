@@ -1740,6 +1740,7 @@ dependencies = [
 name = "timestamp_tools"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "num-traits",
 ]
 
