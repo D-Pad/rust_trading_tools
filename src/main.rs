@@ -20,6 +20,6 @@ async fn main() {
         process::exit(1); 
     };
 
-    trading_app::dev_test().await;
+    trading_app::dev_test(&config).await;
 }
 

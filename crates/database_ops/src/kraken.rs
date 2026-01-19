@@ -104,10 +104,43 @@ impl From<serde_json::Error> for RequestError {
 
 pub async fn add_new_db_table(
     ticker: &str, 
-    http_client: Option<reqwest::Client>
-) 
-    -> Result<(), connection::FetchError> {
-     
+    http_client: Option<&reqwest::Client>,
+    db_connection: Option<Conn>
+) -> Result<(), connection::FetchError> {
+   
+    let mut conn: Conn = match db_connection {
+        Some(c) => c,
+        None => {
+            
+            let db: connection::Db = connection::get_db_connection(
+                None, "kraken"
+            ).await?;
+            
+            let mut connection: Conn = match db.conn().await {
+                Ok(c) => c,
+                Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
+            };
+            
+            let existing_tables: Vec<String> = match connection.exec(
+                "SHOW TABLES;", ()
+            ).await {
+                Ok(d) => d,
+                Err(_) => return Err(
+                    connection::FetchError::Db(
+                        DbError::QueryFailed
+                    )
+                )
+            };
+
+            if existing_tables.contains(&ticker.to_string()) {
+                println!("\x1b[1;31m{ticker} table already exists\x1b[0m");
+                return Ok(())
+            };
+
+            connection
+        }
+    };
+
     const TIME_OFFSET: u64 = 60 * 60 * 24 * 14;  // 2 weeks of seconds
     
     let initial_fetch_time = match SystemTime::now()
@@ -169,7 +202,10 @@ pub async fn add_new_db_table(
 
     let price_digits_for_db_table = left_digits + 5;
 
-    let tick_info = match request_asset_info_from_kraken(&ticker).await {
+    let tick_info = match request_asset_info_from_kraken(
+        &ticker,
+        http_client
+    ).await {
         Ok(d) => d,
         Err(e) => return Err(
             connection::FetchError::Api(RequestError::Http(e))
@@ -193,14 +229,6 @@ pub async fn add_new_db_table(
         price_digits_for_db_table,
         tick_info.lot_decimals
     ); 
-
-    let db: connection::Db = connection::get_db_connection(None, "kraken")
-        .await?;
-    
-    let mut conn: Conn = match db.conn().await {
-        Ok(c) => c,
-        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
-    }; 
     
     if let Err(_) = conn.query_drop(query).await {
         return Err(FetchError::Db(DbError::QueryFailed)); 
@@ -213,7 +241,7 @@ pub async fn add_new_db_table(
 pub async fn request_tick_data_from_kraken(
     ticker: &str, 
     since_unix_timestamp: String, 
-    http_client: Option<reqwest::Client> 
+    http_client: Option<&reqwest::Client> 
 ) -> Result<TickDataResponse, RequestError> {
     
     let url = format!(
@@ -224,7 +252,7 @@ pub async fn request_tick_data_from_kraken(
   
     let client = match http_client {
         Some(c) => c,
-        None => reqwest::Client::new()
+        None => &reqwest::Client::new()
     };
     
     let response = client.get(&url).send().await?;
@@ -252,14 +280,22 @@ pub async fn request_tick_data_from_kraken(
 }
 
 
-pub async fn request_asset_info_from_kraken(ticker: &str) 
+pub async fn request_asset_info_from_kraken(
+    ticker: &str,
+    http_client: Option<&reqwest::Client> 
+) 
   -> Result<AssetPairInfo, reqwest::Error> {
+    
     let url = format!(
         "https://api.kraken.com/0/public/AssetPairs?pair={}",
         ticker
     );
 
-    let client = reqwest::Client::new();
+    let client = match http_client {
+        Some(c) => c,
+        None => &reqwest::Client::new()
+    };
+
     let response = client 
         .get(url)
         .send()

@@ -39,23 +39,11 @@ pub async fn fetch_data_and_build_bars(
 
 }
 
-// MariaDB [kraken_history]> SELECT id, timestamp 
-// FROM SOLUSD ORDER BY id DESC LIMIT 1;
-// +----------+------------------+
-// | id       | timestamp        |
-// +----------+------------------+
-// | 27637179 | 1767850856060224 |
-// +----------+------------------+
-// 1 row in set (0.000 sec)
 
-
-pub async fn dev_test() {
-    // kraken::download_new_data_to_db_table("SOLUSD").await;
-    // database_ops::kraken::add_new_db_table("BTCUSD").await;
-    let bars = fetch_data_and_build_bars("kraken", "SOLUSD", "1w", None).await;
-    for bar in &bars {
-        println!("{}", bar);
-    }
+pub async fn dev_test(config: &AppConfig) {
+    database_ops::download_new_data_to_db_table(
+        "kraken", "BTCUSD", Some(4000000), None 
+    ).await;
 }
 
 

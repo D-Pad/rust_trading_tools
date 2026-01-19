@@ -7,20 +7,50 @@ pub mod kraken;
 
 
 pub async fn download_new_data_to_db_table(
-    exchange: &str, ticker: &str
+    exchange: &str, 
+    ticker: &str,
+    initial_unix_timestamp_offset: Option<u64>,
+    http_client: Option<&reqwest::Client>
 ) -> Result<(), FetchError> {
    
-    let _db: Db = connection::get_db_connection(None, exchange).await?;
+    let client = match http_client {
+        Some(c) => c,
+        None => &reqwest::Client::new()
+    }; 
 
-    let client = reqwest::Client::new();
+    let db: Db = connection::get_db_connection(None, exchange).await?;
+    let mut conn: Conn = match db.conn().await {
+        Ok(c) => c,
+        Err(_) => return Err(
+            connection::FetchError::Db(DbError::ConnectionFailed)
+        )
+    };
 
-    let data = kraken::request_tick_data_from_kraken(
-        ticker, 
-        "1767850856".to_string(),
-        Some(client)
-    ).await?; 
+    if exchange == "kraken" {
+       
+        let existing_tables: Vec<String> = match conn.exec(
+            "SHOW TABLES", ()
+        ).await {
+            Ok(d) => d,
+            Err(_) => return Err(
+                connection::FetchError::Db(DbError::QueryFailed)
+            )
+        };
+        
+        if !existing_tables.contains(&ticker.to_string()) {
+            kraken::add_new_db_table(
+                &ticker, Some(&client), Some(conn)
+            ).await?;
+        };
 
-    println!("DATA: {:?}", data);
+        // let data = kraken::request_tick_data_from_kraken(
+        //     ticker, 
+        //     "1767850856".to_string(),
+        //     Some(&client)
+        // ).await?; 
+
+        // println!("DATA: {:?}", data);
+    };
 
     Ok(())
 }

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use timestamp_tools;
 
 
 pub enum ConfigError {
@@ -38,8 +39,25 @@ pub struct DataDownload {
 }
 
 impl DataDownload {
+    
     pub fn get_time_period(&self) -> String {
         format!("{}{}", self.cache_size_units, self.cache_size_period)
+    }
+
+    pub fn cache_size_settings_to_seconds(&self) -> u64 {
+      
+        const DEFAULT_RETURN_VAL: u64 = 60 * 60 * 24 * 30;  // ~1 Month
+
+        let size = self.cache_size_units as u64;
+        let period = match self.cache_size_period.chars().next() {
+            Some(c) => c,
+            None => return DEFAULT_RETURN_VAL 
+        };
+        
+        match timestamp_tools::calculate_seconds_in_period(size, period) {
+            Ok(v) => v,
+            Err(_) => DEFAULT_RETURN_VAL
+        } 
     }
 }
 
@@ -56,11 +74,18 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
     if json_path.exists() {
         if let Ok(d) = fs::read_to_string(&json_path) {
             if let Ok(j) = serde_json::from_str::<AppConfig>(&d) {
+                println!(
+                    "\x1b[1;36mLoading app settings from saved state\x1b[0m"
+                ); 
                 return Ok(j) 
             }
         }
     };
-
+    
+    println!(
+        "\x1b[1;33mNo save state detected. Loading initial config\x1b[0m"
+    );
+    
     // Fallback to default .toml file if not .json file is present
     let toml_config_path: &'static str = "../cache/config.toml";
     
