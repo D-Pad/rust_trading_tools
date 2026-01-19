@@ -37,6 +37,21 @@ struct Trade {
     tick_id: u64,
 }
 
+impl Trade {
+    pub fn to_db_row(&self) -> String {
+        format!(
+            "({}, {}, {}, {}, '{}', '{}', '{}')",
+            self.tick_id,
+            self.price, 
+            self.volume,
+            (self.time * 1_000_000.0) as u128,
+            self.buy_sell,
+            self.market_limit,
+            self.miscellaneous
+        ) 
+    }
+}
+
 // Token info structs
 #[derive(Debug, Deserialize)]
 pub struct AssetPairsResponse {
@@ -224,7 +239,7 @@ pub async fn add_new_db_table(
             id BIGINT PRIMARY KEY,
             price DECIMAL({},{}) NOT NULL, 
             volume DECIMAL({},{}) NOT NULL, 
-            timestamp BIGINT NOT NULL, 
+            time BIGINT NOT NULL, 
             buy_sell CHAR(1) NOT NULL, 
             market_limit CHAR(1) NOT NULL, 
             misc VARCHAR(16)
@@ -255,7 +270,7 @@ pub async fn add_new_db_table(
         Err(e) => return Err(FetchError::Api(e))
     };
 
-    write_data_to_db_table(ticker, initial_data, Some(&conn)).await;
+    write_data_to_db_table(ticker, initial_data, Some(conn)).await;
 
     Ok(())
 }
@@ -339,10 +354,21 @@ pub async fn request_asset_info_from_kraken(
 pub async fn write_data_to_db_table(
     ticker: &str,
     tick_data: TickDataResponse, 
-    db_connection: Option<&Conn>
+    db_connection: Option<Conn>
 ) -> Result<(), DbError> {
     
-    let mut query: String = format!("INSERT INTO {} VALUES (", ticker);
+    let mut query: String = format!(
+        r#"INSERT INTO `{}` (
+            id, 
+            price, 
+            volume, 
+            time, 
+            buy_sell, 
+            market_limit,
+            misc
+        ) VALUES "#, 
+        ticker
+    );
     
     let tick_value_result = match tick_data.result {
         Some(d) => d.trades.into_values().next().ok_or(DbError::ParseError),
@@ -353,8 +379,36 @@ pub async fn write_data_to_db_table(
         Ok(d) => d,
         Err(_) => return Err(DbError::ParseError) 
     };
+   
+    let max_index = tick_data.len() - 1;
+    for (index, tick) in tick_data.iter().enumerate() {
+        query.push_str(&tick.to_db_row());
+        if index < max_index {
+            query.push_str(",\n");
+        };
+    };
     
-    println!("TICK DATA: {:?}", tick_data);
+    query.push_str(";");
+   
+    let mut conn: Conn = match db_connection {
+        Some(c) => c,
+        None => {
+            let db: connection::Db = connection::get_db_connection(
+                None, "kraken"
+            ).await?;
+            
+            let connection: Conn = match db.conn().await {
+                Ok(c) => c,
+                Err(_) => return Err(DbError::ConnectionFailed)
+            };
+            connection
+        } 
+    };
+
+    if let Err(_) = conn.query_drop(query).await {
+        println!("QUERY FAILED");
+        return Err(DbError::QueryFailed); 
+    };
 
     Ok(())
 }
