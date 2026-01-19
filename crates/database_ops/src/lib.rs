@@ -170,9 +170,9 @@ pub async fn initialize(active_exchanges: Vec<String>) -> Result<(), DbError> {
             if !existing_tables.contains(&"_last_tick_history".to_string()) {
                 let query: &'static str = r#"
                     CREATE TABLE IF NOT EXISTS _last_tick_history (
-                        asset VARCHAR(12) NOT NULL,
-                        id BIGINT NOT NULL,
-                        timestamp VARCHAR(20)
+                        asset VARCHAR(12) NOT NULL PRIMARY KEY,
+                        next_tick_id BIGINT NOT NULL,
+                        time VARCHAR(20)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4; 
                 "#;
                 if let Err(_) = conn.query_drop(query).await {

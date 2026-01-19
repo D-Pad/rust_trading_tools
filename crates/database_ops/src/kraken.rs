@@ -234,7 +234,7 @@ pub async fn add_new_db_table(
         ) 
     };
     
-    let query: String = format!(r#"
+    let create_table_query: String = format!(r#"
         CREATE TABLE IF NOT EXISTS {} (
             id BIGINT PRIMARY KEY,
             price DECIMAL({},{}) NOT NULL, 
@@ -251,16 +251,23 @@ pub async fn add_new_db_table(
         price_digits_for_db_table,
         tick_info.lot_decimals
     ); 
-    
-    if let Err(_) = conn.query_drop(query).await {
+   
+    if let Err(_) = conn.query_drop(create_table_query).await {
         return Err(FetchError::Db(DbError::QueryFailed)); 
     };
 
-    // Initial table data population
+    let initial_time_stamp_query: String = format!(r#"
+        INSERT INTO _last_tick_history (asset, next_tick_id, time) 
+        VALUES ('{}', 0, 0);"#, ticker);
+
+    if let Err(_) = conn.query_drop(initial_time_stamp_query).await {
+        return Err(FetchError::Db(DbError::QueryFailed)); 
+    };
+
     sleep(Duration::from_millis(500)).await;
     
     initial_fetch_time = current_ts - start_date_unix_timestamp_offset;  
-    
+   
     let initial_data: TickDataResponse = match request_tick_data_from_kraken(
         ticker, 
         initial_fetch_time.to_string(),
@@ -270,9 +277,10 @@ pub async fn add_new_db_table(
         Err(e) => return Err(FetchError::Api(e))
     };
 
-    write_data_to_db_table(ticker, initial_data, Some(conn)).await;
-
-    Ok(())
+    match write_data_to_db_table(ticker, initial_data, Some(conn)).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(FetchError::Db(e)) 
+    }
 }
 
 
@@ -356,8 +364,9 @@ pub async fn write_data_to_db_table(
     tick_data: TickDataResponse, 
     db_connection: Option<Conn>
 ) -> Result<(), DbError> {
-    
-    let mut query: String = format!(
+ 
+    // Insert tick data first
+    let mut data_insert_query: String = format!(
         r#"INSERT INTO `{}` (
             id, 
             price, 
@@ -369,26 +378,34 @@ pub async fn write_data_to_db_table(
         ) VALUES "#, 
         ticker
     );
-    
-    let tick_value_result = match tick_data.result {
-        Some(d) => d.trades.into_values().next().ok_or(DbError::ParseError),
-        None => return Err(DbError::QueryFailed)
+  
+    let trade_fetch_response = match tick_data.result {
+        Some(d) => d,
+        None => return Err(DbError::ParseError)
     };
 
-    let tick_data = match tick_value_result {
+    let tick_data = match trade_fetch_response
+        .trades
+        .into_values()
+        .next()
+        .ok_or(DbError::ParseError)
+
+    {
         Ok(d) => d,
-        Err(_) => return Err(DbError::ParseError) 
+        Err(_) => return Err(DbError::ParseError)
     };
-   
+ 
     let max_index = tick_data.len() - 1;
     for (index, tick) in tick_data.iter().enumerate() {
-        query.push_str(&tick.to_db_row());
+        
+        data_insert_query.push_str(&tick.to_db_row());
+        
         if index < max_index {
-            query.push_str(",\n");
+            data_insert_query.push_str(",\n");
         };
     };
     
-    query.push_str(";");
+    data_insert_query.push_str(";");
    
     let mut conn: Conn = match db_connection {
         Some(c) => c,
@@ -405,8 +422,25 @@ pub async fn write_data_to_db_table(
         } 
     };
 
-    if let Err(_) = conn.query_drop(query).await {
-        println!("QUERY FAILED");
+    if let Err(_) = conn.query_drop(data_insert_query).await {
+        return Err(DbError::QueryFailed); 
+    };
+
+    // Update _last_tick_history
+    let last_tick_timestamp = trade_fetch_response.last;
+    let last_tick_id = match tick_data.iter().last() {
+        Some(t) => t.tick_id + 1,
+        None => return Err(DbError::ParseError) 
+    };
+
+    let last_tick_query: String = format!(r#"
+        UPDATE _last_tick_history
+        SET next_tick_id = ?, time = ?
+        WHERE asset = ?;
+    "#); 
+    let last_tick_params = (last_tick_id, last_tick_timestamp, ticker);
+
+    if let Err(_) = conn.exec_drop(last_tick_query, last_tick_params).await {
         return Err(DbError::QueryFailed); 
     };
 
