@@ -44,6 +44,7 @@ pub enum DbError {
     CredentialsMissing,
     TableCreationFailed,
     QueryFailed,
+    ParseError,
 }
 
 pub enum FetchError {

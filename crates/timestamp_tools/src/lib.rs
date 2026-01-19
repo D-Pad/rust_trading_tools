@@ -31,6 +31,11 @@ pub fn calculate_seconds_in_period(
 }
 
 
+pub fn get_current_unix_timestamp() -> u64 {
+    Utc::now().timestamp() as u64 
+}
+
+
 pub fn get_period_portions_from_string(period: &str) 
     -> Result<(char, u64), TimePeriodError> {
     

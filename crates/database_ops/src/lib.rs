@@ -1,6 +1,7 @@
 use std::{cmp::min};
 use mysql_async::{self, prelude::*, Conn};
 use reqwest;
+use timestamp_tools::*;
 pub mod connection;
 pub use connection::{Db, DbLogin, DbError, FetchError};
 pub mod kraken;
@@ -9,10 +10,13 @@ pub mod kraken;
 pub async fn download_new_data_to_db_table(
     exchange: &str, 
     ticker: &str,
-    initial_unix_timestamp_offset: Option<u64>,
+    initial_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>
 ) -> Result<(), FetchError> {
-   
+  
+    let current_time: u64 = get_current_unix_timestamp();
+    let start_timestamp: u64 = current_time - initial_unix_timestamp_offset;
+
     let client = match http_client {
         Some(c) => c,
         None => &reqwest::Client::new()
@@ -26,7 +30,7 @@ pub async fn download_new_data_to_db_table(
         )
     };
 
-    if exchange == "kraken" {
+    if exchange == "krakenX" {
        
         let existing_tables: Vec<String> = match conn.exec(
             "SHOW TABLES", ()
@@ -39,7 +43,10 @@ pub async fn download_new_data_to_db_table(
         
         if !existing_tables.contains(&ticker.to_string()) {
             kraken::add_new_db_table(
-                &ticker, Some(&client), Some(conn)
+                &ticker, 
+                initial_unix_timestamp_offset, 
+                Some(&client), 
+                Some(conn)
             ).await?;
         };
 

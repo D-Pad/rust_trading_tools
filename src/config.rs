@@ -34,8 +34,8 @@ pub struct SupportedExchanges {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataDownload {
-    pub cache_size_units: u8,
-    pub cache_size_period: String,
+    pub cache_size_units: u64,
+    pub cache_size_period: char,
 }
 
 impl DataDownload {
@@ -49,10 +49,7 @@ impl DataDownload {
         const DEFAULT_RETURN_VAL: u64 = 60 * 60 * 24 * 30;  // ~1 Month
 
         let size = self.cache_size_units as u64;
-        let period = match self.cache_size_period.chars().next() {
-            Some(c) => c,
-            None => return DEFAULT_RETURN_VAL 
-        };
+        let period = self.cache_size_period;
         
         match timestamp_tools::calculate_seconds_in_period(size, period) {
             Ok(v) => v,

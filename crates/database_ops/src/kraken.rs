@@ -1,10 +1,13 @@
-use reqwest;
-use serde::Deserialize;
 use std::{
     collections::HashMap, 
     time::{SystemTime, UNIX_EPOCH}
 };
+
+use reqwest;
+use serde::Deserialize;
 use mysql_async::{prelude::Queryable, Conn};
+use tokio::time::{sleep, Duration};
+
 use crate::{DbError, FetchError};
 pub use crate::connection;
 
@@ -103,7 +106,8 @@ impl From<serde_json::Error> for RequestError {
 
 
 pub async fn add_new_db_table(
-    ticker: &str, 
+    ticker: &str,
+    start_date_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
     db_connection: Option<Conn>
 ) -> Result<(), connection::FetchError> {
@@ -141,21 +145,22 @@ pub async fn add_new_db_table(
         }
     };
 
-    const TIME_OFFSET: u64 = 60 * 60 * 24 * 14;  // 2 weeks of seconds
+    const INIT_TIME_OFFSET: u64 = 60 * 60 * 24 * 14;  // 2 weeks of seconds
     
-    let initial_fetch_time = match SystemTime::now()
-        .duration_since(UNIX_EPOCH) {
-            Ok(t) => format!("{}", t.as_secs() - TIME_OFFSET),
-            Err(_) => return Err(
-                connection::FetchError::SystemError(
-                    "Couldn't retrieve system time".to_string()
-                )
-            ) 
-        };
+    let current_ts = match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(t) => t.as_secs(),
+        Err(_) => return Err(
+            connection::FetchError::SystemError(
+                "Couldn't retrieve system time".to_string()
+            )
+        ) 
+    };
 
-    let last_trade: Trade = match request_tick_data_from_kraken(
+    let mut initial_fetch_time: u64 = current_ts - INIT_TIME_OFFSET;
+
+    let initial_trade: Trade = match request_tick_data_from_kraken(
         ticker, 
-        initial_fetch_time,
+        initial_fetch_time.to_string(),
         http_client
     ).await {
         Ok(d) => {
@@ -194,7 +199,7 @@ pub async fn add_new_db_table(
         )
     };
 
-    let price_string = last_trade.price.to_string();
+    let price_string = initial_trade.price.to_string();
     let left_digits = match price_string.split_once(".") {
         Some((left, _right)) => left.len(),
         None => price_string.len()
@@ -202,6 +207,8 @@ pub async fn add_new_db_table(
 
     let price_digits_for_db_table = left_digits + 5;
 
+    sleep(Duration::from_millis(500)).await;
+    
     let tick_info = match request_asset_info_from_kraken(
         &ticker,
         http_client
@@ -233,6 +240,22 @@ pub async fn add_new_db_table(
     if let Err(_) = conn.query_drop(query).await {
         return Err(FetchError::Db(DbError::QueryFailed)); 
     };
+
+    // Initial table data population
+    sleep(Duration::from_millis(500)).await;
+    
+    initial_fetch_time = current_ts - start_date_unix_timestamp_offset;  
+    
+    let initial_data: TickDataResponse = match request_tick_data_from_kraken(
+        ticker, 
+        initial_fetch_time.to_string(),
+        http_client
+    ).await {
+        Ok(d) => d,
+        Err(e) => return Err(FetchError::Api(e))
+    };
+
+    write_data_to_db_table(ticker, initial_data, Some(&conn)).await;
 
     Ok(())
 }
@@ -310,5 +333,29 @@ pub async fn request_asset_info_from_kraken(
         .expect("Could not parse response");
 
     Ok(pair_info)
+}
+
+
+pub async fn write_data_to_db_table(
+    ticker: &str,
+    tick_data: TickDataResponse, 
+    db_connection: Option<&Conn>
+) -> Result<(), DbError> {
+    
+    let mut query: String = format!("INSERT INTO {} VALUES (", ticker);
+    
+    let tick_value_result = match tick_data.result {
+        Some(d) => d.trades.into_values().next().ok_or(DbError::ParseError),
+        None => return Err(DbError::QueryFailed)
+    };
+
+    let tick_data = match tick_value_result {
+        Ok(d) => d,
+        Err(_) => return Err(DbError::ParseError) 
+    };
+    
+    println!("TICK DATA: {:?}", tick_data);
+
+    Ok(())
 }
 

@@ -1,4 +1,4 @@
-use database_ops;
+use database_ops::{self, kraken};
 use bars;
 use crate::config::AppConfig;
 pub mod config;
@@ -41,9 +41,22 @@ pub async fn fetch_data_and_build_bars(
 
 
 pub async fn dev_test(config: &AppConfig) {
-    database_ops::download_new_data_to_db_table(
-        "kraken", "BTCUSD", Some(4000000), None 
+
+    let time_offset: u64 = config
+        .data_download
+        .cache_size_settings_to_seconds();
+
+    // database_ops::download_new_data_to_db_table(
+    //     "kraken", "BTCUSD", Some(time_offset), None 
+    // ).await;
+
+    let _ = kraken::add_new_db_table(
+        "BTCUSD", 
+        time_offset, 
+        None, 
+        None
     ).await;
+
 }
 
 
