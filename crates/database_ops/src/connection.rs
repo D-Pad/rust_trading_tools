@@ -3,6 +3,9 @@ use std::env;
 use crate::kraken;
 
 
+pub const DATABASE_NAME: &'static str = "dpad_llc_trading_app";
+
+
 pub struct Db {
     pub pool: Pool,
 }
@@ -13,8 +16,7 @@ impl Db {
         host: &str,
         port: u16,
         user: &str,
-        password: &str,
-        database: &str,
+        password: &str
     ) -> mysql_async::Result<Self> {
 
         let opts: OptsBuilder = OptsBuilder::default()
@@ -22,7 +24,7 @@ impl Db {
             .tcp_port(port)
             .user(Some(user))
             .pass(Some(password))
-            .db_name(Some(database))
+            .db_name(Some(DATABASE_NAME))
             .into();
 
         let pool = Pool::new(opts);
@@ -131,7 +133,6 @@ pub async fn get_db_connection(
                 3306,
                 &db_login.user,
                 &db_login.password,
-                &exchange_name,
             ).await {
                 Ok(d) => d,
                 Err(_) => return Err(DbError::ConnectionFailed)

@@ -1,5 +1,5 @@
 use std::{cmp::min};
-use mysql_async::{self, prelude::*, Conn};
+use mysql_async::{self, prelude::*, Pool};
 use reqwest;
 use timestamp_tools::*;
 pub mod connection;
@@ -30,7 +30,7 @@ pub async fn download_new_data_to_db_table(
         )
     };
 
-    if exchange == "krakenX" {
+    if exchange == "kraken" {
        
         let existing_tables: Vec<String> = match conn.exec(
             "SHOW TABLES", ()
@@ -44,7 +44,7 @@ pub async fn download_new_data_to_db_table(
         if !existing_tables.contains(&ticker.to_string()) {
             kraken::add_new_db_table(
                 &ticker, 
-                initial_unix_timestamp_offset, 
+                start_timestamp, 
                 Some(&client), 
                 Some(conn)
             ).await?;
@@ -141,23 +141,28 @@ pub async fn fetch_rows(
 }
 
 
-pub async fn initialize(active_exchanges: Vec<String>) -> Result<(), DbError> {
+pub async fn first_time_setup(
+    active_exchanges: &Vec<String>, database_conn: Option<&Conn>
+) -> Result<(), DbError> {
    
     for exchange_name in active_exchanges {
-   
-        println!(
-            "\x1b[1;36mInitializing {} database and tables\x1b[0m",
-            &exchange_name
-        );
 
-        if exchange_name == "kraken" {
-       
-            let db: Db = connection::get_db_connection(None, "kraken").await?;
+        if exchange_name == "kraken" { 
 
-            let mut conn: Conn = match db.conn().await {
-                Ok(d) => d,
-                Err(_) => { 
-                    return Err(DbError::ConnectionFailed)
+            let mut conn: &Conn = match database_conn {
+                Some(d) => &mut d,
+                None => {
+                    
+                    let db: Db = connection::get_db_connection(
+                        None, "kraken"
+                    ).await?;
+
+                    match db.conn().await {
+                        Ok(d) => &mut d,
+                        Err(_) => { 
+                            return Err(DbError::ConnectionFailed)
+                        }
+                    }
                 }
             };
 
@@ -168,6 +173,12 @@ pub async fn initialize(active_exchanges: Vec<String>) -> Result<(), DbError> {
             };
 
             if !existing_tables.contains(&"_last_tick_history".to_string()) {
+   
+                println!(
+                    "\x1b[1;33mInitializing {} database meta tables\x1b[0m",
+                    &exchange_name
+                );
+
                 let query: &'static str = r#"
                     CREATE TABLE IF NOT EXISTS _last_tick_history (
                         asset VARCHAR(12) NOT NULL PRIMARY KEY,
@@ -192,6 +203,41 @@ pub async fn initialize(active_exchanges: Vec<String>) -> Result<(), DbError> {
 
 }
 
+
+pub async fn initialize(
+    active_exchanges: Vec<String>
+) -> Result<(), DbError> {
+
+    let db: Db = connection::get_db_connection(
+        None, "kraken"
+    ).await?;
+
+    let conn: Conn = match db.conn().await {
+        Ok(d) => d,
+        Err(_) => { 
+            return Err(DbError::ConnectionFailed)
+        }
+    };
+
+    first_time_setup(&active_exchanges, Some(&conn)).await?;
+    
+    for exchange_name in active_exchanges {
+   
+        println!(
+            "\x1b[1;33mUpdating existing {} database tables\x1b[0m",
+            &exchange_name
+        );
+
+        if exchange_name == "kraken" {
+
+
+        };
+
+    };
+
+    Ok(())
+
+}
 
 
 #[cfg(test)]

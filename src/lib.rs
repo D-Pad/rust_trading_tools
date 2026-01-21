@@ -3,9 +3,22 @@ use bars;
 use crate::config::AppConfig;
 pub mod config;
 
+use std::collections:HashMap;
+
 
 pub enum InitializationError {
     InitFailure
+}
+
+
+struct AppState {
+    database: database_ops::Db
+}
+
+impl AppState {
+    pub fn new(&self) {
+        
+    }
 }
 
 
@@ -42,20 +55,20 @@ pub async fn fetch_data_and_build_bars(
 
 pub async fn dev_test(config: &AppConfig) {
 
-    let time_offset: u64 = config
-        .data_download
-        .cache_size_settings_to_seconds();
+    // let time_offset: u64 = config
+    //     .data_download
+    //     .cache_size_settings_to_seconds();
 
     // database_ops::download_new_data_to_db_table(
     //     "kraken", "BTCUSD", Some(time_offset), None 
     // ).await;
 
-    let _ = kraken::add_new_db_table(
-        "BTCUSD", 
-        time_offset, 
-        None, 
-        None
-    ).await;
+    // let _ = kraken::add_new_db_table(
+    //     "BTCUSD", 
+    //     time_offset, 
+    //     None, 
+    //     None
+    // ).await;
 
 }
 
