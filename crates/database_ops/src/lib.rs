@@ -1,5 +1,5 @@
 use std::{cmp::min};
-use mysql_async::{self, prelude::*, Pool};
+use mysql_async::{self, prelude::*, Pool, Conn};
 use reqwest;
 use timestamp_tools::*;
 pub mod connection;
@@ -11,6 +11,7 @@ pub async fn download_new_data_to_db_table(
     exchange: &str, 
     ticker: &str,
     initial_unix_timestamp_offset: u64,
+    db_pool: Pool,
     http_client: Option<&reqwest::Client>
 ) -> Result<(), FetchError> {
   
@@ -22,12 +23,9 @@ pub async fn download_new_data_to_db_table(
         None => &reqwest::Client::new()
     }; 
 
-    let db: Db = connection::get_db_connection(None, exchange).await?;
-    let mut conn: Conn = match db.conn().await {
+    let mut conn: Conn = match db_pool.get_conn().await {
         Ok(c) => c,
-        Err(_) => return Err(
-            connection::FetchError::Db(DbError::ConnectionFailed)
-        )
+        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
     };
 
     if exchange == "kraken" {
@@ -45,8 +43,8 @@ pub async fn download_new_data_to_db_table(
             kraken::add_new_db_table(
                 &ticker, 
                 start_timestamp, 
-                Some(&client), 
-                Some(conn)
+                Some(&client),
+                db_pool.clone()
             ).await?;
         };
 
@@ -66,13 +64,14 @@ pub async fn download_new_data_to_db_table(
 pub async fn fetch_last_row(
     exchange: &str, 
     ticker: &str,
-    existing_db: Option<Db>
+    db_pool: Pool 
 ) -> Result<Vec<(u64, u64, f64, f64)>, FetchError> {
 
-    let db: Db = connection::get_db_connection(existing_db, exchange).await?;
-    
-    let mut conn: Conn = db.conn().await?;
-   
+    let mut conn: Conn = match db_pool.get_conn().await {
+        Ok(c) => c,
+        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
+    };
+  
     type TickRow = Vec<(u64, u64, f64, f64)>;
     let last_row: TickRow = conn.exec(
         &format!(
@@ -88,26 +87,23 @@ pub async fn fetch_last_row(
 pub async fn fetch_rows(
     exchange: &str, 
     ticker: &str,
-    limit: Option<u64>
+    limit: Option<u64>,
+    db_pool: Pool
 ) -> Result<Vec<(u64, u64, f64, f64)>, FetchError> {
 
-    let db: Db = connection::get_db_connection(None, exchange).await?;
+    let mut conn: Conn = match db_pool.get_conn().await {
+        Ok(c) => c,
+        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
+    };
 
     let limit: u64 = match limit {
         Some(i) => i,
         None => 1_000
     };
 
-    let mut exchange_name = exchange.to_string();
-    if !exchange_name.contains("_history") {
-        exchange_name.push_str("_history");
-    };
-
-    let mut conn: Conn = db.conn().await?;
-
     let first_id: u64 = match conn.exec_first::<u64, _, _>(
         &format!(
-            r#"SELECT id FROM {ticker} 
+            r#"SELECT id FROM asset_{exchange}_{ticker} 
             ORDER BY id LIMIT 1"#
         ), ()
     ).await {
@@ -117,7 +113,7 @@ pub async fn fetch_rows(
 
     let last_id: u64 = match conn.exec_first::<u64, _, _>(
         &format!(
-            r#"SELECT id FROM {ticker} 
+            r#"SELECT id FROM asset_{exchange}_{ticker} 
             ORDER BY id DESC LIMIT 1"#
         ), ()
     ).await {
@@ -132,7 +128,7 @@ pub async fn fetch_rows(
     let tick_id: u64 = last_id - min(last_id - first_id, limit);
 
     query.push_str(&format!(
-        " FROM {ticker} WHERE id >= {tick_id}"
+        " FROM asset_{exchange}_{ticker} WHERE id >= {tick_id}"
     ));
 
     let rows: Vec<(u64, u64, f64, f64)> = conn.exec(query, ()).await?;
@@ -142,28 +138,17 @@ pub async fn fetch_rows(
 
 
 pub async fn first_time_setup(
-    active_exchanges: &Vec<String>, database_conn: Option<&Conn>
+    active_exchanges: &Vec<String>, 
+    db_pool: Pool 
 ) -> Result<(), DbError> {
    
     for exchange_name in active_exchanges {
 
         if exchange_name == "kraken" { 
 
-            let mut conn: &Conn = match database_conn {
-                Some(d) => &mut d,
-                None => {
-                    
-                    let db: Db = connection::get_db_connection(
-                        None, "kraken"
-                    ).await?;
-
-                    match db.conn().await {
-                        Ok(d) => &mut d,
-                        Err(_) => { 
-                            return Err(DbError::ConnectionFailed)
-                        }
-                    }
-                }
+            let mut conn: Conn = match db_pool.get_conn().await {
+                Ok(c) => c,
+                Err(_) => return Err(DbError::ConnectionFailed)
             };
 
             let table_request = conn.exec("SHOW TABLES;", ()).await;
@@ -205,21 +190,18 @@ pub async fn first_time_setup(
 
 
 pub async fn initialize(
-    active_exchanges: Vec<String>
+    active_exchanges: Vec<String>,
+    db_pool: Pool
 ) -> Result<(), DbError> {
 
-    let db: Db = connection::get_db_connection(
-        None, "kraken"
-    ).await?;
-
-    let conn: Conn = match db.conn().await {
-        Ok(d) => d,
-        Err(_) => { 
+    let mut conn: Conn = match db_pool.get_conn().await {
+        Ok(c) => c,
+        Err(_) => {
             return Err(DbError::ConnectionFailed)
         }
     };
 
-    first_time_setup(&active_exchanges, Some(&conn)).await?;
+    first_time_setup(&active_exchanges, db_pool.clone()).await?;
     
     for exchange_name in active_exchanges {
    

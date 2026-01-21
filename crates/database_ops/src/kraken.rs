@@ -5,7 +5,7 @@ use std::{
 
 use reqwest;
 use serde::Deserialize;
-use mysql_async::{prelude::Queryable, Conn};
+use mysql_async::{prelude::Queryable, Pool, Conn};
 use tokio::time::{sleep, Duration};
 
 use crate::{DbError, FetchError};
@@ -124,42 +124,32 @@ pub async fn add_new_db_table(
     ticker: &str,
     start_date_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
-    db_connection: Option<Conn>
-) -> Result<(), connection::FetchError> {
-   
-    let mut conn: Conn = match db_connection {
-        Some(c) => c,
-        None => {
-            
-            let db: connection::Db = connection::get_db_connection(
-                None, "kraken"
-            ).await?;
-            
-            let mut connection: Conn = match db.conn().await {
-                Ok(c) => c,
-                Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
-            };
-            
-            let existing_tables: Vec<String> = match connection.exec(
-                "SHOW TABLES;", ()
-            ).await {
-                Ok(d) => d,
-                Err(_) => return Err(
-                    connection::FetchError::Db(
-                        DbError::QueryFailed
-                    )
-                )
-            };
+    db_pool: Pool 
+) -> Result<(), FetchError> {
 
-            if existing_tables.contains(&ticker.to_string()) {
-                println!("\x1b[1;31m{ticker} table already exists\x1b[0m");
-                return Ok(())
-            };
-
-            connection
-        }
+    let table_name: String = format!("asset_kraken_{}", ticker);
+           
+    let mut conn: Conn = match db_pool.get_conn().await {
+        Ok(c) => c,
+        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
     };
 
+    let existing_tables: Vec<String> = match conn.exec(
+        "SHOW TABLES;", ()
+    ).await {
+        Ok(d) => d,
+        Err(_) => return Err(
+            connection::FetchError::Db(
+                DbError::QueryFailed
+            )
+        )
+    };
+
+    if existing_tables.contains(&table_name) {
+        println!("\x1b[1;31m{ticker} table already exists\x1b[0m");
+        return Ok(())
+    };
+    
     const INIT_TIME_OFFSET: u64 = 60 * 60 * 24 * 14;  // 2 weeks of seconds
     
     let current_ts = match SystemTime::now().duration_since(UNIX_EPOCH) {
@@ -245,7 +235,7 @@ pub async fn add_new_db_table(
             misc VARCHAR(16)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         "#,
-        ticker,
+        table_name,
         price_digits_for_db_table,
         tick_info.pair_decimals,
         price_digits_for_db_table,
@@ -277,7 +267,7 @@ pub async fn add_new_db_table(
         Err(e) => return Err(FetchError::Api(e))
     };
 
-    match write_data_to_db_table(ticker, initial_data, Some(conn)).await {
+    match write_data_to_db_table(ticker, initial_data, db_pool.clone()).await {
         Ok(_) => Ok(()),
         Err(e) => Err(FetchError::Db(e)) 
     }
@@ -362,12 +352,12 @@ pub async fn request_asset_info_from_kraken(
 pub async fn write_data_to_db_table(
     ticker: &str,
     tick_data: TickDataResponse, 
-    db_connection: Option<Conn>
+    db_pool: Pool 
 ) -> Result<(), DbError> {
  
     // Insert tick data first
     let mut data_insert_query: String = format!(
-        r#"INSERT INTO `{}` (
+        r#"INSERT INTO `asset_kraken_{}` (
             id, 
             price, 
             volume, 
@@ -407,19 +397,9 @@ pub async fn write_data_to_db_table(
     
     data_insert_query.push_str(";");
    
-    let mut conn: Conn = match db_connection {
-        Some(c) => c,
-        None => {
-            let db: connection::Db = connection::get_db_connection(
-                None, "kraken"
-            ).await?;
-            
-            let connection: Conn = match db.conn().await {
-                Ok(c) => c,
-                Err(_) => return Err(DbError::ConnectionFailed)
-            };
-            connection
-        } 
+    let mut conn: Conn = match db_pool.get_conn().await {
+        Ok(c) => c,
+        Err(_) => return Err(DbError::ConnectionFailed)
     };
 
     if let Err(_) = conn.query_drop(data_insert_query).await {

@@ -1,4 +1,4 @@
-use mysql_async::{self, Pool, Conn, OptsBuilder};
+use mysql_async::{self, OptsBuilder, Pool, prelude::Queryable};
 use std::env;
 use crate::kraken;
 
@@ -19,6 +19,22 @@ impl Db {
         password: &str
     ) -> mysql_async::Result<Self> {
 
+        let init_opts: OptsBuilder = OptsBuilder::default()
+            .ip_or_hostname(host)
+            .tcp_port(port)
+            .user(Some(user))
+            .pass(Some(password))
+            .into();
+
+        let init_pool = Pool::new(init_opts);
+        
+        if let Ok(mut p) = init_pool.get_conn().await {
+            let _ = p.exec_drop(
+                format!("CREATE DATABASE IF NOT EXISTS {};", DATABASE_NAME),
+                ()
+            ).await;
+        };
+
         let opts: OptsBuilder = OptsBuilder::default()
             .ip_or_hostname(host)
             .tcp_port(port)
@@ -32,13 +48,14 @@ impl Db {
         Ok(Self { pool })
     }
 
-    pub async fn conn(&self) -> mysql_async::Result<Conn> {
-        self.pool.get_conn().await
+    pub fn get_pool(&self) -> mysql_async::Pool {
+        self.pool.clone()
     }
 
     pub async fn disconnect(self) {
         let _ = self.pool.disconnect().await;
     }
+
 }
 
 pub enum DbError {
@@ -47,6 +64,7 @@ pub enum DbError {
     TableCreationFailed,
     QueryFailed,
     ParseError,
+    InitFailure,
 }
 
 pub enum FetchError {
@@ -108,39 +126,4 @@ impl DbLogin {
     }
 }
 
-pub async fn get_db_connection(
-    existing_db: Option<Db>,
-    exchange: &str
-) -> Result<Db, DbError> {
-    
-    let db_connector: Db = match existing_db {
-        Some(db) => db,
-        None => { 
-            
-            let db_login: DbLogin = DbLogin::new(); 
-            if !&db_login.is_valid() {
-                println!("\x1b[1;31mMissing DB credentials\x1b[0m"); 
-                return Err(DbError::CredentialsMissing) 
-            };
-            
-            let mut exchange_name = exchange.to_string();
-            if !exchange_name.contains("_history") {
-                exchange_name.push_str("_history");
-            };
-            
-            let db = match Db::new(
-                &db_login.host,
-                3306,
-                &db_login.user,
-                &db_login.password,
-            ).await {
-                Ok(d) => d,
-                Err(_) => return Err(DbError::ConnectionFailed)
-            };
-            db
-        }
-    };
-
-    Ok(db_connector)
-}
 

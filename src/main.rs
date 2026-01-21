@@ -8,15 +8,16 @@ async fn main() {
   
     dotenv().ok(); 
 
-    let config = match trading_app::config::load_config() {
-        Ok(c) => c,
+    let app_state = match trading_app::AppState::new().await {
+        Ok(a) => a,
         Err(_) => {
-            println!("\x1b[1;31mCould not load config\x1b[0m");
+            println!("\x1b[1;31mCould not initialize app state\x1b[0m");
             process::exit(1);
         } 
     };
 
-    if let Err(_) = trading_app::initiailze(&config).await {
+    if let Err(_) = trading_app::initiailze(&app_state).await {
+        println!("INIT FAILURE"); 
         process::exit(1); 
     };
 
