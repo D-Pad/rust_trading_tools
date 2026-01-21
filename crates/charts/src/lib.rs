@@ -1,4 +1,4 @@
-use bars::{BarSeries}
+use bars::{BarSeries};
 
 
 pub struct Chart {
@@ -7,12 +7,12 @@ pub struct Chart {
 
 impl Chart {
     
-    pub fn new(bars: BarSeries) {
+    pub fn new(bars: BarSeries) -> Self {
         Chart { bars }
     }
 
     pub fn num_bars_on_chart(&self) -> usize {
-        self.bars.len()
+        self.bars.bars.len()
     }
 
 }
