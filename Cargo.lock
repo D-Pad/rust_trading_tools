@@ -164,6 +164,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "charts"
+version = "0.1.0"
+dependencies = [
+ "bars",
+ "timestamp_tools",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1953,6 +1961,7 @@ version = "0.1.0"
 dependencies = [
  "app_state",
  "bars",
+ "charts",
  "database_ops",
  "dotenvy",
  "indicators",

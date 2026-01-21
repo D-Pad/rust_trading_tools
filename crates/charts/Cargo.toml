@@ -1,0 +1,12 @@
+[package]
+name = "charts"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+# My local modules
+timestamp_tools = { path = "../timestamp_tools" }
+bars = { path = "../bars" }
+
+

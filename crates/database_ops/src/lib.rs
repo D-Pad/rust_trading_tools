@@ -29,13 +29,16 @@ pub async fn download_new_data_to_db_table(
     };
 
     if exchange == "kraken" {
-       
+      
+        let show_table_query: String = "SHOW TABLES".to_string();
         let existing_tables: Vec<String> = match conn.exec(
-            "SHOW TABLES", ()
+            show_table_query, ()
         ).await {
             Ok(d) => d,
             Err(_) => return Err(
-                connection::FetchError::Db(DbError::QueryFailed)
+                FetchError::Db(DbError::QueryFailed(
+                    "Failed to fetch table names".to_string()
+                ))
             )
         };
         
@@ -102,24 +105,34 @@ pub async fn fetch_rows(
         None => 1_000
     };
 
+    let first_id_query: &String = &format!(
+        r#"SELECT id FROM asset_{exchange}_{ticker} 
+        ORDER BY id LIMIT 1"#
+    );
     let first_id: u64 = match conn.exec_first::<u64, _, _>(
-        &format!(
-            r#"SELECT id FROM asset_{exchange}_{ticker} 
-            ORDER BY id LIMIT 1"#
-        ), ()
+        first_id_query, ()
     ).await {
         Ok(Some(d)) => d,
-        Ok(None) | Err(_) => return Err(FetchError::Db(DbError::QueryFailed))
+        Ok(None) | Err(_) => return Err(
+            FetchError::Db(DbError::QueryFailed(
+                "Failed to fetch first tick ID".to_string()
+            ))
+        )
     };
 
+    let last_id_query: &String = &format!(
+        r#"SELECT id FROM asset_{exchange}_{ticker} 
+        ORDER BY id DESC LIMIT 1"#
+    );
     let last_id: u64 = match conn.exec_first::<u64, _, _>(
-        &format!(
-            r#"SELECT id FROM asset_{exchange}_{ticker} 
-            ORDER BY id DESC LIMIT 1"#
-        ), ()
+        last_id_query, ()
     ).await {
         Ok(Some(d)) => d,
-        Ok(None) | Err(_) => return Err(FetchError::Db(DbError::QueryFailed))
+        Ok(None) | Err(_) => return Err(
+            FetchError::Db(DbError::QueryFailed(
+                "Failed to fetch last tick ID".to_string() 
+            ))
+        )
     };
 
     let tick_id: u64 = last_id - min(last_id - first_id, limit);
@@ -154,18 +167,16 @@ pub async fn first_time_setup(
                 Err(_) => return Err(DbError::ConnectionFailed)
             };
 
-            let table_request = conn.exec("SHOW TABLES;", ()).await;
+            let show_table_query: String = "SHOW TABLES".to_string();
+            let table_request = conn.exec(show_table_query, ()).await;
             let existing_tables: Vec<String> = match table_request {
                 Ok(d) => d,
-                Err(_) => return Err(DbError::QueryFailed)
+                Err(_) => return Err(DbError::QueryFailed(
+                    "Failed to fetch table names".to_string() 
+                ))
             };
 
             if !existing_tables.contains(&"_last_tick_history".to_string()) {
-   
-                println!(
-                    "\x1b[1;33mInitializing {} database meta tables\x1b[0m",
-                    &exchange_name
-                );
 
                 let query: &'static str = r#"
                     CREATE TABLE IF NOT EXISTS _last_tick_history (
@@ -175,7 +186,10 @@ pub async fn first_time_setup(
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4; 
                 "#;
                 if let Err(_) = conn.query_drop(query).await {
-                    return Err(DbError::QueryFailed); 
+                    return Err(DbError::QueryFailed(
+                            "Failed to create '_last_tick_history'".to_string()
+                        )
+                    ); 
                 };
             };
         };
@@ -196,13 +210,6 @@ pub async fn initialize(
     active_exchanges: Vec<String>,
     db_pool: Pool
 ) -> Result<(), DbError> {
-
-    let mut conn: Conn = match db_pool.get_conn().await {
-        Ok(c) => c,
-        Err(_) => {
-            return Err(DbError::ConnectionFailed)
-        }
-    };
 
     first_time_setup(&active_exchanges, db_pool.clone()).await?;
     

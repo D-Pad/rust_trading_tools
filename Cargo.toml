@@ -4,11 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# My modules
 app_state = { path = "crates/app_state" }   
-database_ops = { path = "crates/database_ops" }   
 bars = { path = "crates/bars" }   
+charts = { path = "crates/charts" }   
+database_ops = { path = "crates/database_ops" }   
 indicators = { path = "crates/indicators" }   
 timestamp_tools = { path = "crates/timestamp_tools" }   
+
+# Third party
 dotenvy = "0.15.7"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.148"
@@ -18,7 +22,8 @@ tokio = { version = "1.48.0", features = ["full"] }
 [workspace]
 members = ["crates/app_state",
   "crates/app_state",
-  "crates/bars",
+  "crates/bars", 
+  "crates/charts",
   "crates/database_ops", 
   "crates/indicators",
   "crates/timestamp_tools"

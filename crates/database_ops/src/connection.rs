@@ -61,8 +61,8 @@ impl Db {
 pub enum DbError {
     ConnectionFailed,
     CredentialsMissing,
-    TableCreationFailed,
-    QueryFailed,
+    TableCreationFailed(String),
+    QueryFailed(String),
     ParseError,
     InitFailure,
 }

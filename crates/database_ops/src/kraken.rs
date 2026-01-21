@@ -134,20 +134,28 @@ pub async fn add_new_db_table(
         Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
     };
 
+    let show_table_query: String = "SHOW TABLES".to_string();
     let existing_tables: Vec<String> = match conn.exec(
-        "SHOW TABLES;", ()
+        show_table_query, ()
     ).await {
         Ok(d) => d,
         Err(_) => return Err(
             connection::FetchError::Db(
-                DbError::QueryFailed
+                DbError::QueryFailed(
+                    "Failed to fetch table names".to_string() 
+                )
             )
         )
     };
 
     if existing_tables.contains(&table_name) {
-        println!("\x1b[1;31m{ticker} table already exists\x1b[0m");
-        return Ok(())
+        return Err(
+            connection::FetchError::Db(
+                DbError::TableCreationFailed(
+                    format!("{} table already exists", ticker)
+                )
+            )
+        )
     };
     
     const INIT_TIME_OFFSET: u64 = 60 * 60 * 24 * 14;  // 2 weeks of seconds
@@ -243,7 +251,9 @@ pub async fn add_new_db_table(
     ); 
    
     if let Err(_) = conn.query_drop(create_table_query).await {
-        return Err(FetchError::Db(DbError::QueryFailed)); 
+        return Err(FetchError::Db(DbError::TableCreationFailed(
+            format!("Failed to create asset_kraken_{} table", ticker) 
+        ))); 
     };
 
     let initial_time_stamp_query: String = format!(r#"
@@ -251,7 +261,16 @@ pub async fn add_new_db_table(
         VALUES ('{}', 0, 0);"#, ticker);
 
     if let Err(_) = conn.query_drop(initial_time_stamp_query).await {
-        return Err(FetchError::Db(DbError::QueryFailed)); 
+        return Err(
+            FetchError::Db(
+                DbError::QueryFailed(
+                    format!(
+                        "Failed to fetch _last_tick_history for {}",
+                        ticker
+                    )
+                )
+            )
+        ); 
     };
 
     sleep(Duration::from_millis(500)).await;
@@ -403,7 +422,9 @@ pub async fn write_data_to_db_table(
     };
 
     if let Err(_) = conn.query_drop(data_insert_query).await {
-        return Err(DbError::QueryFailed); 
+        return Err(DbError::QueryFailed(
+            "Failed to insert tick data into database".to_string()
+        )); 
     };
 
     // Update _last_tick_history
@@ -421,7 +442,9 @@ pub async fn write_data_to_db_table(
     let last_tick_params = (last_tick_id, last_tick_timestamp, ticker);
 
     if let Err(_) = conn.exec_drop(last_tick_query, last_tick_params).await {
-        return Err(DbError::QueryFailed); 
+        return Err(DbError::QueryFailed(
+            "Failed to fetch last tick".to_string()
+        )); 
     };
 
     Ok(())
