@@ -61,6 +61,16 @@ pub fn get_period_portions_from_string(period: &str)
 }
 
 
+pub fn period_is_time_based(period_symbol: char) -> bool {
+    if period_symbol == 't' { 
+        false 
+    }
+    else { 
+        true 
+    }
+}
+
+
 // -------------------------- DATE CONVERSION ------------------------------ //
 fn micros_u64_to_datetime(
     microseconds: u64

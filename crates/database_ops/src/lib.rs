@@ -2,6 +2,7 @@ use std::{cmp::min};
 use mysql_async::{self, prelude::*, Pool, Conn};
 use reqwest;
 use timestamp_tools::*;
+
 pub mod connection;
 pub use connection::{Db, DbLogin, DbError, FetchError};
 pub mod kraken;
@@ -64,6 +65,40 @@ pub async fn download_new_data_to_db_table(
 }
 
 
+pub async fn fetch_first_tick_by_time_column(
+    exchange: &str,
+    ticker: &str,
+    timestamp: &u64,
+    db_pool: Pool
+) -> Vec<(u64, u64, f64, f64)> {
+    
+    let query: String = format!(
+        r#"
+        SELECT id, time, price, volume FROM asset_{}_{}
+        WHERE time >= {}
+        LIMIT 1;
+        "#,
+        exchange,
+        ticker,
+        timestamp 
+    );
+
+    type TickRow = Vec<(u64, u64, f64, f64)>;
+    
+    match db_pool.get_conn().await {
+        Ok(mut c) => {
+            if let Ok(d) = c.exec(query, ()).await {
+                d  
+            }
+            else {
+                Vec::new()
+            }
+        },
+        Err(_) => Vec::new() 
+    }
+}
+
+
 pub async fn fetch_last_row(
     exchange: &str, 
     ticker: &str,
@@ -74,11 +109,11 @@ pub async fn fetch_last_row(
         Ok(c) => c,
         Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
     };
-  
+ 
     type TickRow = Vec<(u64, u64, f64, f64)>;
     let last_row: TickRow = conn.exec(
         &format!(
-            r#"SELECT id, timestamp, price, volume 
+            r#"SELECT id, time, price, volume 
             FROM asset_{exchange}_{ticker} 
             ORDER BY id DESC LIMIT 1"#
         ), ()

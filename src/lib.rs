@@ -1,25 +1,22 @@
 use app_state::{AppState, InitializationError};
-
-
-// Modules and crates for main program functionality
-pub mod bar_builders;
-use crate::bar_builders::{fetch_data_and_build_bars};
+use bars::calculate_first_tick_id;
 
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 pub async fn dev_test(state: &AppState) {
 
-    let time_offset: u64 = state
-        .config
-        .data_download
-        .cache_size_settings_to_seconds();
+    calculate_first_tick_id("kraken", "BTCUSD", "4h", state).await;
+    // let time_offset: u64 = state
+    //     .config
+    //     .data_download
+    //     .cache_size_settings_to_seconds();
 
-    let _ = database_ops::kraken::add_new_db_table(
-        "BTCUSD", 
-        time_offset, 
-        None, 
-        state.database.get_pool() 
-    ).await;
+    // let _ = database_ops::kraken::add_new_db_table(
+    //     "BTCUSD", 
+    //     time_offset, 
+    //     None, 
+    //     state.database.get_pool() 
+    // ).await;
 
     // database_ops::download_new_data_to_db_table(
     //     "kraken", "BTCUSD", Some(time_offset), None 

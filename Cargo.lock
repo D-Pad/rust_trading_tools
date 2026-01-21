@@ -81,7 +81,9 @@ dependencies = [
 name = "bars"
 version = "0.1.0"
 dependencies = [
+ "app_state",
  "chrono",
+ "database_ops",
  "timestamp_tools",
 ]
 

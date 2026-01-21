@@ -26,7 +26,6 @@ impl AppState {
         let db_login: DbLogin = DbLogin::new(); 
                 
         if !&db_login.is_valid() {
-            println!("\x1b[1;31mMissing DB credentials\x1b[0m"); 
             return Err(
                 InitializationError::Db(
                     DbError::CredentialsMissing
@@ -74,6 +73,7 @@ pub struct AppConfig {
     pub backtesting: BackTestSettings,
     pub supported_exchanges: SupportedExchanges,
     pub data_download: DataDownload, 
+    pub chart_parameters: ChartParams,
 }
 
 
@@ -81,6 +81,12 @@ pub struct AppConfig {
 pub struct BackTestSettings {
     pub inside_bar: bool,
 } 
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChartParams {
+    pub num_bars: u16,
+}
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,7 +151,9 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
     
     let contents = match fs::read_to_string(toml_config_path) {
         Ok(d) => d,
-        Err(_) => return Err(ConfigError::FileNotFound)
+        Err(_) => {
+            return Err(ConfigError::FileNotFound)
+        }
     };
 
     let config: AppConfig = match toml::from_str(&contents) {
