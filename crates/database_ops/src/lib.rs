@@ -75,7 +75,8 @@ pub async fn fetch_last_row(
     type TickRow = Vec<(u64, u64, f64, f64)>;
     let last_row: TickRow = conn.exec(
         &format!(
-            r#"SELECT id, timestamp, price, volume FROM {ticker} 
+            r#"SELECT id, timestamp, price, volume 
+            FROM asset_{exchange}_{ticker} 
             ORDER BY id DESC LIMIT 1"#
         ), ()
     ).await?;
@@ -121,15 +122,17 @@ pub async fn fetch_rows(
         Ok(None) | Err(_) => return Err(FetchError::Db(DbError::QueryFailed))
     };
 
-    let mut query: String = String::from(
-        "SELECT id, timestamp, price, volume" 
-    );
-
     let tick_id: u64 = last_id - min(last_id - first_id, limit);
-
-    query.push_str(&format!(
-        " FROM asset_{exchange}_{ticker} WHERE id >= {tick_id}"
-    ));
+    
+    let query: String = format!(
+        r#"
+        SELECT id, timestamp, price, volume
+        FROM asset_{}_{} WHERE id >= {};
+        "#,
+        exchange,
+        ticker,
+        tick_id
+    );
 
     let rows: Vec<(u64, u64, f64, f64)> = conn.exec(query, ()).await?;
 

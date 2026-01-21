@@ -2,9 +2,66 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use database_ops::{Db, DbLogin, DbError};
 use timestamp_tools;
 
 
+// ------------------------- APP STATE MANAGEMENT -------------------------- //
+pub enum InitializationError {
+    Db(DbError),
+    Config(ConfigError),
+    InitFailure
+}
+
+
+pub struct AppState {
+    pub database: Db,
+    pub config: AppConfig
+}
+
+impl AppState {
+    
+    pub async fn new() -> Result<Self, InitializationError> {
+        
+        let db_login: DbLogin = DbLogin::new(); 
+                
+        if !&db_login.is_valid() {
+            println!("\x1b[1;31mMissing DB credentials\x1b[0m"); 
+            return Err(
+                InitializationError::Db(
+                    DbError::CredentialsMissing
+                )
+            )
+        };
+        
+        let database = match Db::new(
+            &db_login.host,
+            3306,
+            &db_login.user,
+            &db_login.password,
+        ).await {
+            Ok(d) => d,
+            Err(_) => return Err(
+                InitializationError::Db(
+                    DbError::ConnectionFailed
+                )
+            )
+        };
+
+        let config = match load_config() {
+            Ok(c) => c,
+            Err(e) => return Err(
+                InitializationError::Config(e)
+            )
+        }; 
+
+        Ok(AppState { database, config })
+
+    }
+}
+
+
+// --------------------------- APP CONFIGURATION --------------------------- //
 pub enum ConfigError {
     FileNotFound,
     ParseFailure,
@@ -116,6 +173,18 @@ pub fn save_config(config: &AppConfig) -> Result<(), ConfigError> {
     match fs::write(&path, json) {
         Ok(_) => Ok(()),
         Err(_) => Err(ConfigError::SaveStateFailed)
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+     
     }
 }
 

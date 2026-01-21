@@ -8,7 +8,7 @@ async fn main() {
   
     dotenv().ok(); 
 
-    let app_state = match trading_app::AppState::new().await {
+    let app_state = match app_state::AppState::new().await {
         Ok(a) => a,
         Err(_) => {
             println!("\x1b[1;31mCould not initialize app state\x1b[0m");
@@ -17,11 +17,10 @@ async fn main() {
     };
 
     if let Err(_) = trading_app::initiailze(&app_state).await {
-        println!("INIT FAILURE"); 
         process::exit(1); 
     };
 
-    // trading_app::dev_test(&config).await;
+    trading_app::dev_test(&app_state).await;
 
 }
 
