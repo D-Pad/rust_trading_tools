@@ -1,7 +1,6 @@
 use std::{cmp::min};
 use mysql_async::{self, prelude::*, Pool, Conn};
 use reqwest;
-use timestamp_tools::*;
 
 pub mod connection;
 pub use connection::{Db, DbLogin, DbError, FetchError};
@@ -11,57 +10,27 @@ pub mod kraken;
 pub async fn download_new_data_to_db_table(
     exchange: &str, 
     ticker: &str,
-    initial_unix_timestamp_offset: u64,
     db_pool: Pool,
-    http_client: Option<&reqwest::Client>
+    initial_unix_timestamp_offset: u64,
+    http_client: Option<&reqwest::Client>,
 ) -> Result<(), FetchError> {
-  
-    let current_time: u64 = get_current_unix_timestamp();
-    let start_timestamp: u64 = current_time - initial_unix_timestamp_offset;
-
+    
     let client = match http_client {
         Some(c) => c,
         None => &reqwest::Client::new()
     }; 
-
-    let mut conn: Conn = match db_pool.get_conn().await {
-        Ok(c) => c,
-        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
-    };
-
-    if exchange == "kraken" {
-      
-        let show_table_query: String = "SHOW TABLES".to_string();
-        let existing_tables: Vec<String> = match conn.exec(
-            show_table_query, ()
-        ).await {
-            Ok(d) => d,
-            Err(_) => return Err(
-                FetchError::Db(DbError::QueryFailed(
-                    "Failed to fetch table names".to_string()
-                ))
-            )
-        };
-        
-        if !existing_tables.contains(&ticker.to_string()) {
-            kraken::add_new_db_table(
-                &ticker, 
-                start_timestamp, 
-                Some(&client),
-                db_pool.clone()
-            ).await?;
-        };
-
-        // let data = kraken::request_tick_data_from_kraken(
-        //     ticker, 
-        //     "1767850856".to_string(),
-        //     Some(&client)
-        // ).await?; 
-
-        // println!("DATA: {:?}", data);
+    
+    if exchange == "kraken" {      
+        kraken::download_new_data_to_db_table(
+            ticker, 
+            db_pool, 
+            initial_unix_timestamp_offset,
+            Some(client)
+        ).await; 
     };
 
     Ok(())
+
 }
 
 

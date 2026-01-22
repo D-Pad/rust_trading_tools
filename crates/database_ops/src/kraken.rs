@@ -8,6 +8,7 @@ use serde::Deserialize;
 use mysql_async::{prelude::Queryable, Pool, Conn};
 use tokio::time::{sleep, Duration};
 
+use timestamp_tools::{get_current_unix_timestamp};
 use crate::{DbError, FetchError};
 pub use crate::connection;
 
@@ -291,6 +292,80 @@ pub async fn add_new_db_table(
         Ok(_) => Ok(()),
         Err(e) => Err(FetchError::Db(e)) 
     }
+}
+
+
+pub async fn download_new_data_to_db_table(
+    ticker: &str,
+    db_pool: Pool,
+    initial_unix_timestamp_offset: u64,
+    http_client: Option<&reqwest::Client>
+) -> Result<(), FetchError> {
+  
+    let current_time: u64 = get_current_unix_timestamp();
+    let start_timestamp: u64 = current_time - initial_unix_timestamp_offset;
+
+    let client = match http_client {
+        Some(c) => c,
+        None => &reqwest::Client::new()
+    }; 
+
+    let mut conn: Conn = match db_pool.get_conn().await {
+        Ok(c) => c,
+        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
+    };
+
+    let show_table_query: String = "SHOW TABLES".to_string();
+    let existing_tables: Vec<String> = match conn.exec(
+        show_table_query, ()
+    ).await {
+        Ok(d) => d,
+        Err(_) => return Err(
+            FetchError::Db(DbError::QueryFailed(
+                "Failed to fetch table names".to_string()
+            ))
+        )
+    };
+    
+    let table_name = format!("asset_kraken_{}", ticker);
+    if !existing_tables.contains(&table_name) {
+        add_new_db_table(
+            &ticker, 
+            start_timestamp, 
+            Some(&client),
+            db_pool.clone()
+        ).await?;
+    };
+
+    // Get the last recorded timestamp from _last_tick_history
+    let query: String = format!(
+        r#"
+        SELECT next_tick_id, time 
+        FROM _last_tick_history
+        WHERE asset = '{}' 
+        "#,
+        ticker
+    ); 
+    let valid_row: Vec<(u64, String)> = match conn.exec(
+        query, ()
+    ).await {
+        Ok(r) => r,
+        Err(_) => return Err(FetchError::Db(DbError::QueryFailed(
+            "Couldn't fetch last tick time from _last_tick_history".to_string()
+        ))) 
+    };
+
+    let (next_tick_id, timestamp) = match valid_row.len() > 0 {
+        true => (valid_row[0].0, &valid_row[0].1),
+        false => return Err(FetchError::Db(DbError::QueryFailed(
+            "Couldn't fetch last tick time from _last_tick_history".to_string()
+        )))
+    }; 
+
+    println!("LAST TICK: {} / {}", next_tick_id, timestamp);
+
+    Ok(())
+
 }
 
 
