@@ -70,6 +70,25 @@ pub async fn fetch_first_tick_by_time_column(
 }
 
 
+pub async fn fetch_tables(
+    db_pool: Pool 
+) -> Result<Vec<String>, DbError> {
+
+    let mut conn: Conn = match db_pool.get_conn().await {
+        Ok(c) => c,
+        Err(_) => return Err(DbError::ConnectionFailed)
+    };
+ 
+    let tables: Vec<String> = match conn.exec("SHOW TABLES", ()).await {
+        Ok(d) => d,
+        Err(_) => return Err(DbError::ConnectionFailed)
+    };
+
+    Ok(tables) 
+
+}
+
+
 pub async fn fetch_first_row(
     exchange: &str, 
     ticker: &str,
@@ -244,13 +263,13 @@ pub async fn initialize(
 
 
 pub struct DatabaseIntegrity {
-    table_name: String,
-    is_ok: bool,
-    first_tick_id: u64,
-    last_tick_id: u64,
-    total_ticks: u64,
-    missing_ticks: Vec<u64>,
-    error: String 
+    pub table_name: String,
+    pub is_ok: bool,
+    pub first_tick_id: u64,
+    pub last_tick_id: u64,
+    pub total_ticks: u64,
+    pub missing_ticks: Vec<u64>,
+    pub error: String 
 }
 
 impl fmt::Display for DatabaseIntegrity {
@@ -301,7 +320,6 @@ pub async fn integrity_check(
 ) -> DatabaseIntegrity {
 
     let table_name = get_table_name(exchange, ticker); 
-    let mut reason: String = String::new(); 
     
     let mut dbi: DatabaseIntegrity = DatabaseIntegrity { 
         table_name: table_name.clone(), 
@@ -310,7 +328,7 @@ pub async fn integrity_check(
         last_tick_id: 0,
         total_ticks: 0,
         missing_ticks: Vec::new(), 
-        error: reason 
+        error: String::new() 
     };
 
     let mut conn = match db_pool.get_conn().await {
@@ -348,13 +366,11 @@ pub async fn integrity_check(
     };
 
     let range_vals = dbi.first_tick_id..dbi.last_tick_id;
-    let mut total_ticks: u64 = 0;
-    let mut end: u64 = 0;
     let mut last_id = 0;
     
     for start in range_vals.step_by(step_val as usize) {
        
-        end = min(start + (step_val as u64) - 1, dbi.last_tick_id); 
+        let end = min(start + (step_val as u64) - 1, dbi.last_tick_id); 
         
         let query = format!(
             "SELECT id FROM {} WHERE id BETWEEN {} AND {}",

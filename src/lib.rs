@@ -54,7 +54,7 @@ mod tests {
 
     use bars::*;
     use app_state::*;
-    use database_ops::{DbLogin, Db};
+    use database_ops::{Db, DbLogin, fetch_tables, integrity_check};
     
     use dotenvy;
     use tokio;
@@ -78,6 +78,55 @@ mod tests {
         let db_pool = db.get_pool();
 
         db_pool.get_conn().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn database_integrity_check() {
+         
+        dotenvy::dotenv().ok(); 
+        
+        let dbl = DbLogin::new();
+        let db = match Db::new(
+            &dbl.host,
+            3306,
+            &dbl.user,
+            &dbl.password 
+        ).await {
+            Ok(d) => d,
+            Err(e) => panic!("{:?}", e)
+        };
+
+        let db_pool = db.get_pool();
+
+        let tables: Vec<String> = match fetch_tables(db_pool.clone()).await {
+            Ok(d) => d,
+            Err(_) => panic!("Failed to fetch tables")
+        };
+
+        for table_name in &tables {
+
+            if table_name.contains("asset_") {
+                
+                let parts: Vec<&str> = table_name.split('_').collect();
+                let exchange = parts[1];
+                let ticker = parts[2];
+
+                let check_val = integrity_check(
+                    exchange, 
+                    ticker, 
+                    db_pool.clone(), 
+                    None 
+                ).await;
+
+                if !check_val.is_ok {
+                    let msg = format!(
+                        "Failed check on asset_{exchange}_{ticker}"
+                    );
+                    panic!("{}", msg); 
+                };
+
+            };
+        };
     }
 
     #[tokio::test]

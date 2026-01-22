@@ -10,6 +10,7 @@ use tokio::time::{sleep, Duration};
 
 use timestamp_tools::{get_current_unix_timestamp};
 use crate::connection::{DbError, FetchError, RequestError, get_table_name};
+use super::fetch_tables;
 pub use crate::connection;
 
 
@@ -114,9 +115,8 @@ pub async fn add_new_db_table(
         Err(_) => return Err(DbError::ConnectionFailed)
     };
 
-    let show_table_query: String = "SHOW TABLES".to_string();
-    let existing_tables: Vec<String> = match conn.exec(
-        show_table_query, ()
+    let existing_tables: Vec<String> = match fetch_tables(
+        db_pool.clone()
     ).await {
         Ok(d) => d,
         Err(_) => return Err(
@@ -301,9 +301,8 @@ pub async fn download_new_data_to_db_table(
         Err(_) => return Err(DbError::ConnectionFailed)
     };
 
-    let show_table_query: String = "SHOW TABLES".to_string();
-    let existing_tables: Vec<String> = match conn.exec(
-        show_table_query, ()
+    let existing_tables: Vec<String> = match fetch_tables(
+        db_pool.clone() 
     ).await {
         Ok(d) => d,
         Err(_) => return Err(
