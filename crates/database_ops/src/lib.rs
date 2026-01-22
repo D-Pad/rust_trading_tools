@@ -1,9 +1,11 @@
-use std::{cmp::min};
+use std::{cmp::{min, max}, fmt};
 use mysql_async::{self, prelude::*, Pool, Conn};
 use reqwest;
 
 pub mod connection;
 pub use connection::{Db, DbLogin, DbError, FetchError};
+
+use crate::connection::get_table_name;
 pub mod kraken;
 
 
@@ -13,7 +15,7 @@ pub async fn download_new_data_to_db_table(
     db_pool: Pool,
     initial_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
-) -> Result<(), FetchError> {
+) -> Result<(), DbError> {
     
     let client = match http_client {
         Some(c) => c,
@@ -68,15 +70,40 @@ pub async fn fetch_first_tick_by_time_column(
 }
 
 
+pub async fn fetch_first_row(
+    exchange: &str, 
+    ticker: &str,
+    db_pool: Pool 
+) -> Result<Vec<(u64, u64, f64, f64)>, DbError> {
+
+    let mut conn: Conn = match db_pool.get_conn().await {
+        Ok(c) => c,
+        Err(_) => return Err(DbError::ConnectionFailed)
+    };
+ 
+    type TickRow = Vec<(u64, u64, f64, f64)>;
+    let last_row: TickRow = conn.exec(
+        &format!(
+            r#"SELECT id, time, price, volume 
+            FROM asset_{exchange}_{ticker} 
+            ORDER BY id LIMIT 1"#
+        ), ()
+    ).await?;
+
+    Ok(last_row) 
+
+}
+
+
 pub async fn fetch_last_row(
     exchange: &str, 
     ticker: &str,
     db_pool: Pool 
-) -> Result<Vec<(u64, u64, f64, f64)>, FetchError> {
+) -> Result<Vec<(u64, u64, f64, f64)>, DbError> {
 
     let mut conn: Conn = match db_pool.get_conn().await {
         Ok(c) => c,
-        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
+        Err(_) => return Err(DbError::ConnectionFailed)
     };
  
     type TickRow = Vec<(u64, u64, f64, f64)>;
@@ -92,16 +119,19 @@ pub async fn fetch_last_row(
 
 }
 
+
 pub async fn fetch_rows(
     exchange: &str, 
     ticker: &str,
     limit: Option<u64>,
     db_pool: Pool
-) -> Result<Vec<(u64, u64, f64, f64)>, FetchError> {
+) -> Result<Vec<(u64, u64, f64, f64)>, DbError> {
+
+    let table_name = get_table_name(ticker, exchange);
 
     let mut conn: Conn = match db_pool.get_conn().await {
         Ok(c) => c,
-        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
+        Err(_) => return Err(DbError::ConnectionFailed)
     };
 
     let limit: u64 = match limit {
@@ -109,46 +139,29 @@ pub async fn fetch_rows(
         None => 1_000
     };
 
-    let first_id_query: &String = &format!(
-        r#"SELECT id FROM asset_{exchange}_{ticker} 
-        ORDER BY id LIMIT 1"#
-    );
-    let first_id: u64 = match conn.exec_first::<u64, _, _>(
-        first_id_query, ()
-    ).await {
-        Ok(Some(d)) => d,
-        Ok(None) | Err(_) => return Err(
-            FetchError::Db(DbError::QueryFailed(
-                "Failed to fetch first tick ID".to_string()
-            ))
-        )
-    };
-
     let last_id_query: &String = &format!(
-        r#"SELECT id FROM asset_{exchange}_{ticker} 
+        r#"SELECT id FROM {table_name} 
         ORDER BY id DESC LIMIT 1"#
     );
+    
     let last_id: u64 = match conn.exec_first::<u64, _, _>(
         last_id_query, ()
     ).await {
         Ok(Some(d)) => d,
         Ok(None) | Err(_) => return Err(
-            FetchError::Db(DbError::QueryFailed(
+            DbError::QueryFailed(
                 "Failed to fetch last tick ID".to_string() 
-            ))
+            )
         )
     };
 
-    let tick_id: u64 = last_id - min(last_id - first_id, limit);
+    let tick_id: u64 = max(1, last_id - limit);
     
     let query: String = format!(
         r#"
         SELECT id, timestamp, price, volume
-        FROM asset_{}_{} WHERE id >= {};
+        FROM {table_name} WHERE id >= {tick_id};
         "#,
-        exchange,
-        ticker,
-        tick_id
     );
 
     let rows: Vec<(u64, u64, f64, f64)> = conn.exec(query, ()).await?;
@@ -201,12 +214,6 @@ pub async fn first_time_setup(
 
     Ok(())
     
-    // 1767850856060224
-    // UPDATE _last_tick_history SET
-    // id = '{values['id']}',
-    // timestamp = '{values['timestamp']}'
-    // WHERE asset = '{values['asset']}';
-
 }
 
 
@@ -232,6 +239,153 @@ pub async fn initialize(
     };
 
     Ok(())
+
+}
+
+
+pub struct DatabaseIntegrity {
+    table_name: String,
+    is_ok: bool,
+    first_tick_id: u64,
+    last_tick_id: u64,
+    total_ticks: u64,
+    missing_ticks: Vec<u64>,
+    error: String 
+}
+
+impl fmt::Display for DatabaseIntegrity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+       
+        fn col(passes: bool) -> &'static str {
+            match passes {
+                true => "\x1b[32m",
+                false => "\x1b[31m",
+            }
+        }
+        
+        write!(f, "\x1b[1;36mDatabase Integrity:\x1b[0m\n");
+        write!(f, "  \x1b[33mtable_name   \x1b[0m: {}\n", 
+            self.table_name);
+        write!(f, "  \x1b[33mis_ok        \x1b[0m: {}{}\n", 
+            col(self.is_ok), self.is_ok);
+        write!(f, "  \x1b[33mfirst_tick_id\x1b[0m: {}\n", self.first_tick_id);
+        write!(f, "  \x1b[33mlast_tick_id \x1b[0m: {}\n", self.last_tick_id);
+        write!(f, "  \x1b[33mtotal_ticks  \x1b[0m: {}\n", self.total_ticks);
+        
+        if self.missing_ticks.len() > 0 {
+            write!(f, "  \x1b[33mmissing_ticks\x1b[0m: [\n\x1b[1;31m");
+            for missing in &self.missing_ticks {
+                write!(f, "    {}\n", missing);
+            };
+            write!(f, "\x1b[0m\n");
+        }
+        else {
+            write!(f, "  \x1b[33mmissing_ticks\x1b[0m: \x1b[32mnone\x1b[0m\n");
+        };
+
+        if self.error.len() > 0 {
+            write!(f, "  \x1b[33merror\x1b[0m: \x1b[1:31m{}", self.error)
+        }
+        else {
+            Ok(())
+        }
+    }
+} 
+
+
+pub async fn integrity_check(
+    exchange: &str, 
+    ticker: &str,
+    db_pool: Pool,
+    tick_step_value: Option<u16>
+) -> DatabaseIntegrity {
+
+    let table_name = get_table_name(exchange, ticker); 
+    let mut reason: String = String::new(); 
+    
+    let mut dbi: DatabaseIntegrity = DatabaseIntegrity { 
+        table_name: table_name.clone(), 
+        is_ok: false, 
+        first_tick_id: 0, 
+        last_tick_id: 0,
+        total_ticks: 0,
+        missing_ticks: Vec::new(), 
+        error: reason 
+    };
+
+    let mut conn = match db_pool.get_conn().await {
+        Ok(c) => c,
+        Err(_) => {
+            dbi.error.push_str("Failed to establish a Database Connection");
+            return dbi
+        } 
+    };    
+
+    dbi.first_tick_id = match fetch_first_row(
+        exchange, ticker, db_pool.clone()
+    ).await {
+        Ok(d) => d[0].0,
+        Err(_) => {
+            dbi.error.push_str("Failed to fetch first tick ID");
+            return dbi
+        }
+    };
+     
+    dbi.last_tick_id = match fetch_last_row(
+        exchange, ticker, db_pool.clone()
+    ).await {
+        Ok(d) => d[0].0,
+        Err(_) => {
+            dbi.error.push_str("Failed to fetch last tick ID"); 
+            return dbi 
+        }
+    };
+
+    const DEFAULT_STEP_VALUE: u16 = 10000;
+    let step_val = match tick_step_value {
+        Some(s) => s,
+        None => DEFAULT_STEP_VALUE
+    };
+
+    let range_vals = dbi.first_tick_id..dbi.last_tick_id;
+    let mut total_ticks: u64 = 0;
+    let mut end: u64 = 0;
+    let mut last_id = 0;
+    
+    for start in range_vals.step_by(step_val as usize) {
+       
+        end = min(start + (step_val as u64) - 1, dbi.last_tick_id); 
+        
+        let query = format!(
+            "SELECT id FROM {} WHERE id BETWEEN {} AND {}",
+            table_name,
+            start,
+            end
+        );
+        
+        let tick_slice: Vec<u64> = match conn.exec(&query, ()).await {
+            Ok(d) => d,
+            Err(_) => {
+                dbi.error.push_str("Failed to fetch tick slice");
+                return dbi
+            }
+        };
+
+        dbi.total_ticks += tick_slice.len() as u64;
+
+        for tick_id in tick_slice {
+            if last_id != 0 && tick_id != last_id + 1 {
+                for i in last_id..tick_id {
+                    dbi.missing_ticks.push(i);
+                }
+            };
+            last_id = tick_id;
+        }; 
+    
+    }; 
+
+    dbi.is_ok = true;
+    dbi
 
 }
 

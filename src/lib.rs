@@ -1,17 +1,30 @@
 use app_state::{AppState, InitializationError};
 
 
+pub enum RunTimeError {
+    Generic
+}
+
+
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
-pub async fn dev_test(state: &AppState) {
+pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
 
-    let time_offset: u64 = state
-        .config
-        .data_download
-        .cache_size_settings_to_seconds();
+    // let time_offset: u64 = state
+    //     .config
+    //     .data_download
+    //     .cache_size_settings_to_seconds();
 
-    let _ = database_ops::download_new_data_to_db_table(
-        "kraken", "BTCUSD", state.database.get_pool(), time_offset, None 
+    // let _ = database_ops::download_new_data_to_db_table(
+    //     "kraken", "BTCUSD", state.database.get_pool(), time_offset, None 
+    // ).await;
+   
+    let check_value = database_ops::integrity_check(
+        "kraken", "BTCUSD", state.database.get_pool(), None
     ).await;
+
+    println!("{}", check_value);
+
+    Ok(())
 
 }
 

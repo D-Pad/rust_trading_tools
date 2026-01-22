@@ -1,11 +1,72 @@
 use mysql_async::{self, OptsBuilder, Pool, prelude::Queryable};
 use std::env;
-use crate::kraken;
 
 
 pub const DATABASE_NAME: &'static str = "dpad_llc_trading_app";
 
 
+// ----------------------- ERROR ENUMS ----------------------------- //
+#[derive(Debug)]
+pub enum RequestError {
+    Http(reqwest::Error),
+    BadStatus(reqwest::StatusCode),
+    Deserialize(serde_json::Error),
+    RequestFailed(String),
+    NoData,
+}
+
+impl From<reqwest::Error> for RequestError {
+    fn from(e: reqwest::Error) -> Self {
+        RequestError::Http(e)
+    }
+}
+
+impl From<serde_json::Error> for RequestError {
+    fn from(e: serde_json::Error) -> Self {
+        RequestError::Deserialize(e)
+    }
+}
+
+
+#[derive(Debug)]
+pub enum DbError {
+    ConnectionFailed,
+    CredentialsMissing,
+    Fetch(FetchError),
+    InitFailure,
+    MySql(mysql_async::Error),
+    ParseError,
+    QueryFailed(String),
+    TableCreationFailed(String),
+}
+
+impl From<FetchError> for DbError {
+    fn from(e: FetchError) -> Self {
+        DbError::Fetch(e)
+    }
+}
+
+impl From<mysql_async::Error> for DbError {
+    fn from(e: mysql_async::Error) -> Self {
+        DbError::MySql(e)
+    }
+}
+
+
+#[derive(Debug)]
+pub enum FetchError {
+    Api(RequestError),
+    SystemError(String),
+}
+
+impl From<RequestError> for FetchError {
+    fn from(e: RequestError) -> Self {
+        FetchError::Api(e)
+    }
+}
+
+
+// ----------------------------- STRUCTS ----------------------------------- //
 #[derive(Debug)]
 pub struct Db {
     pub pool: Pool,
@@ -59,41 +120,6 @@ impl Db {
 
 }
 
-#[derive(Debug)]
-pub enum DbError {
-    ConnectionFailed,
-    CredentialsMissing,
-    TableCreationFailed(String),
-    QueryFailed(String),
-    ParseError,
-    InitFailure,
-}
-
-#[derive(Debug)]
-pub enum FetchError {
-    Db(DbError),
-    MySql(mysql_async::Error),
-    Api(kraken::RequestError),
-    SystemError(String),
-}
-
-impl From<DbError> for FetchError {
-    fn from(e: DbError) -> Self {
-        FetchError::Db(e)
-    }
-}
-
-impl From<mysql_async::Error> for FetchError {
-    fn from(e: mysql_async::Error) -> Self {
-        FetchError::MySql(e)
-    }
-}
-
-impl From<kraken::RequestError> for FetchError {
-    fn from(e: kraken::RequestError) -> Self {
-        FetchError::Api(e)
-    }
-}
 
 #[derive(Debug)]
 pub struct DbLogin {
@@ -128,6 +154,11 @@ impl DbLogin {
         };
         valid 
     }
+}
+
+
+pub fn get_table_name(exchange: &str, ticker: &str) -> String {
+    format!("asset_{exchange}_{ticker}")
 }
 
 

@@ -138,9 +138,6 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
     if json_path.exists() {
         if let Ok(d) = fs::read_to_string(&json_path) {
             if let Ok(j) = serde_json::from_str::<AppConfig>(&d) {
-                println!(
-                    "\x1b[1;36mLoading app settings from saved state\x1b[0m"
-                ); 
                 return Ok(j) 
             }
         }

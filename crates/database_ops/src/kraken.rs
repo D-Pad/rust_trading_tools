@@ -9,7 +9,7 @@ use mysql_async::{prelude::Queryable, Pool, Conn};
 use tokio::time::{sleep, Duration};
 
 use timestamp_tools::{get_current_unix_timestamp};
-use crate::{DbError, FetchError};
+use crate::connection::{DbError, FetchError, RequestError, get_table_name};
 pub use crate::connection;
 
 
@@ -99,41 +99,19 @@ pub struct AssetPairInfo {
     pub short_position_limit: u32,
 }
 
-// Error enums
-#[derive(Debug)]
-pub enum RequestError {
-    Http(reqwest::Error),
-    BadStatus(reqwest::StatusCode),
-    Deserialize(serde_json::Error),
-    RequestFailed(String),
-    NoData,
-}
-
-impl From<reqwest::Error> for RequestError {
-    fn from(e: reqwest::Error) -> Self {
-        RequestError::Http(e)
-    }
-}
-
-impl From<serde_json::Error> for RequestError {
-    fn from(e: serde_json::Error) -> Self {
-        RequestError::Deserialize(e)
-    }
-}
-
 
 pub async fn add_new_db_table(
     ticker: &str,
     start_date_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
     db_pool: Pool 
-) -> Result<(), FetchError> {
+) -> Result<(), DbError> {
 
-    let table_name: String = format!("asset_kraken_{}", ticker);
+    let table_name: String = get_table_name("kraken", ticker);
            
     let mut conn: Conn = match db_pool.get_conn().await {
         Ok(c) => c,
-        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
+        Err(_) => return Err(DbError::ConnectionFailed)
     };
 
     let show_table_query: String = "SHOW TABLES".to_string();
@@ -142,20 +120,16 @@ pub async fn add_new_db_table(
     ).await {
         Ok(d) => d,
         Err(_) => return Err(
-            connection::FetchError::Db(
-                DbError::QueryFailed(
-                    "Failed to fetch table names".to_string() 
-                )
+            connection:: DbError::QueryFailed(
+                "Failed to fetch table names".to_string() 
             )
         )
     };
 
     if existing_tables.contains(&table_name) {
         return Err(
-            connection::FetchError::Db(
-                DbError::TableCreationFailed(
-                    format!("{} table already exists", ticker)
-                )
+            connection::DbError::TableCreationFailed(
+                format!("{} table already exists", ticker)
             )
         )
     };
@@ -165,9 +139,11 @@ pub async fn add_new_db_table(
     let current_ts = match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(t) => t.as_secs(),
         Err(_) => return Err(
-            connection::FetchError::SystemError(
-                "Couldn't retrieve system time".to_string()
-            )
+            connection::DbError::Fetch(
+                FetchError::SystemError(
+                    "Couldn't retrieve system time".to_string()
+                )
+            ) 
         ) 
     };
 
@@ -181,9 +157,11 @@ pub async fn add_new_db_table(
         Ok(d) => {
        
             let result = d.result.ok_or_else(|| {
-                connection::FetchError::Api(
-                    RequestError::RequestFailed(
-                        "Could not fetch trade data".to_string()
+                connection::DbError::Fetch(
+                    FetchError::Api(
+                        RequestError::RequestFailed(
+                            "Could not fetch trade data".to_string()
+                        )
                     )
                 )
             })?;
@@ -193,29 +171,35 @@ pub async fn add_new_db_table(
                 .values() 
                 .next() 
                 .ok_or_else(|| {
-                    connection::FetchError::SystemError(
-                        "No trades detected in response".to_string()
+                    connection::DbError::Fetch(
+                        FetchError::SystemError(
+                            "No trades detected in response".to_string()
+                        )
                     )
                 })?;
 
             trades_vec.last().cloned().ok_or_else(|| {
-                connection::FetchError::SystemError(
-                    "Trades list was empty".to_string()
+                connection::DbError::Fetch(
+                    FetchError::SystemError(
+                        "Trades list was empty".to_string()
+                    )
                 )
             })?
 
         },
         Err(_) => return Err(
-            connection::FetchError::Api(
-                RequestError::RequestFailed(
-                    "Could not fetch trade data".to_string()
+            connection::DbError::Fetch(
+                FetchError::Api(
+                    RequestError::RequestFailed(
+                        "Could not fetch trade data".to_string()
+                    )
                 )
             )
         )
     };
 
     let price_string = initial_trade.price.to_string();
-    let left_digits = match price_string.split_once(".") {
+    let left_digits: usize = match price_string.split_once(".") {
         Some((left, _right)) => left.len(),
         None => price_string.len()
     };
@@ -230,7 +214,11 @@ pub async fn add_new_db_table(
     ).await {
         Ok(d) => d,
         Err(e) => return Err(
-            connection::FetchError::Api(RequestError::Http(e))
+            connection::DbError::Fetch(
+                FetchError::Api(
+                    RequestError::Http(e)
+                )
+            )
         ) 
     };
     
@@ -253,9 +241,9 @@ pub async fn add_new_db_table(
     ); 
    
     if let Err(_) = conn.query_drop(create_table_query).await {
-        return Err(FetchError::Db(DbError::TableCreationFailed(
+        return Err(DbError::TableCreationFailed(
             format!("Failed to create asset_kraken_{} table", ticker) 
-        ))); 
+        )); 
     };
 
     let initial_time_stamp_query: String = format!(r#"
@@ -264,12 +252,10 @@ pub async fn add_new_db_table(
 
     if let Err(_) = conn.query_drop(initial_time_stamp_query).await {
         return Err(
-            FetchError::Db(
-                DbError::QueryFailed(
-                    format!(
-                        "Failed to fetch _last_tick_history for {}",
-                        ticker
-                    )
+            DbError::QueryFailed(
+                format!(
+                    "Failed to fetch _last_tick_history for {}",
+                    ticker
                 )
             )
         ); 
@@ -285,13 +271,13 @@ pub async fn add_new_db_table(
         http_client
     ).await {
         Ok(d) => d,
-        Err(e) => return Err(FetchError::Api(e))
+        Err(e) => return Err(DbError::Fetch(FetchError::Api(e)))
     };
 
-    match write_data_to_db_table(ticker, initial_data, db_pool.clone()).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(FetchError::Db(e)) 
-    }
+    write_data_to_db_table(ticker, initial_data, db_pool.clone(), None).await;
+    
+    Ok(())
+
 }
 
 
@@ -300,8 +286,8 @@ pub async fn download_new_data_to_db_table(
     db_pool: Pool,
     initial_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>
-) -> Result<(), FetchError> {
-  
+) -> Result<(), DbError> {
+ 
     let current_time: u64 = get_current_unix_timestamp();
     let start_timestamp: u64 = current_time - initial_unix_timestamp_offset;
 
@@ -312,7 +298,7 @@ pub async fn download_new_data_to_db_table(
 
     let mut conn: Conn = match db_pool.get_conn().await {
         Ok(c) => c,
-        Err(_) => return Err(FetchError::Db(DbError::ConnectionFailed))
+        Err(_) => return Err(DbError::ConnectionFailed)
     };
 
     let show_table_query: String = "SHOW TABLES".to_string();
@@ -321,13 +307,13 @@ pub async fn download_new_data_to_db_table(
     ).await {
         Ok(d) => d,
         Err(_) => return Err(
-            FetchError::Db(DbError::QueryFailed(
+            DbError::QueryFailed(
                 "Failed to fetch table names".to_string()
-            ))
+            )
         )
     };
     
-    let table_name = format!("asset_kraken_{}", ticker);
+    let table_name = get_table_name("kraken", ticker);
     if !existing_tables.contains(&table_name) {
         add_new_db_table(
             &ticker, 
@@ -346,25 +332,43 @@ pub async fn download_new_data_to_db_table(
         "#,
         ticker
     ); 
+    
     let valid_row: Vec<(u64, String)> = match conn.exec(
         query, ()
     ).await {
         Ok(r) => r,
-        Err(_) => return Err(FetchError::Db(DbError::QueryFailed(
+        Err(_) => return Err(DbError::QueryFailed(
             "Couldn't fetch last tick time from _last_tick_history".to_string()
-        ))) 
+        )) 
     };
 
     let (next_tick_id, timestamp) = match valid_row.len() > 0 {
-        true => (valid_row[0].0, &valid_row[0].1),
-        false => return Err(FetchError::Db(DbError::QueryFailed(
+        true => (valid_row[0].0, valid_row[0].1.clone()),
+        false => return Err(DbError::QueryFailed(
             "Couldn't fetch last tick time from _last_tick_history".to_string()
-        )))
+        ))
     }; 
 
-    println!("LAST TICK: {} / {}", next_tick_id, timestamp);
+    let new_data: TickDataResponse = match request_tick_data_from_kraken(
+        ticker, 
+        timestamp, 
+        Some(client)
+    ).await {
+        Ok(d) => d,
+        Err(e) => return Err(DbError::Fetch(FetchError::Api(e)))
+    };
 
-    Ok(())
+    if let Err(e) = write_data_to_db_table(
+        ticker, 
+        new_data, 
+        db_pool.clone(), 
+        Some(next_tick_id)
+    ).await {
+        Err(e) 
+    }
+    else {
+        Ok(())
+    }
 
 }
 
@@ -447,9 +451,10 @@ pub async fn request_asset_info_from_kraken(
 pub async fn write_data_to_db_table(
     ticker: &str,
     tick_data: TickDataResponse, 
-    db_pool: Pool 
+    db_pool: Pool,
+    next_tick_id: Option<u64>
 ) -> Result<(), DbError> {
- 
+
     // Insert tick data first
     let mut data_insert_query: String = format!(
         r#"INSERT INTO `asset_kraken_{}` (
@@ -481,9 +486,15 @@ pub async fn write_data_to_db_table(
     };
  
     let max_index = tick_data.len() - 1;
-    for (index, tick) in tick_data.iter().enumerate() {
-        
-        data_insert_query.push_str(&tick.to_db_row());
+    for (index, trade) in tick_data.iter().enumerate() {
+       
+        if let Some(next_id) = next_tick_id {
+            if trade.tick_id < next_id { 
+                continue 
+            };
+        };
+
+        data_insert_query.push_str(&trade.to_db_row());
         
         if index < max_index {
             data_insert_query.push_str(",\n");
