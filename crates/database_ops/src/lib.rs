@@ -267,13 +267,3 @@ pub async fn initialize(
 }
 
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn connection_test() {
-        assert_eq!(2, 2);
-    }
-}
-

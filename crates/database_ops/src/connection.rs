@@ -6,6 +6,7 @@ use crate::kraken;
 pub const DATABASE_NAME: &'static str = "dpad_llc_trading_app";
 
 
+#[derive(Debug)]
 pub struct Db {
     pub pool: Pool,
 }
@@ -58,6 +59,7 @@ impl Db {
 
 }
 
+#[derive(Debug)]
 pub enum DbError {
     ConnectionFailed,
     CredentialsMissing,
@@ -67,6 +69,7 @@ pub enum DbError {
     InitFailure,
 }
 
+#[derive(Debug)]
 pub enum FetchError {
     Db(DbError),
     MySql(mysql_async::Error),
@@ -92,6 +95,7 @@ impl From<kraken::RequestError> for FetchError {
     }
 }
 
+#[derive(Debug)]
 pub struct DbLogin {
     pub host: String,
     pub user: String,

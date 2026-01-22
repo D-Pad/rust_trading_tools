@@ -99,6 +99,7 @@ pub struct AssetPairInfo {
 }
 
 // Error enums
+#[derive(Debug)]
 pub enum RequestError {
     Http(reqwest::Error),
     BadStatus(reqwest::StatusCode),

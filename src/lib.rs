@@ -45,3 +45,51 @@ pub async fn initiailze(state: &AppState) -> Result<(), InitializationError> {
 }
 
 
+#[cfg(test)]
+mod tests {
+
+    use bars::*;
+    use app_state::*;
+    use database_ops::{DbLogin, Db};
+    
+    use dotenvy;
+    use tokio;
+
+    #[tokio::test]
+    async fn database_connection_test() {
+       
+        dotenvy::dotenv().ok(); 
+        
+        let dbl = DbLogin::new();
+        let db = match Db::new(
+            &dbl.host,
+            3306,
+            &dbl.user,
+            &dbl.password 
+        ).await {
+            Ok(d) => d,
+            Err(e) => panic!("{:?}", e)
+        };
+
+        let db_pool = db.get_pool();
+
+        db_pool.get_conn().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn candle_test() {
+        
+        dotenvy::dotenv().ok(); 
+        
+        let app_state = AppState::new().await.unwrap();
+
+        let exchange = "kraken".to_string();
+        let ticker = "BTCUSD".to_string();
+        let period = "1h".to_string();
+        
+        BarSeries::new(exchange, ticker, period, BarType::Candle, &app_state);
+    }
+
+}
+
+

@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use database_ops::{Db, DbLogin, DbError};
 use timestamp_tools;
 
 
 // ------------------------- APP STATE MANAGEMENT -------------------------- //
+#[derive(Debug)]
 pub enum InitializationError {
     Db(DbError),
     Config(ConfigError),
@@ -14,6 +15,7 @@ pub enum InitializationError {
 }
 
 
+#[derive(Debug)]
 pub struct AppState {
     pub database: Db,
     pub config: AppConfig
@@ -61,6 +63,7 @@ impl AppState {
 
 
 // --------------------------- APP CONFIGURATION --------------------------- //
+#[derive(Debug)]
 pub enum ConfigError {
     FileNotFound,
     ParseFailure,
@@ -122,14 +125,15 @@ impl DataDownload {
 }
 
 
-fn get_json_path_state() -> PathBuf {
-    Path::new("../cache/config.json").to_path_buf()
+fn get_path_state() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("cache") 
 }
 
 
 pub fn load_config() -> Result<AppConfig, ConfigError> {
   
-    let json_path: PathBuf = get_json_path_state();
+    let cache_path: PathBuf = get_path_state();
+    let json_path: PathBuf = cache_path.join("config.json");
 
     if json_path.exists() {
         if let Ok(d) = fs::read_to_string(&json_path) {
@@ -147,7 +151,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
     );
     
     // Fallback to default .toml file if not .json file is present
-    let toml_config_path: &'static str = "../cache/config.toml";
+    let toml_config_path: PathBuf = cache_path.join("config.toml");
     
     let contents = match fs::read_to_string(toml_config_path) {
         Ok(d) => d,
@@ -171,7 +175,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
 
 pub fn save_config(config: &AppConfig) -> Result<(), ConfigError> {
 
-    let path = get_json_path_state();
+    let path = get_path_state().join("config.json");
     
     let json = match serde_json::to_string_pretty(config) {
         Ok(d) => d,
@@ -184,15 +188,4 @@ pub fn save_config(config: &AppConfig) -> Result<(), ConfigError> {
     }
 }
 
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-     
-    }
-}
 
