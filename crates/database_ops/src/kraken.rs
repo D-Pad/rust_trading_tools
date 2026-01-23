@@ -21,6 +21,38 @@ pub struct TickDataResponse {
     result: Option<TickDataResult>,
 }
 
+impl TickDataResponse {
+    
+    fn len(&self) -> Option<usize> {
+        if let Some(d) = &self.result {
+            if let Some(v) = d.trades.values().next() {
+                return Some(v.len())
+            }
+        };
+        None
+    }
+
+    fn last_tick_id(&self) -> Option<u64> {
+        if let Some(data) = &self.result {
+            if let Some(vector) = data.trades.values().next() {
+                if let Some(v) = vector.last() {
+                    return Some(v.tick_id)
+                }
+            }
+        }
+        None
+    }
+    
+    fn next_fetch_timestamp(&self) -> Option<String> {
+        if let Some(d) = &self.result {
+            Some(d.last.clone())
+        }
+        else {
+            None
+        }
+    }
+}
+
 #[derive(Deserialize, Debug)]
 struct TickDataResult {
     #[serde(flatten)]
@@ -274,7 +306,7 @@ pub async fn add_new_db_table(
         Err(e) => return Err(DbError::Fetch(FetchError::Api(e)))
     };
 
-    write_data_to_db_table(ticker, initial_data, db_pool.clone(), None).await;
+    write_data_to_db_table(ticker, &initial_data, db_pool.clone(), None).await;
     
     Ok(())
 
@@ -323,7 +355,7 @@ pub async fn download_new_data_to_db_table(
     };
 
     // Get the last recorded timestamp from _last_tick_history
-    let query: String = format!(
+    let last_tick_query = format!(
         r#"
         SELECT next_tick_id, time 
         FROM _last_tick_history
@@ -331,9 +363,9 @@ pub async fn download_new_data_to_db_table(
         "#,
         ticker
     ); 
-    
+
     let valid_row: Vec<(u64, String)> = match conn.exec(
-        query, ()
+        last_tick_query, ()
     ).await {
         Ok(r) => r,
         Err(_) => return Err(DbError::QueryFailed(
@@ -341,33 +373,95 @@ pub async fn download_new_data_to_db_table(
         )) 
     };
 
-    let (next_tick_id, timestamp) = match valid_row.len() > 0 {
+    let (mut next_tick_id, mut next_timestamp) = match valid_row.len() > 0 {
         true => (valid_row[0].0, valid_row[0].1.clone()),
         false => return Err(DbError::QueryFailed(
             "Couldn't fetch last tick time from _last_tick_history".to_string()
         ))
     }; 
 
-    let new_data: TickDataResponse = match request_tick_data_from_kraken(
-        ticker, 
-        timestamp, 
-        Some(client)
+    let last_timestamp_in_db: Vec<u64> = match conn.exec(
+        format!(
+            r#"
+            SELECT time FROM {} ORDER BY id DESC LIMIT 1;
+            "#, 
+            &table_name
+        )
     ).await {
-        Ok(d) => d,
-        Err(e) => return Err(DbError::Fetch(FetchError::Api(e)))
+        Ok(d) => {
+            match d.iter().next() {
+                Some(v) => (v / 1_000_000) as u64
+            }
+        },
+        Err(_) => {
+            return Err(DbError::QueryFailed(
+                "Couldn't fetch last timestamp in table".to_string()
+            ))
+        }
     };
 
-    if let Err(e) = write_data_to_db_table(
-        ticker, 
-        new_data, 
-        db_pool.clone(), 
-        Some(next_tick_id)
-    ).await {
-        Err(e) 
-    }
-    else {
-        Ok(())
-    }
+    println!("\x1b[1;33mDownloading data from kraken\x1b[0m");
+    loop {
+        
+        let new_data: TickDataResponse = match request_tick_data_from_kraken(
+            ticker, 
+            next_timestamp, 
+            Some(client)
+        ).await {
+            Ok(d) => d,
+            Err(e) => {
+                return Err(DbError::Fetch(FetchError::Api(e)))
+            }
+        };
+
+        let num_ticks: usize = match new_data.len() {
+            Some(v) => v,
+            None => { 
+                return Err(DbError::Fetch(FetchError::SystemError(
+                    "Failed to calculate length of trades".to_string()
+                )))
+            }
+        };
+
+        if let Err(e) = write_data_to_db_table(
+            ticker, 
+            &new_data, 
+            db_pool.clone(), 
+            Some(next_tick_id)
+        ).await {
+            return Err(e) 
+        };
+
+        next_tick_id = match &new_data.last_tick_id() {
+            Some(v) => *v + 1,  // Expected first ID of next fetch
+            None => return Err(DbError::Fetch(FetchError::SystemError(
+                "Failed to fetch last tick ID from TickDataResponse"
+                    .to_string()
+            )))
+        };
+
+        next_timestamp = match &new_data.next_fetch_timestamp() {
+            Some(v) => v.to_string(),
+            None => return Err(DbError::Fetch(FetchError::SystemError(
+                "Failed to fetch next fetch time from TickDataResponse"
+                    .to_string()
+            )))
+        };
+
+        if num_ticks < 1000 {
+            println!(
+                "\x1b[1;32mLess than 1000 ticks in set. Breaking loop\x1b[0m"
+            ); 
+            break
+        };
+    
+        // Wait 1 sec to prevent rate limits
+        sleep(Duration::from_secs(1)).await; 
+        println!("\r\x1b[1;33mLast tick ID: {}\x1b[0m", &next_tick_id);
+    
+    };
+
+    Ok(())
 
 }
 
@@ -449,7 +543,7 @@ pub async fn request_asset_info_from_kraken(
 
 pub async fn write_data_to_db_table(
     ticker: &str,
-    tick_data: TickDataResponse, 
+    tick_data: &TickDataResponse, 
     db_pool: Pool,
     next_tick_id: Option<u64>
 ) -> Result<(), DbError> {
@@ -468,14 +562,14 @@ pub async fn write_data_to_db_table(
         ticker
     );
   
-    let trade_fetch_response = match tick_data.result {
+    let trade_fetch_response = match &tick_data.result {
         Some(d) => d,
         None => return Err(DbError::ParseError)
     };
 
     let tick_data = match trade_fetch_response
         .trades
-        .into_values()
+        .values()
         .next()
         .ok_or(DbError::ParseError)
 
@@ -488,7 +582,7 @@ pub async fn write_data_to_db_table(
     for (index, trade) in tick_data.iter().enumerate() {
        
         if let Some(next_id) = next_tick_id {
-            if trade.tick_id < next_id { 
+            if trade.tick_id < next_id {
                 continue 
             };
         };
@@ -513,8 +607,7 @@ pub async fn write_data_to_db_table(
         )); 
     };
 
-    // Update _last_tick_history
-    let last_tick_timestamp = trade_fetch_response.last;
+    let last_tick_timestamp = trade_fetch_response.last.clone();
     let last_tick_id = match tick_data.iter().last() {
         Some(t) => t.tick_id + 1,
         None => return Err(DbError::ParseError) 
@@ -524,7 +617,8 @@ pub async fn write_data_to_db_table(
         UPDATE _last_tick_history
         SET next_tick_id = ?, time = ?
         WHERE asset = ?;
-    "#); 
+    "#);
+
     let last_tick_params = (last_tick_id, last_tick_timestamp, ticker);
 
     if let Err(_) = conn.exec_drop(last_tick_query, last_tick_params).await {
@@ -534,5 +628,6 @@ pub async fn write_data_to_db_table(
     };
 
     Ok(())
+
 }
 
