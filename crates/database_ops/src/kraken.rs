@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap, 
-    time::{SystemTime, UNIX_EPOCH}
+    time::{SystemTime, UNIX_EPOCH},
+    io::{self, Write}
 };
 
 use reqwest;
@@ -51,6 +52,18 @@ impl TickDataResponse {
             None
         }
     }
+
+    fn timestamp_of_last_tick(&self) -> Option<f64> {
+        if let Some(data) = &self.result {
+            if let Some(vector) = data.trades.values().next() {
+                if let Some(v) = vector.last() {
+                    return Some(v.time.clone())
+                }
+            }
+        }
+        None
+    }
+
 }
 
 #[derive(Deserialize, Debug)]
@@ -380,25 +393,37 @@ pub async fn download_new_data_to_db_table(
         ))
     }; 
 
-    let last_timestamp_in_db: Vec<u64> = match conn.exec(
+    let last_timestamp_in_db_vec: Vec<u64> = match conn.exec(
         format!(
             r#"
             SELECT time FROM {} ORDER BY id DESC LIMIT 1;
             "#, 
             &table_name
-        )
+        ),
+        ()
     ).await {
-        Ok(d) => {
-            match d.iter().next() {
-                Some(v) => (v / 1_000_000) as u64
-            }
-        },
+        Ok(d) => d,
         Err(_) => {
             return Err(DbError::QueryFailed(
                 "Couldn't fetch last timestamp in table".to_string()
             ))
         }
     };
+
+    let last_timestamp_in_db: u64 = match last_timestamp_in_db_vec.len() {
+        0 => return Err(DbError::QueryFailed(
+            "No timestamp detected in last_timestamp_in_db_vec".to_string()
+        )),
+        _ => last_timestamp_in_db_vec[0] / 1_000_000
+    };
+
+    let total_expected_seconds = current_time - last_timestamp_in_db;
+    let mut num_seconds_left = total_expected_seconds.clone();
+    let mut percent_complete: u8 = 0;
+
+    fn get_percent_complete(curr: u64, target: u64) -> u8 {
+        100 - ((curr * 100) / target) as u8
+    }
 
     println!("\x1b[1;33mDownloading data from kraken\x1b[0m");
     loop {
@@ -456,10 +481,30 @@ pub async fn download_new_data_to_db_table(
         };
     
         // Wait 1 sec to prevent rate limits
-        sleep(Duration::from_secs(1)).await; 
-        println!("\r\x1b[1;33mLast tick ID: {}\x1b[0m", &next_tick_id);
-    
+        sleep(Duration::from_secs(1)).await;
+        
+        let last_tick_time: u64 = match &new_data.timestamp_of_last_tick() {
+            Some(v) => *v as u64,
+            None => return Err(DbError::Fetch(FetchError::SystemError(
+                "Failed to fetch last timestamp from TickDataResponse"
+                    .to_string()
+            )))
+        };
+        
+        num_seconds_left = current_time - last_tick_time;
+        percent_complete = get_percent_complete(
+            num_seconds_left, total_expected_seconds
+        );
+       
+        print!(
+            "\r\x1b[0mDownload Progress: \x1b[1;32m{}%\x1b[0m", 
+            &percent_complete
+        );
+        io::stdout().flush().ok();
+
     };
+
+    println!("");
 
     Ok(())
 
