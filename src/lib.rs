@@ -1,8 +1,25 @@
 use app_state::{AppState, InitializationError};
+use database_ops::DbError;
 
 
+#[derive(Debug)]
 pub enum RunTimeError {
-    Generic
+    DataBase(DbError)
+}
+
+impl std::fmt::Display for RunTimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            RunTimeError::DataBase(e) => write!(f, "DataBaseError: {}", e)
+        }
+    }
+}
+
+
+pub fn error_handler(err: RunTimeError) {
+    match err {
+        RunTimeError::DataBase(e) => eprintln!("\x1b[1;31m{}\x1b[0m", e) 
+    }
 }
 
 
@@ -14,9 +31,16 @@ pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
         .data_download
         .cache_size_settings_to_seconds();
 
-    let _ = database_ops::download_new_data_to_db_table(
-        "kraken", "BTCUSD", state.database.get_pool(), time_offset, None 
-    ).await;
+    if let Err(db) = database_ops::download_new_data_to_db_table(
+        "kraken", 
+        "BTCUSD", 
+        state.database.get_pool(), 
+        time_offset, 
+        None,
+        Some(true)
+    ).await {
+        return Err(RunTimeError::DataBase(db)) 
+    };
 
     Ok(())
 
@@ -118,6 +142,8 @@ mod tests {
                     );
                     panic!("{}", msg); 
                 };
+
+                println!("{}", check_val);
 
             };
         };

@@ -8,6 +8,8 @@ pub use connection::{Db, DbLogin, DbError, FetchError};
 use crate::connection::get_table_name;
 pub mod kraken;
 
+use timestamp_tools::db_timestamp_to_date_string;
+
 
 pub async fn download_new_data_to_db_table(
     exchange: &str, 
@@ -15,6 +17,7 @@ pub async fn download_new_data_to_db_table(
     db_pool: Pool,
     initial_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
+    show_progress: Option<bool>
 ) -> Result<(), DbError> {
     
     let client = match http_client {
@@ -27,7 +30,8 @@ pub async fn download_new_data_to_db_table(
             ticker, 
             db_pool, 
             initial_unix_timestamp_offset,
-            Some(client)
+            Some(client),
+            show_progress
         ).await; 
     };
 
@@ -267,6 +271,8 @@ pub struct DatabaseIntegrity {
     pub is_ok: bool,
     pub first_tick_id: u64,
     pub last_tick_id: u64,
+    pub first_date: String, 
+    pub last_date: String, 
     pub total_ticks: u64,
     pub missing_ticks: Vec<u64>,
     pub error: String 
@@ -289,6 +295,8 @@ impl fmt::Display for DatabaseIntegrity {
             col(self.is_ok), self.is_ok);
         write!(f, "  \x1b[33mfirst_tick_id\x1b[0m: {}\n", self.first_tick_id);
         write!(f, "  \x1b[33mlast_tick_id \x1b[0m: {}\n", self.last_tick_id);
+        write!(f, "  \x1b[33mfirst_date   \x1b[0m: {}\n", self.first_date);
+        write!(f, "  \x1b[33mlast_date    \x1b[0m: {}\n", self.last_date);
         write!(f, "  \x1b[33mtotal_ticks  \x1b[0m: {}\n", self.total_ticks);
         
         if self.missing_ticks.len() > 0 {
@@ -326,6 +334,8 @@ pub async fn integrity_check(
         is_ok: false, 
         first_tick_id: 0, 
         last_tick_id: 0,
+        first_date: String::new(),
+        last_date: String::new(),
         total_ticks: 0,
         missing_ticks: Vec::new(), 
         error: String::new() 
@@ -339,20 +349,20 @@ pub async fn integrity_check(
         } 
     };    
 
-    dbi.first_tick_id = match fetch_first_row(
+    (dbi.first_tick_id, dbi.first_date) = match fetch_first_row(
         exchange, ticker, db_pool.clone()
     ).await {
-        Ok(d) => d[0].0,
+        Ok(d) => (d[0].0, db_timestamp_to_date_string(d[0].1)),
         Err(_) => {
             dbi.error.push_str("Failed to fetch first tick ID");
             return dbi
         }
     };
      
-    dbi.last_tick_id = match fetch_last_row(
+    (dbi.last_tick_id, dbi.last_date) = match fetch_last_row(
         exchange, ticker, db_pool.clone()
     ).await {
-        Ok(d) => d[0].0,
+        Ok(d) => (d[0].0, db_timestamp_to_date_string(d[0].1)),
         Err(_) => {
             dbi.error.push_str("Failed to fetch last tick ID"); 
             return dbi 

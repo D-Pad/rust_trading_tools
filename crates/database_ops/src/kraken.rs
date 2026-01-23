@@ -330,11 +330,17 @@ pub async fn download_new_data_to_db_table(
     ticker: &str,
     db_pool: Pool,
     initial_unix_timestamp_offset: u64,
-    http_client: Option<&reqwest::Client>
+    http_client: Option<&reqwest::Client>,
+    show_progress: Option<bool>
 ) -> Result<(), DbError> {
  
     let current_time: u64 = get_current_unix_timestamp();
     let start_timestamp: u64 = current_time - initial_unix_timestamp_offset;
+
+    let progress_output: bool = match show_progress {
+        Some(b) => b,
+        None => true
+    };
 
     let client = match http_client {
         Some(c) => c,
@@ -425,7 +431,23 @@ pub async fn download_new_data_to_db_table(
         100 - ((curr * 100) / target) as u8
     }
 
+    fn display_progress(completed: &u8) {
+       
+        let pre_char: &'static str = match completed {
+            100 => "",
+            _ => "\r"
+        };
+
+        print!(
+            "{}\x1b[0mDownload Progress: \x1b[1;32m{}%\x1b[0m", 
+            pre_char, 
+            completed
+        );
+        io::stdout().flush().ok();
+    }
+
     println!("\x1b[1;33mDownloading data from kraken\x1b[0m");
+    
     loop {
         
         let new_data: TickDataResponse = match request_tick_data_from_kraken(
@@ -472,8 +494,34 @@ pub async fn download_new_data_to_db_table(
                     .to_string()
             )))
         };
+     
+        if progress_output {
+           
+            let last_tick_time: u64 = match &new_data.timestamp_of_last_tick() {
+                Some(v) => *v as u64,
+                None => return Err(DbError::Fetch(FetchError::SystemError(
+                    "Failed to fetch last timestamp from TickDataResponse"
+                        .to_string()
+                )))
+            };
+            
+            num_seconds_left = current_time - last_tick_time;
+            percent_complete = get_percent_complete(
+                num_seconds_left, total_expected_seconds
+            );
+
+            display_progress(&percent_complete);
+
+        }
 
         if num_ticks < 1000 {
+            
+            if progress_output { 
+                percent_complete = 100;
+                display_progress(&percent_complete);
+                println!("");
+            };
+
             println!(
                 "\x1b[1;32mLess than 1000 ticks in set. Breaking loop\x1b[0m"
             ); 
@@ -482,29 +530,8 @@ pub async fn download_new_data_to_db_table(
     
         // Wait 1 sec to prevent rate limits
         sleep(Duration::from_secs(1)).await;
-        
-        let last_tick_time: u64 = match &new_data.timestamp_of_last_tick() {
-            Some(v) => *v as u64,
-            None => return Err(DbError::Fetch(FetchError::SystemError(
-                "Failed to fetch last timestamp from TickDataResponse"
-                    .to_string()
-            )))
-        };
-        
-        num_seconds_left = current_time - last_tick_time;
-        percent_complete = get_percent_complete(
-            num_seconds_left, total_expected_seconds
-        );
-       
-        print!(
-            "\r\x1b[0mDownload Progress: \x1b[1;32m{}%\x1b[0m", 
-            &percent_complete
-        );
-        io::stdout().flush().ok();
 
     };
-
-    println!("");
 
     Ok(())
 

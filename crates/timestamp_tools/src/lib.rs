@@ -78,7 +78,7 @@ fn micros_u64_to_datetime(
     
     let secs = (microseconds / 1_000_000) as i64;
     let nsecs = (microseconds % 1_000_000) as u32;
-    
+   
     match Utc.timestamp_opt(secs, nsecs) {
         chrono::LocalResult::Single(dt) => Ok(dt),
 
@@ -107,6 +107,14 @@ fn unix_ts_i64_to_datetime(
         chrono::LocalResult::None => {
             Err(TimePeriodError::DateConversion)
         }
+    }
+}
+
+
+pub fn db_timestamp_to_date_string(timestamp: u64) -> String {
+    match micros_u64_to_datetime(timestamp) {
+        Ok(v) => v.format("%Y-%m-%d %H:%M:%S").to_string(),
+        Err(_) => "?".to_string()
     }
 }
 

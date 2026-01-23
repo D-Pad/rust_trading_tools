@@ -15,6 +15,28 @@ pub enum RequestError {
     NoData,
 }
 
+impl std::fmt::Display for RequestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            RequestError::Http(e) => write!(
+                f, "RequestError::Http: {}", e
+            ),
+            RequestError::BadStatus(e) => write!(
+                f, "RequestError::BadStatus: {}", e
+            ),
+            RequestError::Deserialize(e) => write!(
+                f, "RequestError::Deserialize: {}", e
+            ),
+            RequestError::RequestFailed(e) => write!(
+                f, "RequestError::RequestFailed: {}", e
+            ),
+            RequestError::NoData => write!(
+                f, "RequestError::RequestFailed: Request returned no data"
+            )
+        }
+    }
+}
+
 impl From<reqwest::Error> for RequestError {
     fn from(e: reqwest::Error) -> Self {
         RequestError::Http(e)
@@ -52,11 +74,55 @@ impl From<mysql_async::Error> for DbError {
     }
 }
 
+impl std::fmt::Display for DbError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            DbError::ConnectionFailed => write!(
+                f, "DbError: Connection failed"
+            ),
+            DbError::CredentialsMissing => write!(
+                f, "DbError: Database login credentials missing"
+            ),
+            DbError::Fetch(e) => write!(
+                f, "DbError::FetchError: {}", e
+            ),
+            DbError::InitFailure => write!(
+                f, "DbError: Could not initialize database connector struct"
+            ),
+            DbError::MySql(e) => write!(
+                f, "DbError::MySqlAsync: {}", e
+            ),
+            DbError::ParseError => write!(
+                f, "DbError: Failed to parse database data"
+            ),
+            DbError::QueryFailed(e) => write!(
+                f, "DbError: Query Failed: {} ", e
+            ),
+            DbError::TableCreationFailed(e) => write!(
+                f, "DbError: Failed to create new table: {} ", e
+            )
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub enum FetchError {
     Api(RequestError),
     SystemError(String),
+}
+
+impl std::fmt::Display for FetchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            FetchError::Api(e) => write!(
+                f, "FetchError::Api: {} ", e
+            ),
+            FetchError::SystemError(e) => write!(
+                f, "FetchError::SystemError: {} ", e
+            )
+        }
+    }
 }
 
 impl From<RequestError> for FetchError {

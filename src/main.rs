@@ -20,7 +20,10 @@ async fn main() {
         process::exit(1); 
     };
 
-    trading_app::dev_test(&app_state).await;
+    if let Err(e) = trading_app::dev_test(&app_state).await {
+        println!("ERROR: {}", e);
+        trading_app::error_handler(e); 
+    };
 
 }
 
