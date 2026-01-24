@@ -302,7 +302,7 @@ impl fmt::Display for DatabaseIntegrity {
             for missing in &self.missing_ticks {
                 write!(f, "    {}\n", missing);
             };
-            write!(f, "\x1b[0m\n");
+            write!(f, "\x1b[0m  ]\n");
         }
         else {
             write!(f, "  \x1b[33mmissing_ticks\x1b[0m: \x1b[32mnone\x1b[0m\n");
@@ -329,7 +329,7 @@ pub async fn integrity_check(
     
     let mut dbi: DatabaseIntegrity = DatabaseIntegrity { 
         table_name: table_name.clone(), 
-        is_ok: false, 
+        is_ok: true, 
         first_tick_id: 0, 
         last_tick_id: 0,
         first_date: String::new(),
@@ -399,16 +399,16 @@ pub async fn integrity_check(
 
         for tick_id in tick_slice {
             if last_id != 0 && tick_id != last_id + 1 {
-                for i in last_id..tick_id {
+                for i in (last_id + 1)..tick_id {
                     dbi.missing_ticks.push(i);
-                }
+                };
+                dbi.is_ok = false;
             };
             last_id = tick_id;
         }; 
     
     }; 
-
-    dbi.is_ok = true;
+    
     dbi
 
 }

@@ -1,7 +1,8 @@
 use std::{
     collections::HashMap, 
     time::{SystemTime, UNIX_EPOCH},
-    io::{self, Write}
+    io::{self, Write},
+    cmp::{min, max}
 };
 
 use reqwest;
@@ -253,36 +254,36 @@ pub async fn add_new_db_table(
 
     sleep(Duration::from_millis(500)).await;
     
-    // let tick_info = match request_asset_info_from_kraken(
-    //     &ticker,
-    //     http_client
-    // ).await {
-    //     Ok(d) => d,
-    //     Err(e) => return Err(
-    //         connection::DbError::Fetch(
-    //             FetchError::Api(
-    //                 RequestError::Http(e)
-    //             )
-    //         )
-    //     ) 
-    // };
+    let tick_info = match request_asset_info_from_kraken(
+        &ticker,
+        http_client
+    ).await {
+        Ok(d) => d,
+        Err(e) => return Err(
+            connection::DbError::Fetch(
+                FetchError::Api(
+                    RequestError::Http(e)
+                )
+            )
+        ) 
+    };
     
     let create_table_query: String = format!(r#"
         CREATE TABLE IF NOT EXISTS {} (
             id BIGINT PRIMARY KEY,
-            price DECIMAL(24,10) NOT NULL, 
-            volume DECIMAL(24,10) NOT NULL, 
+            price DECIMAL({},{}) NOT NULL, 
+            volume DECIMAL({},{}) NOT NULL, 
             time BIGINT NOT NULL, 
             buy_sell CHAR(1) NOT NULL, 
             market_limit CHAR(1) NOT NULL, 
             misc VARCHAR(16)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         "#,
-        table_name
-        // price_digits_for_db_table,
-        // tick_info.pair_decimals,
-        // price_digits_for_db_table,
-        // tick_info.lot_decimals
+        table_name,
+        max(24, tick_info.pair_decimals * 2),
+        tick_info.pair_decimals,
+        max(24, tick_info.lot_decimals * 2),
+        tick_info.lot_decimals
     ); 
  
     if let Err(_) = conn.query_drop(create_table_query).await {
@@ -308,8 +309,6 @@ pub async fn add_new_db_table(
 
     sleep(Duration::from_millis(500)).await;
    
-    println!("CURRENT: {} / START OFFSET: {}", 
-        current_ts, start_date_unix_timestamp_offset); 
     initial_fetch_time = current_ts - start_date_unix_timestamp_offset;  
 
     let initial_data: TickDataResponse = match request_tick_data_from_kraken(
@@ -427,23 +426,23 @@ pub async fn download_new_data_to_db_table(
 
     let total_expected_seconds = current_time - last_timestamp_in_db;
     let mut num_seconds_left = total_expected_seconds.clone();
-    let mut percent_complete: u8 = 0;
+    let mut percent_complete: u8;
 
     fn get_percent_complete(curr: u64, target: u64) -> u8 {
         100 - ((curr * 100) / target) as u8
     }
 
-    fn display_progress(completed: &u8) {
+    fn display_progress(percent: &u8, completed: bool) {
        
         let pre_char: &'static str = match completed {
-            100 => "",
-            _ => "\r"
+            true => "",
+            false => "\r"
         };
 
         print!(
             "{}\x1b[0mDownload Progress: \x1b[1;32m{}%\x1b[0m", 
             pre_char, 
-            completed
+            percent 
         );
         io::stdout().flush().ok();
     }
@@ -472,13 +471,31 @@ pub async fn download_new_data_to_db_table(
             }
         };
 
-        if let Err(e) = write_data_to_db_table(
-            ticker, 
-            &new_data, 
-            db_pool.clone(), 
-            Some(next_tick_id)
-        ).await {
-            return Err(e) 
+        if new_data.error.len() == 0 {
+
+            if let Err(e) = write_data_to_db_table(
+                ticker, 
+                &new_data, 
+                db_pool.clone(), 
+                Some(next_tick_id)
+            ).await {
+                return Err(e) 
+            };
+
+        }
+
+        else {
+
+            return Err(
+                DbError::Fetch(
+                    FetchError::Api(
+                        RequestError::ErrorResponse(
+                            new_data.error[0].clone() 
+                        )
+                    )
+                )
+            ) 
+
         };
 
         next_tick_id = match &new_data.last_tick_id() {
@@ -507,25 +524,23 @@ pub async fn download_new_data_to_db_table(
                 )))
             };
             
-            num_seconds_left = current_time - last_tick_time;
+            num_seconds_left = current_time - min(last_tick_time, current_time);
             percent_complete = get_percent_complete(
                 num_seconds_left, total_expected_seconds
             );
 
-            display_progress(&percent_complete);
+            display_progress(&percent_complete, false);
 
         }
 
         if num_ticks < 1000 {
             
             if progress_output { 
-                percent_complete = 100;
-                display_progress(&percent_complete);
                 println!("");
             };
 
             println!(
-                "\x1b[1;32mLess than 1000 ticks in set. Breaking loop\x1b[0m"
+                "\x1b[1;36mDownload complete.\x1b[0m"
             ); 
             break
         };

@@ -136,15 +136,14 @@ mod tests {
                     None 
                 ).await;
 
+                println!("\n{}", check_val);
+
                 if !check_val.is_ok {
                     let msg = format!(
                         "Failed check on asset_{exchange}_{ticker}"
                     );
                     panic!("{}", msg); 
                 };
-
-                println!("{}", check_val);
-
             };
         };
     }

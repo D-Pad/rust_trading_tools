@@ -12,6 +12,7 @@ pub enum RequestError {
     BadStatus(reqwest::StatusCode),
     Deserialize(serde_json::Error),
     RequestFailed(String),
+    ErrorResponse(String),
     NoData,
 }
 
@@ -29,6 +30,9 @@ impl std::fmt::Display for RequestError {
             ),
             RequestError::RequestFailed(e) => write!(
                 f, "RequestError::RequestFailed: {}", e
+            ),
+            RequestError::ErrorResponse(e) => write!(
+                f, "RequestError::ErrorResponse: {}", e
             ),
             RequestError::NoData => write!(
                 f, "RequestError::RequestFailed: Request returned no data"

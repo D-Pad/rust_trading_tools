@@ -8,8 +8,8 @@
     }
   },
   "data_download": {
-    "cache_size_units": 6,
-    "cache_size_period": "M"
+    "cache_size_units": 3,
+    "cache_size_period": "d"
   },
   "chart_parameters": {
     "num_bars": 1000
