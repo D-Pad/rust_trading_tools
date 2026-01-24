@@ -32,7 +32,7 @@ pub async fn download_new_data_to_db_table(
             initial_unix_timestamp_offset,
             Some(client),
             show_progress
-        ).await; 
+        ).await?; 
     };
 
     Ok(())
@@ -57,8 +57,6 @@ pub async fn fetch_first_tick_by_time_column(
         ticker,
         timestamp 
     );
-
-    type TickRow = Vec<(u64, u64, f64, f64)>;
     
     match db_pool.get_conn().await {
         Ok(mut c) => {

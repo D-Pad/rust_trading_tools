@@ -194,97 +194,97 @@ pub async fn add_new_db_table(
 
     let mut initial_fetch_time: u64 = current_ts - INIT_TIME_OFFSET;
 
-    let initial_trade: Trade = match request_tick_data_from_kraken(
-        ticker, 
-        initial_fetch_time.to_string(),
-        http_client
-    ).await {
-        Ok(d) => {
-       
-            let result = d.result.ok_or_else(|| {
-                connection::DbError::Fetch(
-                    FetchError::Api(
-                        RequestError::RequestFailed(
-                            "Could not fetch trade data".to_string()
-                        )
-                    )
-                )
-            })?;
+    // let initial_trade: Trade = match request_tick_data_from_kraken(
+    //     ticker, 
+    //     initial_fetch_time.to_string(),
+    //     http_client
+    // ).await {
+    //     Ok(d) => {
+    //    
+    //         let result = d.result.ok_or_else(|| {
+    //             connection::DbError::Fetch(
+    //                 FetchError::Api(
+    //                     RequestError::RequestFailed(
+    //                         "Could not fetch trade data".to_string()
+    //                     )
+    //                 )
+    //             )
+    //         })?;
 
-            let trades_vec = result 
-                .trades 
-                .values() 
-                .next() 
-                .ok_or_else(|| {
-                    connection::DbError::Fetch(
-                        FetchError::SystemError(
-                            "No trades detected in response".to_string()
-                        )
-                    )
-                })?;
+    //         let trades_vec = result 
+    //             .trades 
+    //             .values() 
+    //             .next() 
+    //             .ok_or_else(|| {
+    //                 connection::DbError::Fetch(
+    //                     FetchError::SystemError(
+    //                         "No trades detected in response".to_string()
+    //                     )
+    //                 )
+    //             })?;
 
-            trades_vec.last().cloned().ok_or_else(|| {
-                connection::DbError::Fetch(
-                    FetchError::SystemError(
-                        "Trades list was empty".to_string()
-                    )
-                )
-            })?
+    //         trades_vec.last().cloned().ok_or_else(|| {
+    //             connection::DbError::Fetch(
+    //                 FetchError::SystemError(
+    //                     "Trades list was empty".to_string()
+    //                 )
+    //             )
+    //         })?
 
-        },
-        Err(_) => return Err(
-            connection::DbError::Fetch(
-                FetchError::Api(
-                    RequestError::RequestFailed(
-                        "Could not fetch trade data".to_string()
-                    )
-                )
-            )
-        )
-    };
+    //     },
+    //     Err(_) => return Err(
+    //         connection::DbError::Fetch(
+    //             FetchError::Api(
+    //                 RequestError::RequestFailed(
+    //                     "Could not fetch trade data".to_string()
+    //                 )
+    //             )
+    //         )
+    //     )
+    // };
 
-    let price_string = initial_trade.price.to_string();
-    let left_digits: usize = match price_string.split_once(".") {
-        Some((left, _right)) => left.len(),
-        None => price_string.len()
-    };
+    // let price_string = initial_trade.price.to_string();
+    // let left_digits: usize = match price_string.split_once(".") {
+    //     Some((left, _right)) => left.len(),
+    //     None => price_string.len()
+    // };
 
-    let price_digits_for_db_table = left_digits + 5;
+    // let price_digits_for_db_table = left_digits + 5;
 
     sleep(Duration::from_millis(500)).await;
     
-    let tick_info = match request_asset_info_from_kraken(
-        &ticker,
-        http_client
-    ).await {
-        Ok(d) => d,
-        Err(e) => return Err(
-            connection::DbError::Fetch(
-                FetchError::Api(
-                    RequestError::Http(e)
-                )
-            )
-        ) 
-    };
+    // let tick_info = match request_asset_info_from_kraken(
+    //     &ticker,
+    //     http_client
+    // ).await {
+    //     Ok(d) => d,
+    //     Err(e) => return Err(
+    //         connection::DbError::Fetch(
+    //             FetchError::Api(
+    //                 RequestError::Http(e)
+    //             )
+    //         )
+    //     ) 
+    // };
     
     let create_table_query: String = format!(r#"
         CREATE TABLE IF NOT EXISTS {} (
             id BIGINT PRIMARY KEY,
-            price DECIMAL({},{}) NOT NULL, 
-            volume DECIMAL({},{}) NOT NULL, 
+            price DECIMAL(24,10) NOT NULL, 
+            volume DECIMAL(24,10) NOT NULL, 
             time BIGINT NOT NULL, 
             buy_sell CHAR(1) NOT NULL, 
             market_limit CHAR(1) NOT NULL, 
             misc VARCHAR(16)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         "#,
-        table_name,
-        price_digits_for_db_table,
-        tick_info.pair_decimals,
-        price_digits_for_db_table,
-        tick_info.lot_decimals
+        table_name
+        // price_digits_for_db_table,
+        // tick_info.pair_decimals,
+        // price_digits_for_db_table,
+        // tick_info.lot_decimals
     ); 
-   
+ 
     if let Err(_) = conn.query_drop(create_table_query).await {
         return Err(DbError::TableCreationFailed(
             format!("Failed to create asset_kraken_{} table", ticker) 
@@ -307,9 +307,11 @@ pub async fn add_new_db_table(
     };
 
     sleep(Duration::from_millis(500)).await;
-    
-    initial_fetch_time = current_ts - start_date_unix_timestamp_offset;  
    
+    println!("CURRENT: {} / START OFFSET: {}", 
+        current_ts, start_date_unix_timestamp_offset); 
+    initial_fetch_time = current_ts - start_date_unix_timestamp_offset;  
+
     let initial_data: TickDataResponse = match request_tick_data_from_kraken(
         ticker, 
         initial_fetch_time.to_string(),
@@ -335,7 +337,6 @@ pub async fn download_new_data_to_db_table(
 ) -> Result<(), DbError> {
  
     let current_time: u64 = get_current_unix_timestamp();
-    let start_timestamp: u64 = current_time - initial_unix_timestamp_offset;
 
     let progress_output: bool = match show_progress {
         Some(b) => b,
@@ -364,10 +365,11 @@ pub async fn download_new_data_to_db_table(
     };
     
     let table_name = get_table_name("kraken", ticker);
+    
     if !existing_tables.contains(&table_name) {
         add_new_db_table(
             &ticker, 
-            start_timestamp, 
+            initial_unix_timestamp_offset, 
             Some(&client),
             db_pool.clone()
         ).await?;
@@ -673,9 +675,11 @@ pub async fn write_data_to_db_table(
         Err(_) => return Err(DbError::ConnectionFailed)
     };
 
-    if let Err(_) = conn.query_drop(data_insert_query).await {
+    if let Err(e) = conn.query_drop(data_insert_query).await {
         return Err(DbError::QueryFailed(
-            "Failed to insert tick data into database".to_string()
+            format!(
+                "Failed to insert tick data into database: {}", e
+            )
         )); 
     };
 
