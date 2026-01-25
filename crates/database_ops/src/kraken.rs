@@ -7,8 +7,8 @@ use std::{
 
 use reqwest;
 use serde::Deserialize;
-use mysql_async::{prelude::Queryable, Pool, Conn};
 use tokio::time::{sleep, Duration};
+use sqlx::{PgPool, pool::{PoolConnection}};
 
 use timestamp_tools::{get_current_unix_timestamp};
 use crate::connection::{DbError, FetchError, RequestError, get_table_name};
@@ -151,15 +151,10 @@ pub async fn add_new_db_table(
     ticker: &str,
     start_date_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
-    db_pool: Pool 
+    db_pool: PgPool 
 ) -> Result<(), DbError> {
 
     let table_name: String = get_table_name("kraken", ticker);
-           
-    let mut conn: Conn = match db_pool.get_conn().await {
-        Ok(c) => c,
-        Err(_) => return Err(DbError::ConnectionFailed)
-    };
 
     let existing_tables: Vec<String> = match fetch_tables(
         db_pool.clone()
@@ -285,8 +280,19 @@ pub async fn add_new_db_table(
         max(24, tick_info.lot_decimals * 2),
         tick_info.lot_decimals
     ); 
- 
-    if let Err(_) = conn.query_drop(create_table_query).await {
+
+    let mut conn: PoolConnection<sqlx::Postgres> = match db_pool
+        .acquire()
+        .await 
+    {
+        Ok(c) => c,
+        Err(_) => return Err(DbError::ConnectionFailed)
+    };
+
+    if let Err(_) = sqlx::query(&create_table_query)
+        .execute(&mut *conn)
+        .await 
+    {
         return Err(DbError::TableCreationFailed(
             format!("Failed to create asset_kraken_{} table", ticker) 
         )); 
@@ -296,7 +302,10 @@ pub async fn add_new_db_table(
         INSERT INTO _last_tick_history (asset, next_tick_id, time) 
         VALUES ('{}', 0, 0);"#, ticker);
 
-    if let Err(_) = conn.query_drop(initial_time_stamp_query).await {
+    if let Err(_) = sqlx::query(&initial_time_stamp_query)
+        .execute(&mut *conn)
+        .await 
+    {
         return Err(
             DbError::QueryFailed(
                 format!(
@@ -329,7 +338,7 @@ pub async fn add_new_db_table(
 
 pub async fn download_new_data_to_db_table(
     ticker: &str,
-    db_pool: Pool,
+    db_pool: PgPool,
     initial_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
     show_progress: Option<bool>
@@ -347,9 +356,12 @@ pub async fn download_new_data_to_db_table(
         None => &reqwest::Client::new()
     }; 
 
-    let mut conn: Conn = match db_pool.get_conn().await {
+    let mut conn = match db_pool
+        .acquire()
+        .await 
+    {
         Ok(c) => c,
-        Err(_) => return Err(DbError::ConnectionFailed)
+        Err(_) => return Err(DbError::ConnectionFailed) 
     };
 
     let existing_tables: Vec<String> = match fetch_tables(
@@ -375,7 +387,7 @@ pub async fn download_new_data_to_db_table(
     };
 
     // Get the last recorded timestamp from _last_tick_history
-    let last_tick_query = format!(
+    let ltq = format!(
         r#"
         SELECT next_tick_id, time 
         FROM _last_tick_history
@@ -384,10 +396,12 @@ pub async fn download_new_data_to_db_table(
         ticker
     ); 
 
-    let valid_row: Vec<(u64, String)> = match conn.exec(
-        last_tick_query, ()
-    ).await {
-        Ok(r) => r,
+    type Vrow = Vec<(u64, String)>;
+    let valid_row: Vrow = match sqlx::query_as::<_, (i64, String)>(&ltq)
+        .fetch_all(&mut *conn)
+        .await 
+    {
+        Ok(r) => r.into_iter().map(|(i, t)| (i as u64, t)).collect(),
         Err(_) => return Err(DbError::QueryFailed(
             "Couldn't fetch last tick time from _last_tick_history".to_string()
         )) 
@@ -400,16 +414,18 @@ pub async fn download_new_data_to_db_table(
         ))
     }; 
 
-    let last_timestamp_in_db_vec: Vec<u64> = match conn.exec(
-        format!(
-            r#"
-            SELECT time FROM {} ORDER BY id DESC LIMIT 1;
-            "#, 
-            &table_name
-        ),
-        ()
-    ).await {
-        Ok(d) => d,
+    let tq = format!(
+        r#"
+        SELECT time FROM {} ORDER BY id DESC LIMIT 1;
+        "#, 
+        &table_name
+    );
+    
+    let last_timestamp_in_db_vec: Vec<u64> = match sqlx::query_scalar(&tq)
+        .fetch_all(&mut *conn)
+        .await 
+    {
+        Ok(d) => d.into_iter().map(|v: i64| v as u64).collect(),
         Err(_) => {
             return Err(DbError::QueryFailed(
                 "Couldn't fetch last timestamp in table".to_string()
@@ -633,7 +649,7 @@ pub async fn request_asset_info_from_kraken(
 pub async fn write_data_to_db_table(
     ticker: &str,
     tick_data: &TickDataResponse, 
-    db_pool: Pool,
+    db_pool: PgPool,
     next_tick_id: Option<u64>
 ) -> Result<(), DbError> {
 
@@ -684,13 +700,11 @@ pub async fn write_data_to_db_table(
     };
     
     data_insert_query.push_str(";");
-   
-    let mut conn: Conn = match db_pool.get_conn().await {
-        Ok(c) => c,
-        Err(_) => return Err(DbError::ConnectionFailed)
-    };
 
-    if let Err(e) = conn.query_drop(data_insert_query).await {
+    if let Err(e) = sqlx::query(&data_insert_query)
+        .execute(&db_pool)
+        .await 
+    {
         return Err(DbError::QueryFailed(
             format!(
                 "Failed to insert tick data into database: {}", e
@@ -712,7 +726,10 @@ pub async fn write_data_to_db_table(
 
     let last_tick_params = (last_tick_id, last_tick_timestamp, ticker);
 
-    if let Err(_) = conn.exec_drop(last_tick_query, last_tick_params).await {
+    if let Err(_) = sqlx::query(&last_tick_query)
+        .execute(&db_pool) 
+        .await 
+    {
         return Err(DbError::QueryFailed(
             "Failed to fetch last tick".to_string()
         )); 

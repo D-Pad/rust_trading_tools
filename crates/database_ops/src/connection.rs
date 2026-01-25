@@ -1,4 +1,4 @@
-use mysql_async::{self, OptsBuilder, Pool, prelude::Queryable};
+use sqlx::{PgPool, error::DatabaseError, postgres::PgPoolOptions};
 use std::env;
 
 
@@ -60,7 +60,7 @@ pub enum DbError {
     CredentialsMissing,
     Fetch(FetchError),
     InitFailure,
-    MySql(mysql_async::Error),
+    SQL(sqlx::Error),
     ParseError,
     QueryFailed(String),
     TableCreationFailed(String),
@@ -72,9 +72,9 @@ impl From<FetchError> for DbError {
     }
 }
 
-impl From<mysql_async::Error> for DbError {
-    fn from(e: mysql_async::Error) -> Self {
-        DbError::MySql(e)
+impl From<sqlx::Error> for DbError {
+    fn from(e: sqlx::Error) -> Self {
+        DbError::SQL(e)
     }
 }
 
@@ -93,8 +93,8 @@ impl std::fmt::Display for DbError {
             DbError::InitFailure => write!(
                 f, "DbError: Could not initialize database connector struct"
             ),
-            DbError::MySql(e) => write!(
-                f, "DbError::MySqlAsync: {}", e
+            DbError::SQL(e) => write!(
+                f, "DbError::SQL: {}", e
             ),
             DbError::ParseError => write!(
                 f, "DbError: Failed to parse database data"
@@ -139,7 +139,7 @@ impl From<RequestError> for FetchError {
 // ----------------------------- STRUCTS ----------------------------------- //
 #[derive(Debug)]
 pub struct Db {
-    pub pool: Pool,
+    pub pool: PgPool,
 }
 
 impl Db {
@@ -149,43 +149,58 @@ impl Db {
         port: u16,
         user: &str,
         password: &str
-    ) -> mysql_async::Result<Self> {
+    ) -> Result<Self, DbError> {
 
-        let init_opts: OptsBuilder = OptsBuilder::default()
-            .ip_or_hostname(host)
-            .tcp_port(port)
-            .user(Some(user))
-            .pass(Some(password))
-            .into();
+        // -------- OLD LOGIC FROM MySQL_ASYNC --------- //
+        // let init_pool = Pool::new(init_opts);
+        // 
+        // if let Ok(mut p) = init_pool.get_conn().await {
+        //     let _ = p.exec_drop(
+        //         format!("CREATE DATABASE IF NOT EXISTS {};", DATABASE_NAME),
+        //         ()
+        //     ).await;
+        // };
 
-        let init_pool = Pool::new(init_opts);
-        
-        if let Ok(mut p) = init_pool.get_conn().await {
-            let _ = p.exec_drop(
-                format!("CREATE DATABASE IF NOT EXISTS {};", DATABASE_NAME),
-                ()
-            ).await;
+        // let opts: OptsBuilder = OptsBuilder::default()
+        //     .ip_or_hostname(host)
+        //     .tcp_port(port)
+        //     .user(Some(user))
+        //     .pass(Some(password))
+        //     .db_name(Some(DATABASE_NAME))
+        //     .into();
+
+        // let pool = Pool::new(opts);
+
+        // Ok(Self { pool })
+
+        let database_url = format!(
+            "postgres://{}:{}@{}:{}/{}",
+            user,
+            password,
+            host,
+            port,
+            DATABASE_NAME
+        );
+
+        let pool = match PgPoolOptions::new()
+            .max_connections(10)
+            .connect(&database_url)
+            .await
+        {
+            Ok(p) => p,
+            Err(_) => return Err(DbError::InitFailure) 
         };
 
-        let opts: OptsBuilder = OptsBuilder::default()
-            .ip_or_hostname(host)
-            .tcp_port(port)
-            .user(Some(user))
-            .pass(Some(password))
-            .db_name(Some(DATABASE_NAME))
-            .into();
-
-        let pool = Pool::new(opts);
-
         Ok(Self { pool })
+
     }
 
-    pub fn get_pool(&self) -> mysql_async::Pool {
+    pub fn get_pool(&self) -> PgPool {
         self.pool.clone()
     }
 
     pub async fn disconnect(self) {
-        let _ = self.pool.disconnect().await;
+        self.pool.close().await;
     }
 
 }
@@ -228,7 +243,7 @@ impl DbLogin {
 
 
 pub fn get_table_name(exchange: &str, ticker: &str) -> String {
-    format!("asset_{exchange}_{ticker}")
+    format!("asset_{exchange}_{ticker}").to_lowercase()
 }
 
 

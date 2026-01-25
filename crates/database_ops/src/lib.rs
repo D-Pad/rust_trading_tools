@@ -1,6 +1,6 @@
 use std::{cmp::{min, max}, fmt};
-use mysql_async::{self, prelude::*, Pool, Conn};
 use reqwest;
+use sqlx::{PgPool, pool::{PoolConnection}};
 
 pub mod connection;
 pub use connection::{Db, DbLogin, DbError, FetchError};
@@ -14,7 +14,7 @@ use timestamp_tools::db_timestamp_to_date_string;
 pub async fn download_new_data_to_db_table(
     exchange: &str, 
     ticker: &str,
-    db_pool: Pool,
+    db_pool: PgPool,
     initial_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
     show_progress: Option<bool>
@@ -44,7 +44,7 @@ pub async fn fetch_first_tick_by_time_column(
     exchange: &str,
     ticker: &str,
     timestamp: &u64,
-    db_pool: Pool
+    db_pool: PgPool
 ) -> Vec<(u64, u64, f64, f64)> {
     
     let query: String = format!(
@@ -58,30 +58,43 @@ pub async fn fetch_first_tick_by_time_column(
         timestamp 
     );
     
-    match db_pool.get_conn().await {
-        Ok(mut c) => {
-            if let Ok(d) = c.exec(query, ()).await {
-                d  
-            }
-            else {
-                Vec::new()
-            }
-        },
-        Err(_) => Vec::new() 
-    }
+    // match db_pool.get_conn().await {
+    //     Ok(mut c) => {
+    //         if let Ok(d) = c.exec(query, ()).await {
+    //             d  
+    //         }
+    //         else {
+    //             Vec::new()
+    //         }
+    //     },
+    //     Err(_) => Vec::new() 
+    // }
+   
+    type Vrow = Vec<(u64, u64, f64, f64)>;
+    let row: Vrow = match sqlx::query_as::<_, (i64, i64, f64, f64)>(&query)
+        .fetch_all(&db_pool)
+        .await 
+    {
+        Ok(rows) => rows
+            .into_iter()
+            .map(|(i, t, p, v)|(i as u64, t as u64, p, v))
+            .collect()
+        ,
+        Err(_) => Vec::new()
+    };
+    
+    row
 }
 
 
 pub async fn fetch_tables(
-    db_pool: Pool 
+    db_pool: PgPool 
 ) -> Result<Vec<String>, DbError> {
-
-    let mut conn: Conn = match db_pool.get_conn().await {
-        Ok(c) => c,
-        Err(_) => return Err(DbError::ConnectionFailed)
-    };
  
-    let tables: Vec<String> = match conn.exec("SHOW TABLES", ()).await {
+    let tables: Vec<String> = match sqlx::query_scalar("SHOW TABLES")
+        .fetch_all(&db_pool)
+        .await 
+    {
         Ok(d) => d,
         Err(_) => return Err(DbError::ConnectionFailed)
     };
@@ -94,24 +107,29 @@ pub async fn fetch_tables(
 pub async fn fetch_first_row(
     exchange: &str, 
     ticker: &str,
-    db_pool: Pool 
+    db_pool: PgPool 
 ) -> Result<Vec<(u64, u64, f64, f64)>, DbError> {
 
-    let mut conn: Conn = match db_pool.get_conn().await {
-        Ok(c) => c,
-        Err(_) => return Err(DbError::ConnectionFailed)
-    };
- 
-    type TickRow = Vec<(u64, u64, f64, f64)>;
-    let last_row: TickRow = conn.exec(
-        &format!(
-            r#"SELECT id, time, price, volume 
-            FROM asset_{exchange}_{ticker} 
-            ORDER BY id LIMIT 1"#
-        ), ()
-    ).await?;
+    let query = format!(
+        r#"SELECT id, time, price, volume 
+        FROM asset_{exchange}_{ticker} 
+        ORDER BY id LIMIT 1"#
+    );
 
-    Ok(last_row) 
+    type TickRow = Vec<(u64, u64, f64, f64)>;
+    let row: TickRow = match sqlx::query_as::<_, (i64, i64, f64, f64)>(&query)
+        .fetch_all(&db_pool)
+        .await 
+    {
+        Ok(d) => d
+            .into_iter()
+            .map(|(i, t, p, v)| (i as u64, t as u64, p, v))
+            .collect() 
+        ,
+        Err(_) => return Err(DbError::QueryFailed(query))
+    };
+
+    Ok(row)
 
 }
 
@@ -119,24 +137,29 @@ pub async fn fetch_first_row(
 pub async fn fetch_last_row(
     exchange: &str, 
     ticker: &str,
-    db_pool: Pool 
+    db_pool: PgPool 
 ) -> Result<Vec<(u64, u64, f64, f64)>, DbError> {
 
-    let mut conn: Conn = match db_pool.get_conn().await {
-        Ok(c) => c,
-        Err(_) => return Err(DbError::ConnectionFailed)
-    };
- 
-    type TickRow = Vec<(u64, u64, f64, f64)>;
-    let last_row: TickRow = conn.exec(
-        &format!(
-            r#"SELECT id, time, price, volume 
-            FROM asset_{exchange}_{ticker} 
-            ORDER BY id DESC LIMIT 1"#
-        ), ()
-    ).await?;
+    let query: String = format!(
+        r#"SELECT id, time, price, volume 
+        FROM asset_{exchange}_{ticker} 
+        ORDER BY id DESC LIMIT 1"#
+    );
 
-    Ok(last_row) 
+    type TickRow = Vec<(u64, u64, f64, f64)>;
+    let last: TickRow = match sqlx::query_as::<_, (i64, i64, f64, f64)>(&query)
+        .fetch_all(&db_pool)
+        .await 
+    {
+        Ok(d) => d
+            .into_iter()
+            .map(|(i, p, t, v)| (i as u64, p as u64, t, v))
+            .collect()
+        ,
+        Err(_) => return Err(DbError::QueryFailed(query))
+    };
+
+    Ok(last) 
 
 }
 
@@ -145,12 +168,15 @@ pub async fn fetch_rows(
     exchange: &str, 
     ticker: &str,
     limit: Option<u64>,
-    db_pool: Pool
+    db_pool: PgPool
 ) -> Result<Vec<(u64, u64, f64, f64)>, DbError> {
 
     let table_name = get_table_name(ticker, exchange);
 
-    let mut conn: Conn = match db_pool.get_conn().await {
+    let mut conn: PoolConnection<sqlx::Postgres> = match db_pool
+        .acquire()
+        .await 
+    {
         Ok(c) => c,
         Err(_) => return Err(DbError::ConnectionFailed)
     };
@@ -165,11 +191,23 @@ pub async fn fetch_rows(
         ORDER BY id DESC LIMIT 1"#
     );
     
-    let last_id: u64 = match conn.exec_first::<u64, _, _>(
-        last_id_query, ()
-    ).await {
-        Ok(Some(d)) => d,
-        Ok(None) | Err(_) => return Err(
+    let last_id: u64 = match sqlx::query_scalar::<_, i64>(last_id_query)
+        .fetch_all(&mut *conn)
+        .await 
+    {
+        Ok(d) => {
+            if d.len() > 0 { 
+                d[0] as u64
+            }
+            else {
+                return Err(
+                    DbError::QueryFailed(
+                        "Last ID could not be fetched, table empty".to_string() 
+                    )
+                )
+            }
+        },
+        Err(_) => return Err(
             DbError::QueryFailed(
                 "Failed to fetch last tick ID".to_string() 
             )
@@ -185,7 +223,21 @@ pub async fn fetch_rows(
         "#,
     );
 
-    let rows: Vec<(u64, u64, f64, f64)> = conn.exec(query, ()).await?;
+    type Drow = Vec<(u64, u64, f64, f64)>;
+    let rows: Drow = match sqlx::query_as::<_, (i64, i64, f64, f64)>(&query)
+        .fetch_all(&mut *conn)
+        .await 
+    {
+        Ok(d) => d.into_iter()
+            .map(|(i, t, p, vol)| (i as u64, t as u64, p, vol))
+            .collect()
+        ,
+        Err(_) => return Err(
+            DbError::QueryFailed(
+                "Failed to fetch last tick ID".to_string() 
+            )
+        )
+    };
 
     Ok(rows)
 }
@@ -193,37 +245,44 @@ pub async fn fetch_rows(
 
 pub async fn first_time_setup(
     active_exchanges: &Vec<String>, 
-    db_pool: Pool 
+    db_pool: PgPool 
 ) -> Result<(), DbError> {
    
     for exchange_name in active_exchanges {
 
         if exchange_name == "kraken" { 
 
-            let mut conn: Conn = match db_pool.get_conn().await {
+            let mut conn: PoolConnection<sqlx::Postgres> = match db_pool
+                .acquire()
+                .await 
+            {
                 Ok(c) => c,
                 Err(_) => return Err(DbError::ConnectionFailed)
             };
 
-            let show_table_query: String = "SHOW TABLES".to_string();
-            let table_request = conn.exec(show_table_query, ()).await;
-            let existing_tables: Vec<String> = match table_request {
+            let tables: Vec<String> = match sqlx::query_scalar("SHOW TABLES")
+                .fetch_all(&mut *conn)
+                .await 
+            {
                 Ok(d) => d,
                 Err(_) => return Err(DbError::QueryFailed(
                     "Failed to fetch table names".to_string() 
                 ))
             };
 
-            if !existing_tables.contains(&"_last_tick_history".to_string()) {
+            if !tables.contains(&"_last_tick_history".to_string()) {
 
                 let query: &'static str = r#"
                     CREATE TABLE IF NOT EXISTS _last_tick_history (
                         asset VARCHAR(12) NOT NULL PRIMARY KEY,
                         next_tick_id BIGINT NOT NULL,
                         time VARCHAR(20)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4; 
+                    ); 
                 "#;
-                if let Err(_) = conn.query_drop(query).await {
+                if let Err(_) = sqlx::query(&query)
+                    .execute(&mut *conn)
+                    .await 
+                {
                     return Err(DbError::QueryFailed(
                             "Failed to create '_last_tick_history'".to_string()
                         )
@@ -240,7 +299,7 @@ pub async fn first_time_setup(
 
 pub async fn initialize(
     active_exchanges: Vec<String>,
-    db_pool: Pool
+    db_pool: PgPool
 ) -> Result<(), DbError> {
 
     first_time_setup(&active_exchanges, db_pool.clone()).await?;
@@ -321,7 +380,7 @@ impl fmt::Display for DatabaseIntegrity {
 pub async fn integrity_check(
     exchange: &str, 
     ticker: &str,
-    db_pool: Pool,
+    db_pool: PgPool,
     tick_step_value: Option<u16>
 ) -> DatabaseIntegrity {
 
@@ -339,13 +398,16 @@ pub async fn integrity_check(
         error: String::new() 
     };
 
-    let mut conn = match db_pool.get_conn().await {
+    let mut conn = match db_pool
+        .acquire()
+        .await 
+    {
         Ok(c) => c,
         Err(_) => {
             dbi.error.push_str("Failed to establish a Database Connection");
-            return dbi
-        } 
-    };    
+            return dbi 
+        }
+    };
 
     (dbi.first_tick_id, dbi.first_date) = match fetch_first_row(
         exchange, ticker, db_pool.clone()
@@ -387,8 +449,11 @@ pub async fn integrity_check(
             end
         );
         
-        let tick_slice: Vec<u64> = match conn.exec(&query, ()).await {
-            Ok(d) => d,
+        let tick_slice: Vec<u64> = match sqlx::query_scalar(&query)
+            .fetch_all(&mut *conn)
+            .await 
+        {
+            Ok(d) => d.into_iter().map(|v: i64| v as u64).collect(),
             Err(_) => {
                 dbi.error.push_str("Failed to fetch tick slice");
                 return dbi

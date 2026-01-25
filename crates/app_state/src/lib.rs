@@ -14,6 +14,22 @@ pub enum InitializationError {
     InitFailure
 }
 
+impl std::fmt::Display for InitializationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            InitializationError::Db(e) => write!(
+                f, "InitializationError::DbError: {}", e
+            ),
+            InitializationError::Config(e) => write!(
+                f, "InitializationError::Config: {}", e
+            ),
+            InitializationError::InitFailure => write!(
+                f, "InitializationError::InitFailure"
+            ),
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub struct AppState {
@@ -37,7 +53,7 @@ impl AppState {
         
         let database = match Db::new(
             &db_login.host,
-            3306,
+            5432,
             &db_login.user,
             &db_login.password,
         ).await {
@@ -65,9 +81,25 @@ impl AppState {
 // --------------------------- APP CONFIGURATION --------------------------- //
 #[derive(Debug)]
 pub enum ConfigError {
-    FileNotFound,
+    FileNotFound(&'static str),
     ParseFailure,
     SaveStateFailed,
+}
+
+impl std::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ConfigError::FileNotFound(e) => write!(
+                f, "ConfigError::FileNotFound: {}", e
+            ),
+            ConfigError::ParseFailure => write!(
+                f, "ConfigError::ParseFailure: Couldn't parse config file" 
+            ),
+            ConfigError::SaveStateFailed => write!(
+                f, "ConfigError::SaveStateFailed" 
+            ),
+        }
+    }
 }
 
 
@@ -148,12 +180,13 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
     );
     
     // Fallback to default .toml file if not .json file is present
-    let toml_config_path: PathBuf = cache_path.join("config.toml");
+    let toml_file_name: &'static str = "config.toml";
+    let toml_config_path: PathBuf = cache_path.join(toml_file_name);
     
     let contents = match fs::read_to_string(toml_config_path) {
         Ok(d) => d,
         Err(_) => {
-            return Err(ConfigError::FileNotFound)
+            return Err(ConfigError::FileNotFound(toml_file_name))
         }
     };
 

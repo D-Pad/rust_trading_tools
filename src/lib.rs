@@ -4,22 +4,22 @@ use database_ops::DbError;
 
 #[derive(Debug)]
 pub enum RunTimeError {
-    DataBase(DbError)
+    DataBase(DbError),
+    Init(InitializationError),
 }
 
 impl std::fmt::Display for RunTimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            RunTimeError::DataBase(e) => write!(f, "DataBaseError: {}", e)
+            RunTimeError::DataBase(e) => write!(f, "DataBaseError: {}", e),
+            RunTimeError::Init(e) => write!(f, "InitError: {}", e),
         }
     }
 }
 
 
 pub fn error_handler(err: RunTimeError) {
-    match err {
-        RunTimeError::DataBase(e) => eprintln!("\x1b[1;31m{}\x1b[0m", e) 
-    }
+    eprintln!("\x1b[1;31m{}\x1b[0m", err) 
 }
 
 

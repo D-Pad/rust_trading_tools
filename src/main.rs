@@ -16,12 +16,12 @@ async fn main() {
         } 
     };
 
-    if let Err(_) = trading_app::initiailze(&app_state).await {
+    if let Err(e) = trading_app::initiailze(&app_state).await {
+        trading_app::error_handler(trading_app::RunTimeError::Init(e)); 
         process::exit(1); 
     };
 
     if let Err(e) = trading_app::dev_test(&app_state).await {
-        println!("ERROR: {}", e);
         trading_app::error_handler(e); 
     };
 
