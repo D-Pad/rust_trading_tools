@@ -272,7 +272,7 @@ pub async fn add_new_db_table(
             buy_sell CHAR(1) NOT NULL, 
             market_limit CHAR(1) NOT NULL, 
             misc VARCHAR(16)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        );
         "#,
         table_name,
         max(24, tick_info.pair_decimals * 2),
@@ -329,7 +329,14 @@ pub async fn add_new_db_table(
         Err(e) => return Err(DbError::Fetch(FetchError::Api(e)))
     };
 
-    write_data_to_db_table(ticker, &initial_data, db_pool.clone(), None).await;
+    if let Err(e) = write_data_to_db_table(
+        ticker, 
+        &initial_data, 
+        db_pool.clone(), 
+        None
+    ).await {
+        return Err(e)
+    };
     
     Ok(())
 
@@ -655,7 +662,7 @@ pub async fn write_data_to_db_table(
 
     // Insert tick data first
     let mut data_insert_query: String = format!(
-        r#"INSERT INTO `asset_kraken_{}` (
+        r#"INSERT INTO asset_kraken_{} (
             id, 
             price, 
             volume, 
@@ -718,20 +725,22 @@ pub async fn write_data_to_db_table(
         None => return Err(DbError::ParseError) 
     };
 
-    let last_tick_query: String = format!(r#"
+    let last_tick_query: String = String::from(r#"
         UPDATE _last_tick_history
-        SET next_tick_id = ?, time = ?
-        WHERE asset = ?;
-    "#);
-
-    let last_tick_params = (last_tick_id, last_tick_timestamp, ticker);
+        SET next_tick_id = $1, time = $2
+        WHERE asset = $3;
+        "#
+    );
 
     if let Err(_) = sqlx::query(&last_tick_query)
+        .bind(last_tick_id as i64)
+        .bind(last_tick_timestamp)
+        .bind(ticker)
         .execute(&db_pool) 
         .await 
     {
         return Err(DbError::QueryFailed(
-            "Failed to fetch last tick".to_string()
+            "Failed to fetch update _last_tick_history".to_string()
         )); 
     };
 

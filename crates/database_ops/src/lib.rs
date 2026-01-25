@@ -90,16 +90,26 @@ pub async fn fetch_first_tick_by_time_column(
 pub async fn fetch_tables(
     db_pool: PgPool 
 ) -> Result<Vec<String>, DbError> {
- 
-    let tables: Vec<String> = match sqlx::query_scalar("SHOW TABLES")
+
+    let table_query: String = format!(
+        r#"
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+        "#
+    );
+
+    let tables: Vec<String> = match sqlx::query_scalar(&table_query)
         .fetch_all(&db_pool)
         .await 
     {
         Ok(d) => d,
-        Err(_) => return Err(DbError::ConnectionFailed)
+        Err(_) => return Err(DbError::QueryFailed(
+            "Failed to fetch table names".to_string() 
+        ))
     };
 
-    Ok(tables) 
+    Ok(tables)
 
 }
 
@@ -260,15 +270,7 @@ pub async fn first_time_setup(
                 Err(_) => return Err(DbError::ConnectionFailed)
             };
 
-            let tables: Vec<String> = match sqlx::query_scalar("SHOW TABLES")
-                .fetch_all(&mut *conn)
-                .await 
-            {
-                Ok(d) => d,
-                Err(_) => return Err(DbError::QueryFailed(
-                    "Failed to fetch table names".to_string() 
-                ))
-            };
+            let tables: Vec<String> = fetch_tables(db_pool.clone()).await?;
 
             if !tables.contains(&"_last_tick_history".to_string()) {
 

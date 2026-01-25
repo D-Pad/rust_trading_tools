@@ -11,8 +11,8 @@ pub enum RunTimeError {
 impl std::fmt::Display for RunTimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            RunTimeError::DataBase(e) => write!(f, "DataBaseError: {}", e),
-            RunTimeError::Init(e) => write!(f, "InitError: {}", e),
+            RunTimeError::DataBase(e) => write!(f, "{}", e),
+            RunTimeError::Init(e) => write!(f, "{}", e),
         }
     }
 }
@@ -54,7 +54,7 @@ pub async fn initiailze(state: &AppState) -> Result<(), InitializationError> {
     for (exchange, activated) in &state.config.supported_exchanges.active {
         if *activated { active_exchanges.push(exchange.clone()) }
     };
-   
+  
     let pool = state.database.get_pool();
 
     if let Err(_) = database_ops::initialize(

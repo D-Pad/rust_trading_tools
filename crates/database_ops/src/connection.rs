@@ -1,4 +1,4 @@
-use sqlx::{PgPool, error::DatabaseError, postgres::PgPoolOptions};
+use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::env;
 
 
@@ -188,7 +188,10 @@ impl Db {
             .await
         {
             Ok(p) => p,
-            Err(_) => return Err(DbError::InitFailure) 
+            Err(e) => { 
+                println!("{}", e); 
+                return Err(DbError::InitFailure) 
+            }
         };
 
         Ok(Self { pool })
