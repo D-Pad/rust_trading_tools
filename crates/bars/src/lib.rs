@@ -103,13 +103,22 @@ impl fmt::Display for Bar {
 pub struct BarInfo {
     exchange: String,
     ticker: String,
-    period: String
+    period: String,
+    time_based: bool
 }
 
 impl BarInfo {
-    pub fn new(exchange: String, ticker: String, period: String) -> Self {
-        BarInfo { exchange, ticker, period }
-    } 
+    pub fn new(exchange: String, ticker: String, period: String) 
+        -> Result<Self, BarBuildError> 
+    {
+        let (period_key, _) = get_period_portions_from_string(&period)
+            .map_err(|_| 
+                BarBuildError::Period(TimePeriodError::InvalidPeriod)
+            )?;
+
+        let time_based = period_is_time_based(period_key);
+        Ok(BarInfo { exchange, ticker, period, time_based })
+    }
 }
 
 
@@ -129,7 +138,7 @@ impl BarSeries {
         app_state: &AppState
     ) -> Result<Self, BarBuildError> {
     
-        let info: BarInfo = BarInfo::new(exchange, ticker, period); 
+        let info: BarInfo = BarInfo::new(exchange, ticker, period)?; 
 
         let num_ticks: Option<u64> = Some(1_000_000);
 
@@ -212,10 +221,8 @@ pub async fn calculate_first_tick_id(
 
     let pool = app_state.database.get_pool();
 
-    let (symbol, n_periods) = match get_period_portions_from_string(period) {
-        Ok(d) => d,
-        Err(_) => ('t', 0)
-    };
+    let (symbol, n_periods) = get_period_portions_from_string(period)
+        .map_err(|_| BarBuildError::Period(TimePeriodError::InvalidPeriod))?;
 
     let last_tick = fetch_first_or_last_row(exchange, ticker, pool, true)
         .await 
@@ -234,14 +241,10 @@ pub async fn calculate_first_tick_id(
         
         let last_tick_timestamp: u64 = last_tick.1 / 1_000_000;
 
-        let num_secs = match calculate_seconds_in_period(n_periods, symbol) {
-            Ok(n) => n,
-            Err(_) => return Err(
-                BarBuildError::TickIdCalculation(
-                    "Failed to calculate seconds in period".to_string()
-                )
-            ) 
-        };
+        let num_secs = calculate_seconds_in_period(n_periods, symbol) 
+            .map_err(|_| BarBuildError::TickIdCalculation(
+                "Failed to calculate seconds in period".to_string()
+            ))?;
 
         let first_tick_time: u64 = candle_open_timestamp(
             last_tick_timestamp - (num_secs * (num_bars as u64)), num_secs
