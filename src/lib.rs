@@ -1,5 +1,5 @@
 use app_state::{AppState, InitializationError};
-use database_ops::DbError;
+use database_ops::{DbError, fetch_tables};
 
 
 #[derive(Debug)]
@@ -26,22 +26,30 @@ pub fn error_handler(err: RunTimeError) {
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
 
-    let time_offset: u64 = state
-        .config
-        .data_download
-        .cache_size_settings_to_seconds();
+    // let time_offset: u64 = state
+    //     .config
+    //     .data_download
+    //     .cache_size_settings_to_seconds();
 
-    if let Err(db) = database_ops::download_new_data_to_db_table(
+    // if let Err(db) = database_ops::download_new_data_to_db_table(
+    //     "kraken", 
+    //     "BTCUSD", 
+    //     state.database.get_pool(), 
+    //     time_offset, 
+    //     None,
+    //     Some(true)
+    // ).await {
+    //     return Err(RunTimeError::DataBase(db)) 
+    // };
+
+    let dbi = database_ops::integrity_check(
         "kraken", 
         "BTCUSD", 
         state.database.get_pool(), 
-        time_offset, 
-        None,
-        Some(true)
-    ).await {
-        return Err(RunTimeError::DataBase(db)) 
-    };
+        None).await;
 
+    println!("{}", dbi);
+    
     Ok(())
 
 }
@@ -85,7 +93,7 @@ mod tests {
         let dbl = DbLogin::new();
         let db = match Db::new(
             &dbl.host,
-            3306,
+            5432,
             &dbl.user,
             &dbl.password 
         ).await {
@@ -93,9 +101,12 @@ mod tests {
             Err(e) => panic!("{:?}", e)
         };
 
-        let db_pool = db.get_pool();
+        let pool = db.get_pool();
 
-        db_pool.get_conn().await.unwrap();
+        if let Err(_) = fetch_tables(pool.clone()).await {
+            panic!();
+        };
+
     }
 
     #[tokio::test]
@@ -106,7 +117,7 @@ mod tests {
         let dbl = DbLogin::new();
         let db = match Db::new(
             &dbl.host,
-            3306,
+            5432,
             &dbl.user,
             &dbl.password 
         ).await {
@@ -127,7 +138,7 @@ mod tests {
                 
                 let parts: Vec<&str> = table_name.split('_').collect();
                 let exchange = parts[1];
-                let ticker = parts[2];
+                let ticker = &parts[2].to_uppercase();
 
                 let check_val = integrity_check(
                     exchange, 

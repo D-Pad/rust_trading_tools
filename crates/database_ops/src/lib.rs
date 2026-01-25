@@ -1,6 +1,6 @@
 use std::{cmp::{min, max}, fmt};
 use reqwest;
-use sqlx::{PgPool, pool::{PoolConnection}};
+use sqlx::{PgPool, pool::{PoolConnection}, types::BigDecimal};
 
 pub mod connection;
 pub use connection::{Db, DbLogin, DbError, FetchError};
@@ -45,7 +45,7 @@ pub async fn fetch_first_tick_by_time_column(
     ticker: &str,
     timestamp: &u64,
     db_pool: PgPool
-) -> Vec<(u64, u64, f64, f64)> {
+) -> Vec<(u64, u64, BigDecimal, BigDecimal)> {
     
     let query: String = format!(
         r#"
@@ -69,11 +69,13 @@ pub async fn fetch_first_tick_by_time_column(
     //     },
     //     Err(_) => Vec::new() 
     // }
-   
-    type Vrow = Vec<(u64, u64, f64, f64)>;
-    let row: Vrow = match sqlx::query_as::<_, (i64, i64, f64, f64)>(&query)
-        .fetch_all(&db_pool)
-        .await 
+  
+    type Vrow = Vec<(u64, u64, BigDecimal, BigDecimal)>;
+    let row: Vrow = match sqlx::query_as::
+        <_, (i64, i64, BigDecimal, BigDecimal)>
+        (&query)
+            .fetch_all(&db_pool)
+            .await 
     {
         Ok(rows) => rows
             .into_iter()
@@ -114,20 +116,30 @@ pub async fn fetch_tables(
 }
 
 
-pub async fn fetch_first_row(
+pub async fn fetch_first_or_last_row(
     exchange: &str, 
     ticker: &str,
-    db_pool: PgPool 
-) -> Result<Vec<(u64, u64, f64, f64)>, DbError> {
+    db_pool: PgPool,
+    last_row: bool
+) -> Result<Vec<(u64, u64, BigDecimal, BigDecimal)>, DbError> {
+
+    let limit_str: &str = match last_row {
+        true => "DESC ",
+        false => ""
+    };
 
     let query = format!(
         r#"SELECT id, time, price, volume 
         FROM asset_{exchange}_{ticker} 
-        ORDER BY id LIMIT 1"#
+        ORDER BY id {}LIMIT 1"#,
+        limit_str
     );
 
-    type TickRow = Vec<(u64, u64, f64, f64)>;
-    let row: TickRow = match sqlx::query_as::<_, (i64, i64, f64, f64)>(&query)
+    type TickRow = Vec<(u64, u64, BigDecimal, BigDecimal)>;
+    let row: TickRow = match sqlx::query_as::<
+        _, (i64, i64, BigDecimal, BigDecimal)
+    >
+        (&query)
         .fetch_all(&db_pool)
         .await 
     {
@@ -136,40 +148,13 @@ pub async fn fetch_first_row(
             .map(|(i, t, p, v)| (i as u64, t as u64, p, v))
             .collect() 
         ,
-        Err(_) => return Err(DbError::QueryFailed(query))
+        Err(e) => {
+            println!("{}", e); 
+            return Err(DbError::QueryFailed(query))
+        }
     };
 
     Ok(row)
-
-}
-
-
-pub async fn fetch_last_row(
-    exchange: &str, 
-    ticker: &str,
-    db_pool: PgPool 
-) -> Result<Vec<(u64, u64, f64, f64)>, DbError> {
-
-    let query: String = format!(
-        r#"SELECT id, time, price, volume 
-        FROM asset_{exchange}_{ticker} 
-        ORDER BY id DESC LIMIT 1"#
-    );
-
-    type TickRow = Vec<(u64, u64, f64, f64)>;
-    let last: TickRow = match sqlx::query_as::<_, (i64, i64, f64, f64)>(&query)
-        .fetch_all(&db_pool)
-        .await 
-    {
-        Ok(d) => d
-            .into_iter()
-            .map(|(i, p, t, v)| (i as u64, p as u64, t, v))
-            .collect()
-        ,
-        Err(_) => return Err(DbError::QueryFailed(query))
-    };
-
-    Ok(last) 
 
 }
 
@@ -347,34 +332,33 @@ impl fmt::Display for DatabaseIntegrity {
             }
         }
         
-        write!(f, "\x1b[1;36mDatabase Integrity:\x1b[0m\n");
+        write!(f, "\x1b[1;36mDatabase Integrity:\x1b[0m\n")?;
         write!(f, "  \x1b[33mtable_name   \x1b[0m: {}\n", 
-            self.table_name);
+            self.table_name)?;
         write!(f, "  \x1b[33mis_ok        \x1b[0m: {}{}\n", 
-            col(self.is_ok), self.is_ok);
-        write!(f, "  \x1b[33mfirst_tick_id\x1b[0m: {}\n", self.first_tick_id);
-        write!(f, "  \x1b[33mlast_tick_id \x1b[0m: {}\n", self.last_tick_id);
-        write!(f, "  \x1b[33mfirst_date   \x1b[0m: {}\n", self.first_date);
-        write!(f, "  \x1b[33mlast_date    \x1b[0m: {}\n", self.last_date);
-        write!(f, "  \x1b[33mtotal_ticks  \x1b[0m: {}\n", self.total_ticks);
+            col(self.is_ok), self.is_ok)?;
+        write!(f, "  \x1b[33mfirst_tick_id\x1b[0m: {}\n", self.first_tick_id)?;
+        write!(f, "  \x1b[33mlast_tick_id \x1b[0m: {}\n", self.last_tick_id)?;
+        write!(f, "  \x1b[33mfirst_date   \x1b[0m: {}\n", self.first_date)?;
+        write!(f, "  \x1b[33mlast_date    \x1b[0m: {}\n", self.last_date)?;
+        write!(f, "  \x1b[33mtotal_ticks  \x1b[0m: {}\n", self.total_ticks)?;
         
         if self.missing_ticks.len() > 0 {
-            write!(f, "  \x1b[33mmissing_ticks\x1b[0m: [\n\x1b[1;31m");
+            write!(f, "  \x1b[33mmissing_ticks\x1b[0m: [\n\x1b[1;31m")?;
             for missing in &self.missing_ticks {
-                write!(f, "    {}\n", missing);
+                write!(f, "    {}\n", missing)?;
             };
-            write!(f, "\x1b[0m  ]\n");
+            write!(f, "\x1b[0m  ]\n")?;
         }
         else {
-            write!(f, "  \x1b[33mmissing_ticks\x1b[0m: \x1b[32mnone\x1b[0m\n");
+            write!(f, 
+                "  \x1b[33mmissing_ticks\x1b[0m: \x1b[32mnone\x1b[0m\n")?;
         };
 
-        if self.error.len() > 0 {
-            write!(f, "  \x1b[33merror\x1b[0m: \x1b[1:31m{}", self.error)
-        }
-        else {
-            Ok(())
-        }
+        if !self.is_ok {
+            write!(f, "  \x1b[33merror\x1b[0m: \x1b[1:31m{}", self.error)?;
+        };
+        Ok(())
     }
 } 
 
@@ -411,22 +395,22 @@ pub async fn integrity_check(
         }
     };
 
-    (dbi.first_tick_id, dbi.first_date) = match fetch_first_row(
-        exchange, ticker, db_pool.clone()
+    (dbi.first_tick_id, dbi.first_date) = match fetch_first_or_last_row(
+        exchange, ticker, db_pool.clone(), false
     ).await {
         Ok(d) => (d[0].0, db_timestamp_to_date_string(d[0].1)),
-        Err(_) => {
-            dbi.error.push_str("Failed to fetch first tick ID");
+        Err(e) => {
+            dbi.error.push_str(&format!("Couldn't fetch first tick ID: {}", e));
             return dbi
         }
     };
      
-    (dbi.last_tick_id, dbi.last_date) = match fetch_last_row(
-        exchange, ticker, db_pool.clone()
+    (dbi.last_tick_id, dbi.last_date) = match fetch_first_or_last_row(
+        exchange, ticker, db_pool.clone(), true
     ).await {
         Ok(d) => (d[0].0, db_timestamp_to_date_string(d[0].1)),
-        Err(_) => {
-            dbi.error.push_str("Failed to fetch last tick ID"); 
+        Err(e) => {
+            dbi.error.push_str(&format!("Couldn't fetch last tick ID: {}", e)); 
             return dbi 
         }
     };
@@ -439,9 +423,9 @@ pub async fn integrity_check(
 
     let range_vals = dbi.first_tick_id..dbi.last_tick_id;
     let mut last_id = 0;
-    
+   
     for start in range_vals.step_by(step_val as usize) {
-       
+      
         let end = min(start + (step_val as u64) - 1, dbi.last_tick_id); 
         
         let query = format!(
@@ -475,7 +459,10 @@ pub async fn integrity_check(
         }; 
     
     }; 
-    
+ 
+    if dbi.error.len() > 0 { 
+        dbi.is_ok = false 
+    };
     dbi
 
 }

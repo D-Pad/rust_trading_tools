@@ -217,23 +217,16 @@ pub async fn calculate_first_tick_id(
         Err(_) => ('t', 0)
     };
 
-    let last_tick = match fetch_last_row(exchange, ticker, pool).await {
-        Ok(r) => {
-            if r.len() > 0 {
-                r[0]
-            }
-            else {
-                return Err(BarBuildError::TickIdCalculation(
-                    "Failed to fetch initial tick value".to_string()
-                ))
-            }
-        },
-        Err(_) => return {
-            Err(BarBuildError::TickIdCalculation(
-                "Failed to fetch initial tick value".to_string()
-            ))
-        }
-    }; 
+    let last_tick = fetch_first_or_last_row(exchange, ticker, pool, true)
+        .await 
+        .map_err(|_| BarBuildError::TickIdCalculation(
+            "Failed to fetch initial tick value".to_string()
+        ))?
+        .into_iter()
+        .next()
+        .ok_or_else(|| BarBuildError::TickIdCalculation(
+            "Failed to fetch initial tick value".to_string()
+        ))?;
         
     let num_bars: u16 = app_state.config.chart_parameters.num_bars;
 

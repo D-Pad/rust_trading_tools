@@ -8,7 +8,7 @@ use std::{
 use reqwest;
 use serde::Deserialize;
 use tokio::time::{sleep, Duration};
-use sqlx::{PgPool, pool::{PoolConnection}};
+use sqlx::{PgPool, pool::{PoolConnection}, types::BigDecimal};
 
 use timestamp_tools::{get_current_unix_timestamp};
 use crate::connection::{DbError, FetchError, RequestError, get_table_name};
@@ -422,9 +422,7 @@ pub async fn download_new_data_to_db_table(
     }; 
 
     let tq = format!(
-        r#"
-        SELECT time FROM {} ORDER BY id DESC LIMIT 1;
-        "#, 
+        "SELECT time FROM {} ORDER BY id DESC LIMIT 1;", 
         &table_name
     );
     
@@ -433,10 +431,10 @@ pub async fn download_new_data_to_db_table(
         .await 
     {
         Ok(d) => d.into_iter().map(|v: i64| v as u64).collect(),
-        Err(_) => {
-            return Err(DbError::QueryFailed(
-                "Couldn't fetch last timestamp in table".to_string()
-            ))
+        Err(e) => {
+            return Err(DbError::QueryFailed(format!(
+                "Couldn't fetch last timestamp in table: {}", e
+            )))
         }
     };
 
@@ -455,16 +453,9 @@ pub async fn download_new_data_to_db_table(
         100 - ((curr * 100) / target) as u8
     }
 
-    fn display_progress(percent: &u8, completed: bool) {
-       
-        let pre_char: &'static str = match completed {
-            true => "",
-            false => "\r"
-        };
-
+    fn display_progress(percent: &u8) {
         print!(
-            "{}\x1b[0mDownload Progress: \x1b[1;32m{}%\x1b[0m", 
-            pre_char, 
+            "\r\x1b[0mDownload Progress: \x1b[1;32m{}%\x1b[0m", 
             percent 
         );
         io::stdout().flush().ok();
@@ -552,13 +543,14 @@ pub async fn download_new_data_to_db_table(
                 num_seconds_left, total_expected_seconds
             );
 
-            display_progress(&percent_complete, false);
+            display_progress(&percent_complete);
 
         }
 
         if num_ticks < 1000 {
             
             if progress_output { 
+                display_progress(&100);
                 println!("");
             };
 
