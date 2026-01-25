@@ -182,17 +182,11 @@ impl Db {
             DATABASE_NAME
         );
 
-        let pool = match PgPoolOptions::new()
+        let pool = PgPoolOptions::new()
             .max_connections(10)
             .connect(&database_url)
             .await
-        {
-            Ok(p) => p,
-            Err(e) => { 
-                println!("{}", e); 
-                return Err(DbError::InitFailure) 
-            }
-        };
+            .map_err(|_| DbError::InitFailure)?;
 
         Ok(Self { pool })
 
@@ -219,18 +213,9 @@ pub struct DbLogin {
 impl DbLogin {
     
     pub fn new() -> DbLogin {
-        let host: String = match env::var("DB_HOST") {
-            Ok(s) => s,
-            Err(_) => String::from("")
-        };
-        let user: String = match env::var("DB_USER_NAME") {
-            Ok(s) => s,
-            Err(_) => String::from("")
-        };
-        let password: String = match env::var("DB_PASSWORD") {
-            Ok(s) => s,
-            Err(_) => String::from("")
-        };
+        let host: String = env::var("DB_HOST").unwrap_or_default(); 
+        let user: String = env::var("DB_USER_NAME").unwrap_or_default();
+        let password: String = env::var("DB_PASSWORD").unwrap_or_default();
         DbLogin { host, user, password } 
     }
 

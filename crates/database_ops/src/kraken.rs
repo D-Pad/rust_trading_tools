@@ -156,16 +156,13 @@ pub async fn add_new_db_table(
 
     let table_name: String = get_table_name("kraken", ticker);
 
-    let existing_tables: Vec<String> = match fetch_tables(
-        db_pool.clone()
-    ).await {
-        Ok(d) => d,
-        Err(_) => return Err(
+    let existing_tables: Vec<String> = fetch_tables(db_pool.clone())
+        .await
+        .map_err(|_| 
             connection:: DbError::QueryFailed(
                 "Failed to fetch table names".to_string() 
             )
-        )
-    };
+        )?;
 
     if existing_tables.contains(&table_name) {
         return Err(
@@ -190,80 +187,19 @@ pub async fn add_new_db_table(
 
     let mut initial_fetch_time: u64 = current_ts - INIT_TIME_OFFSET;
 
-    // let initial_trade: Trade = match request_tick_data_from_kraken(
-    //     ticker, 
-    //     initial_fetch_time.to_string(),
-    //     http_client
-    // ).await {
-    //     Ok(d) => {
-    //    
-    //         let result = d.result.ok_or_else(|| {
-    //             connection::DbError::Fetch(
-    //                 FetchError::Api(
-    //                     RequestError::RequestFailed(
-    //                         "Could not fetch trade data".to_string()
-    //                     )
-    //                 )
-    //             )
-    //         })?;
-
-    //         let trades_vec = result 
-    //             .trades 
-    //             .values() 
-    //             .next() 
-    //             .ok_or_else(|| {
-    //                 connection::DbError::Fetch(
-    //                     FetchError::SystemError(
-    //                         "No trades detected in response".to_string()
-    //                     )
-    //                 )
-    //             })?;
-
-    //         trades_vec.last().cloned().ok_or_else(|| {
-    //             connection::DbError::Fetch(
-    //                 FetchError::SystemError(
-    //                     "Trades list was empty".to_string()
-    //                 )
-    //             )
-    //         })?
-
-    //     },
-    //     Err(_) => return Err(
-    //         connection::DbError::Fetch(
-    //             FetchError::Api(
-    //                 RequestError::RequestFailed(
-    //                     "Could not fetch trade data".to_string()
-    //                 )
-    //             )
-    //         )
-    //     )
-    // };
-
-    // let price_string = initial_trade.price.to_string();
-    // let left_digits: usize = match price_string.split_once(".") {
-    //     Some((left, _right)) => left.len(),
-    //     None => price_string.len()
-    // };
-
-    // let price_digits_for_db_table = left_digits + 5;
-
     sleep(Duration::from_millis(500)).await;
     
-    let tick_info = match request_asset_info_from_kraken(
-        &ticker,
-        http_client
-    ).await {
-        Ok(d) => d,
-        Err(e) => return Err(
+    let tick_info = request_asset_info_from_kraken(&ticker, http_client)
+        .await 
+        .map_err(|e|  
             connection::DbError::Fetch(
                 FetchError::Api(
                     RequestError::Http(e)
                 )
             )
-        ) 
-    };
+        )?;
     
-    let create_table_query: String = format!(r#"
+    let create_table: String = format!(r#"
         CREATE TABLE IF NOT EXISTS {} (
             id BIGINT PRIMARY KEY,
             price DECIMAL({},{}) NOT NULL, 
@@ -281,18 +217,12 @@ pub async fn add_new_db_table(
         tick_info.lot_decimals
     ); 
 
-    let mut conn: PoolConnection<sqlx::Postgres> = match db_pool
-        .acquire()
+    let mut conn: PoolConnection<sqlx::Postgres> = db_pool
+        .acquire() 
         .await 
-    {
-        Ok(c) => c,
-        Err(_) => return Err(DbError::ConnectionFailed)
-    };
+        .map_err(|_| DbError::ConnectionFailed)?;
 
-    if let Err(_) = sqlx::query(&create_table_query)
-        .execute(&mut *conn)
-        .await 
-    {
+    if let Err(_) = sqlx::query(&create_table).execute(&mut *conn).await {
         return Err(DbError::TableCreationFailed(
             format!("Failed to create asset_kraken_{} table", ticker) 
         )); 
@@ -320,23 +250,14 @@ pub async fn add_new_db_table(
    
     initial_fetch_time = current_ts - start_date_unix_timestamp_offset;  
 
-    let initial_data: TickDataResponse = match request_tick_data_from_kraken(
+    let initial_data: TickDataResponse = request_tick_data_from_kraken(
         ticker, 
         initial_fetch_time.to_string(),
         http_client
-    ).await {
-        Ok(d) => d,
-        Err(e) => return Err(DbError::Fetch(FetchError::Api(e)))
-    };
+    ).await.map_err(|e| DbError::Fetch(FetchError::Api(e)))?;
 
-    if let Err(e) = write_data_to_db_table(
-        ticker, 
-        &initial_data, 
-        db_pool.clone(), 
-        None
-    ).await {
-        return Err(e)
-    };
+    write_data_to_db_table(ticker, &initial_data, db_pool.clone(), None)
+        .await?;
     
     Ok(())
 

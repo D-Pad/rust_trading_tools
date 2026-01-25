@@ -26,30 +26,28 @@ pub fn error_handler(err: RunTimeError) {
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
 
-    // let time_offset: u64 = state
-    //     .config
-    //     .data_download
-    //     .cache_size_settings_to_seconds();
+    let time_offset: u64 = state
+        .config
+        .data_download
+        .cache_size_settings_to_seconds();
 
-    // if let Err(db) = database_ops::download_new_data_to_db_table(
-    //     "kraken", 
-    //     "BTCUSD", 
-    //     state.database.get_pool(), 
-    //     time_offset, 
-    //     None,
-    //     Some(true)
-    // ).await {
-    //     return Err(RunTimeError::DataBase(db)) 
-    // };
-
-    let dbi = database_ops::integrity_check(
+    if let Err(db) = database_ops::download_new_data_to_db_table(
         "kraken", 
         "BTCUSD", 
         state.database.get_pool(), 
-        None).await;
+        time_offset, 
+        None,
+        Some(true)
+    ).await {
+        return Err(RunTimeError::DataBase(db)) 
+    };
 
-    println!("{}", dbi);
-    
+    // let dbi = database_ops::integrity_check(
+    //     "kraken", 
+    //     "BTCUSD", 
+    //     state.database.get_pool(), 
+    //     None).await;
+
     Ok(())
 
 }
@@ -170,7 +168,13 @@ mod tests {
         let ticker = "BTCUSD".to_string();
         let period = "1h".to_string();
         
-        BarSeries::new(exchange, ticker, period, BarType::Candle, &app_state);
+        let candles = BarSeries::new(
+            exchange, 
+            ticker, 
+            period, 
+            BarType::Candle, 
+            &app_state
+        );
     }
 
 }

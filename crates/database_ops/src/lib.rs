@@ -459,10 +459,17 @@ pub async fn integrity_check(
         }; 
     
     }; 
- 
+
     if dbi.error.len() > 0 { 
         dbi.is_ok = false 
     };
+   
+    // Extra layer of checking, even though the loop above wold cover this
+    // particular scenario
+    if (dbi.last_tick_id - dbi.first_tick_id) + 1 != dbi.total_ticks {
+        dbi.is_ok = false
+    };
+
     dbi
 
 }
