@@ -2,13 +2,11 @@ use std::{cmp::{min, max}, fmt};
 use reqwest;
 use sqlx::{PgPool, pool::{PoolConnection}, types::BigDecimal};
 
-pub mod connection;
-pub use connection::{Db, DbLogin, DbError, FetchError};
-
-use crate::connection::get_table_name;
-pub mod kraken;
-
 use timestamp_tools::db_timestamp_to_date_string;
+
+pub mod connection;
+pub use connection::{Db, DbLogin, DbError, FetchError, get_table_name};
+pub mod kraken;
 
 
 pub async fn download_new_data_to_db_table(
@@ -286,10 +284,13 @@ pub async fn first_time_setup(
 
 pub async fn initialize(
     active_exchanges: Vec<String>,
-    db_pool: PgPool
+    db_pool: PgPool,
+    time_offset: u64 
 ) -> Result<(), DbError> {
 
     first_time_setup(&active_exchanges, db_pool.clone()).await?;
+
+    let existing_tables = fetch_tables(db_pool.clone()).await?;
     
     for exchange_name in active_exchanges {
    
@@ -298,11 +299,30 @@ pub async fn initialize(
             &exchange_name
         );
 
+        let exchange_tables: Vec<&String> = existing_tables
+            .iter() 
+            .filter(|x| x.contains(&exchange_name))
+            .collect();
+
         if exchange_name == "kraken" {
 
+            for table in &exchange_tables {
+                
+                let ticker: String = match table.split('_').last() {
+                    Some(a) => a.to_uppercase(),
+                    None => continue 
+                };
 
+                kraken::download_new_data_to_db_table(
+                    &ticker, 
+                    db_pool.clone(), 
+                    time_offset, 
+                    None, 
+                    None 
+                ).await?
+
+            };
         };
-
     };
 
     Ok(())

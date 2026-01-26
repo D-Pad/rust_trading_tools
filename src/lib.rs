@@ -1,11 +1,14 @@
 use app_state::{AppState, InitializationError};
-use database_ops::{DbError, fetch_tables};
+use database_ops::{DbError};
+use dotenvy::dotenv;
+use bars::BarBuildError;
 
 
 #[derive(Debug)]
 pub enum RunTimeError {
     DataBase(DbError),
     Init(InitializationError),
+    Bar(BarBuildError),
 }
 
 impl std::fmt::Display for RunTimeError {
@@ -13,6 +16,7 @@ impl std::fmt::Display for RunTimeError {
         match self {
             RunTimeError::DataBase(e) => write!(f, "{}", e),
             RunTimeError::Init(e) => write!(f, "{}", e),
+            RunTimeError::Bar(e) => write!(f, "{}", e)
         }
     }
 }
@@ -26,22 +30,6 @@ pub fn error_handler(err: RunTimeError) {
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
 
-    let time_offset: u64 = state
-        .config
-        .data_download
-        .cache_size_settings_to_seconds();
-
-    if let Err(db) = database_ops::download_new_data_to_db_table(
-        "kraken", 
-        "BTCUSD", 
-        state.database.get_pool(), 
-        time_offset, 
-        None,
-        Some(true)
-    ).await {
-        return Err(RunTimeError::DataBase(db)) 
-    };
-
     // let dbi = database_ops::integrity_check(
     //     "kraken", 
     //     "BTCUSD", 
@@ -53,7 +41,13 @@ pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
 }
 
 
-pub async fn initiailze(state: &AppState) -> Result<(), InitializationError> {
+pub async fn initiailze() -> Result<AppState, RunTimeError> {
+
+    dotenv().ok(); 
+
+    let state = app_state::AppState::new()
+        .await 
+        .map_err(|e| RunTimeError::Init(e))?;
 
     let mut active_exchanges: Vec<String> = Vec::new();
    
@@ -61,15 +55,16 @@ pub async fn initiailze(state: &AppState) -> Result<(), InitializationError> {
         if *activated { active_exchanges.push(exchange.clone()) }
     };
   
-    let pool = state.database.get_pool();
 
-    if let Err(_) = database_ops::initialize(
-        active_exchanges, pool
-    ).await {
-        return Err(InitializationError::InitFailure) 
-    }; 
+    database_ops::initialize(
+        active_exchanges, 
+        state.database.get_pool(),
+        state.time_offset()
+    )
+        .await
+        .map_err(|_| RunTimeError::Init(InitializationError::InitFailure))?; 
 
-    Ok(())
+    Ok(state)
 }
 
 
@@ -168,13 +163,19 @@ mod tests {
         let ticker = "BTCUSD".to_string();
         let period = "1h".to_string();
         
-        let candles = BarSeries::new(
+        let candles = match BarSeries::new(
             exchange, 
             ticker, 
             period, 
             BarType::Candle, 
             &app_state
-        );
+        ).await {
+            Ok(c) => c,
+            Err(e) => {
+                println!("Test failed: {}", e); 
+                panic!()
+            }
+        };
     }
 
 }

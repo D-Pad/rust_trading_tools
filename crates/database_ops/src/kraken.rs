@@ -602,6 +602,10 @@ pub async fn write_data_to_db_table(
         Ok(d) => d,
         Err(_) => return Err(DbError::ParseError)
     };
+
+    if tick_data.len() == 0 {
+        return Err(DbError::Fetch(FetchError::Api(RequestError::NoData)))
+    };
  
     let max_index = tick_data.len() - 1;
     for (index, trade) in tick_data.iter().enumerate() {
@@ -627,7 +631,9 @@ pub async fn write_data_to_db_table(
     {
         return Err(DbError::QueryFailed(
             format!(
-                "Failed to insert tick data into database: {}", e
+                "Failed to insert tick data into database: {}: {}", 
+                e,
+                &data_insert_query
             )
         )); 
     };

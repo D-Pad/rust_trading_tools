@@ -6,13 +6,32 @@ use app_state::{AppState};
 use timestamp_tools::*;
 
 
+#[derive(Debug)]
 pub enum BarBuildError {
     TickFetch,
-    BuildFailed,
+    BuildFailed(String),
     DateConversion,
     Period(TimePeriodError),
     TickIdCalculation(String),
     Db(DbError),
+}
+
+impl std::fmt::Display for BarBuildError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BarBuildError::TickFetch => write!(f, "BarBuildError::TickFetch"),
+            BarBuildError::BuildFailed(e) => write!(
+                f, "BarBuildError::BuildFailed: {}", e),
+            BarBuildError::DateConversion => write!(
+                f, "BarBuildError::DateConversion"),
+            BarBuildError::Period(e) => write!(
+                f, "BarBuildError::Period::{}", e),
+            BarBuildError::TickIdCalculation(e) => write!(
+                f, "BarBuildError::TickIdCalculation: {}", e),
+            BarBuildError::Db(e) => write!(
+                f, "BarBuildError::Db::{}", e),
+        }
+    }
 }
 
 impl From<TimePeriodError> for BarBuildError {

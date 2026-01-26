@@ -2,10 +2,24 @@ use num_traits::{PrimInt, Unsigned};
 use chrono::{DateTime, Datelike, TimeZone, Utc, Duration};
 
 
+#[derive(Debug)]
 pub enum TimePeriodError {
     InvalidPeriod,
     DateConversion,
     NotEnoughData
+}
+
+impl std::fmt::Display for TimePeriodError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TimePeriodError::InvalidPeriod => write!(
+                f, "TimePeriodError::InvalidPeriod"),
+            TimePeriodError::DateConversion => write!(
+                f, "TimePeriodError::DateConversion"),
+            TimePeriodError::NotEnoughData => write!(
+                f, "TimePeriodError::NotEnoughData"),
+        }
+    }
 }
 
 

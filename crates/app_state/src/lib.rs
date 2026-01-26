@@ -75,6 +75,11 @@ impl AppState {
         Ok(AppState { database, config })
 
     }
+    
+    pub fn time_offset(&self) -> u64 {
+        self.config.data_download.cache_size_settings_to_seconds()
+    }
+
 }
 
 

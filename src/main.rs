@@ -1,28 +1,25 @@
-use trading_app;
-use dotenvy::dotenv;
+use trading_app::{self, RunTimeError, error_handler};
 use std::process;
+
+
+fn local_error_handler(err: RunTimeError) {
+    error_handler(err); 
+}
 
 
 #[tokio::main]
 async fn main() {
   
-    dotenv().ok(); 
-
-    let app_state = match app_state::AppState::new().await {
-        Ok(a) => a,
-        Err(_) => {
-            println!("\x1b[1;31mCould not initialize app state\x1b[0m");
+    let app_state = match trading_app::initiailze().await {
+        Ok(s) => s,
+        Err(e) => {
+            local_error_handler(e); 
             process::exit(1);
-        } 
-    };
-
-    if let Err(e) = trading_app::initiailze(&app_state).await {
-        trading_app::error_handler(trading_app::RunTimeError::Init(e)); 
-        process::exit(1); 
+        }
     };
 
     if let Err(e) = trading_app::dev_test(&app_state).await {
-        trading_app::error_handler(e); 
+        local_error_handler(e); 
     };
 
 }
