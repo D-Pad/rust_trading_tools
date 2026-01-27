@@ -1,0 +1,17 @@
+[package]
+name = "app_core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.48.0", features = ["full"] }
+dotenvy = "0.15.7"
+
+# My modules 
+app_state = { path = "../app_state" }
+bars = { path = "../bars" }
+charts = { path = "../charts" }
+database_ops = { path = "../database_ops" }
+indicators = { path = "../indicators" }
+timestamp_tools = { path = "../timestamp_tools" }
+

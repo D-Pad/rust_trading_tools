@@ -1,5 +1,5 @@
-use trading_app::{self, RunTimeError, error_handler};
 use std::process;
+use trading_app::{error_handler, RunTimeError, dev_test};
 
 
 fn local_error_handler(err: RunTimeError) {
@@ -10,7 +10,7 @@ fn local_error_handler(err: RunTimeError) {
 #[tokio::main]
 async fn main() {
 
-    let app_state = match trading_app::initiailze().await {
+    let app_state = match app_core::initiailze().await {
         Ok(s) => s,
         Err(e) => {
             local_error_handler(e); 
@@ -18,7 +18,7 @@ async fn main() {
         }
     };
 
-    if let Err(e) = trading_app::dev_test(&app_state).await {
+    if let Err(e) = dev_test(&app_state).await {
         local_error_handler(e); 
     };
 

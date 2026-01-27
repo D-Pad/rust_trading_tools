@@ -31,6 +31,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "app_core"
+version = "0.1.0"
+dependencies = [
+ "app_state",
+ "bars",
+ "charts",
+ "database_ops",
+ "dotenvy",
+ "indicators",
+ "timestamp_tools",
+ "tokio",
+]
+
+[[package]]
 name = "app_state"
 version = "0.1.0"
 dependencies = [
@@ -2343,15 +2357,9 @@ dependencies = [
 name = "trading_app"
 version = "0.1.0"
 dependencies = [
- "app_state",
- "bars",
- "charts",
- "database_ops",
- "dotenvy",
- "indicators",
+ "app_core",
  "serde",
  "serde_json",
- "timestamp_tools",
  "tokio",
  "toml",
 ]
