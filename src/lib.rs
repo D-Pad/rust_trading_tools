@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::{collections::HashMap, io::{stdout, Write}};
 
 use app_state::{AppState, InitializationError};
 use database_ops::{DbError, DataDownloadStatus};
@@ -39,33 +39,95 @@ pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
     //     state.database.get_pool(), 
     //     None).await;
 
+    database_ops::kraken::add_new_db_table(
+        "BTCUSD", 
+        state.time_offset(),
+        None,
+        state.database.get_pool() 
+    ).await;
+
     Ok(())
 
 }
 
 
+enum StatusMessageProgress {
+    Started,
+    Completed,
+    Failed,
+}
+
 struct StatusMessage {
     percent_complete: u8,
-    message: String,
+    progress: StatusMessageProgress,
 }
 
 impl StatusMessage {
     fn new() -> Self {
         StatusMessage {
-            message: String::new(),
             percent_complete: 0,
+            progress: StatusMessageProgress::Started,
         }
     }
 }
 
 struct DownloadStatusViewer {
-    pairs: HashMap<String, HashMap<String, StatusMessage>>
+    pairs: HashMap<String, HashMap<String, StatusMessage>>,
+    last_rendered_lines: u16,
+    rendered_text: String,
 }
 
 impl DownloadStatusViewer {
 
     fn new() -> Self {
-        DownloadStatusViewer { pairs: HashMap::new() } 
+        DownloadStatusViewer { 
+            pairs: HashMap::new(), 
+            last_rendered_lines: 0,
+            rendered_text: String::new()
+        } 
+    }
+
+    fn render_lines(&mut self) {
+        // Action	              | Code
+        // ----------------------------------
+        // Move cursor up N lines |	\x1b[{N}A
+        // Clear entire line	  | \x1b[2K
+        // Move cursor to col 0	  | \r
+        // Hide cursor	          | \x1b[?25l
+        // Show cursor	          | \x1b[?25h
+        let mut text = String::new();
+        let mut line_count: u16 = 0;
+        
+        for (exchange, pairs) in &self.pairs {
+            
+            text.push_str(&format!("\x1b[1;36m{}\x1b[0m:\n", exchange));
+            line_count += 1;
+ 
+            for (token, status) in pairs {
+                
+                text.push_str(&format!("  \x1b[33m{}\x1b[0m: ", token));
+                
+                match status.progress {
+                    StatusMessageProgress::Started => {
+                        text.push_str(&format!(
+                            "Download Progress: \x1b[1;32m{}%\x1b[0m\n",
+                            status.percent_complete
+                        ));
+                    },
+                    StatusMessageProgress::Completed => {
+                        text.push_str("\x1b[1;32mComplete\x1b[0m\n");
+                    },
+                    StatusMessageProgress::Failed => {
+                        text.push_str("\x1b[1;31mFAILED\x1b[0m\n"); 
+                    }
+                };
+                
+                line_count += 1;
+            }
+        };
+     
+        self.last_rendered_lines = line_count;
+        self.rendered_text = text;
     }
 
     fn update_status(&mut self, status: DataDownloadStatus) {
@@ -79,42 +141,25 @@ impl DownloadStatusViewer {
 
         match status {
             DataDownloadStatus::Started { .. } => {
-                entry.message = "Downloading".to_string();
+                entry.progress = StatusMessageProgress::Started;
             },
             DataDownloadStatus::Progress { percent, .. } => {
                 entry.percent_complete = percent;
             },
             DataDownloadStatus::Finished { .. } => {
                 entry.percent_complete = 100;
-                entry.message = "Finished".to_string();
+                entry.progress = StatusMessageProgress::Completed;
             },
-            DataDownloadStatus::Error { message, .. } => {
-                entry.message = format!("Failed: {}", message);
+            DataDownloadStatus::Error { .. } => {
+                entry.progress = StatusMessageProgress::Failed;
             }
-        }
-
+        };
     }
-
 }
 
-impl std::fmt::Display for DownloadStatusViewer {
+impl std::fmt::Display for DownloadStatusViewer { 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-       
-        let mut text = String::new();
-        
-        for exchange in self.pairs.keys() {
-            
-            text.push_str(&format!("\x1b[1;36m{}\x1b[0m:\n", exchange));
-            
-            if let Some(pairs) = self.pairs.get(exchange) {
-                for token in pairs.keys() {
-                    text.push_str(&format!("  \x1b[1;33m{}", token));       
-                }
-            }
-        }
-
-        write!(f, "{}", text)
-
+        write!(f, "{}", self.rendered_text)
     }
 }
 
@@ -136,15 +181,34 @@ pub async fn initiailze() -> Result<AppState, RunTimeError> {
     let (prog_tx, mut prog_rx) = unbounded_channel::<DataDownloadStatus>();
 
     tokio::spawn(async move {
-
         let mut viewer = DownloadStatusViewer::new();
-
+        
+        print!("\x1b[?25l");  // Hide cursor
         while let Some(event) = prog_rx.recv().await {
             
             viewer.update_status(event);
-            print!("\r{}", viewer);
+          
+            // Move cursor to top
+            if viewer.last_rendered_lines > 0 {
+                print!("\x1b[{}A", viewer.last_rendered_lines);
+            };
+
+            // Clear old lines
+            for _ in 0..viewer.last_rendered_lines {
+                print!("\r\x1b[2K\n");
+            };
+
+            // Move cursor to top, again
+            if viewer.last_rendered_lines > 0 {
+                print!("\x1b[{}A", viewer.last_rendered_lines);
+            };
+
+            viewer.render_lines();
+            print!("{}", viewer);
+            stdout().flush().ok();
         
         }
+        print!("\x1b[?25l");  // Show cursor
     });
 
     database_ops::initialize(

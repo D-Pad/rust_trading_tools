@@ -11,7 +11,13 @@ use tokio::{time::{sleep, Duration}, sync::mpsc::UnboundedSender};
 use sqlx::{PgPool, pool::{PoolConnection}};
 
 use timestamp_tools::{get_current_unix_timestamp};
-use crate::{DataDownloadStatus, connection::{DbError, FetchError, RequestError, get_table_name}};
+use connection::{
+    DataDownloadStatus, 
+    DbError, 
+    FetchError, 
+    RequestError, 
+    get_table_name
+};
 use super::fetch_tables;
 pub use crate::connection;
 
@@ -384,12 +390,10 @@ pub async fn download_new_data_to_db_table(
     fn send_failure_message(
         progress_tx: UnboundedSender<DataDownloadStatus>,
         sym: &str, 
-        msg: &str
     ) {
         progress_tx.send(DataDownloadStatus::Error { 
             exchange: "Kraken".to_string(), 
             ticker: sym.to_string(), 
-            message: msg.to_string() 
         });
     }
 
@@ -410,7 +414,7 @@ pub async fn download_new_data_to_db_table(
             Some(v) => v,
             None => { 
                 let msg = "Failed to calculate length of trades".to_string();
-                send_failure_message(progress_tx.clone(), ticker, &msg);
+                send_failure_message(progress_tx.clone(), ticker);
                 return Err(DbError::Fetch(FetchError::SystemError(msg)))
             }
         };
@@ -424,7 +428,7 @@ pub async fn download_new_data_to_db_table(
                 Some(next_tick_id)
             ).await {
                 let msg = "Failed to write data to database".to_string();
-                send_failure_message(progress_tx.clone(), ticker, &msg);
+                send_failure_message(progress_tx.clone(), ticker);
                 return Err(e) 
             };
 
@@ -449,7 +453,7 @@ pub async fn download_new_data_to_db_table(
             None => {
                 let msg = "Failed to fetch last tick ID from TickDataResponse"
                     .to_string(); 
-                send_failure_message(progress_tx.clone(), ticker, &msg); 
+                send_failure_message(progress_tx.clone(), ticker); 
                 return Err(DbError::Fetch(FetchError::SystemError(msg)))
             }
         };
@@ -459,7 +463,7 @@ pub async fn download_new_data_to_db_table(
             None => {
                 let msg ="Failed to fetch next fetch time from TickDataResponse"
                     .to_string();
-                send_failure_message(progress_tx.clone(), ticker, &msg);
+                send_failure_message(progress_tx.clone(), ticker);
                 return Err(DbError::Fetch(FetchError::SystemError(msg)))
             }
         };

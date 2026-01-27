@@ -155,7 +155,6 @@ pub enum DataDownloadStatus {
     Error {
         exchange: String,
         ticker: String,
-        message: String,
     },
 }
 

@@ -292,10 +292,7 @@ pub async fn initialize(
     
     for exchange_name in active_exchanges {
    
-        println!(
-            "\x1b[1;33mUpdating existing {} database tables\x1b[0m",
-            &exchange_name
-        );
+        println!("\x1b[1;33mUpdating existing database tables\x1b[0m");
 
         let exchange_tables: Vec<&String> = existing_tables
             .iter() 
