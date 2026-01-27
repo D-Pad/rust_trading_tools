@@ -281,10 +281,22 @@ pub async fn first_time_setup(
 
 pub async fn initialize(
     active_exchanges: Vec<String>,
-    db_pool: PgPool,
     time_offset: u64,
     progress_tx: tokio::sync::mpsc::UnboundedSender<DataDownloadStatus>,
-) -> Result<(), DbError> {
+) -> Result<Db, DbError> {
+
+    let db_login: DbLogin = DbLogin::new(); 
+ 
+    if !&db_login.is_valid() {
+        return Err(DbError::CredentialsMissing)
+    };
+    
+    let database = match Db::new().await {
+        Ok(d) => d,
+        Err(_) => return Err(DbError::ConnectionFailed)
+    };
+
+    let db_pool = database.get_pool();
 
     first_time_setup(&active_exchanges, db_pool.clone()).await?;
 
@@ -320,7 +332,7 @@ pub async fn initialize(
         };
     };
 
-    Ok(())
+    Ok(database)
 
 }
 

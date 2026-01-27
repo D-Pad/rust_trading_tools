@@ -16,4 +16,3 @@ charts = { path = "../charts" }
 database_ops = { path = "../database_ops" }
 indicators = { path = "../indicators" }
 timestamp_tools = { path = "../timestamp_tools" }
-

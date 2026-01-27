@@ -1,3 +1,4 @@
+use serde::{Serialize, Deserialize};
 
 
 // ---------------------------- COMMANDS ----------------------------------- //
@@ -6,6 +7,7 @@ pub enum Command {
     DataBase(DataBaseCommand)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub enum DataBaseCommand {
     AddPair {
         exchange: String,

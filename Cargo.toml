@@ -10,6 +10,7 @@ app_core = { path = "crates/app_core" }
 # Third party
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.148"
+sqlx = { version = "0.7", features = ["postgres"]}
 toml = "0.9.10"
 tokio = { version = "1.48.0", features = ["full"] }
 

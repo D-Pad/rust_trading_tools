@@ -2,69 +2,20 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{PathBuf};
-use database_ops::{Db, DbLogin, DbError};
 use timestamp_tools;
+use crate::errors::{InitializationError, ConfigError};
 
 
 // ------------------------- APP STATE MANAGEMENT -------------------------- //
 #[derive(Debug)]
-pub enum InitializationError {
-    Db(DbError),
-    Config(ConfigError),
-    InitFailure
-}
-
-impl std::fmt::Display for InitializationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            InitializationError::Db(e) => write!(
-                f, "InitializationError::DbError: {}", e
-            ),
-            InitializationError::Config(e) => write!(
-                f, "InitializationError::Config: {}", e
-            ),
-            InitializationError::InitFailure => write!(
-                f, "InitializationError::InitFailure"
-            ),
-        }
-    }
-}
-
-
-#[derive(Debug)]
 pub struct AppState {
-    pub database: Db,
     pub config: AppConfig
 }
 
 impl AppState {
     
-    pub async fn new() -> Result<Self, InitializationError> {
+    pub fn new() -> Result<Self, InitializationError> {
         
-        let db_login: DbLogin = DbLogin::new(); 
-                
-        if !&db_login.is_valid() {
-            return Err(
-                InitializationError::Db(
-                    DbError::CredentialsMissing
-                )
-            )
-        };
-        
-        let database = match Db::new(
-            &db_login.host,
-            5432,
-            &db_login.user,
-            &db_login.password,
-        ).await {
-            Ok(d) => d,
-            Err(_) => return Err(
-                InitializationError::Db(
-                    DbError::ConnectionFailed
-                )
-            )
-        };
-
         let config = match load_config() {
             Ok(c) => c,
             Err(e) => return Err(
@@ -72,7 +23,7 @@ impl AppState {
             )
         }; 
 
-        Ok(AppState { database, config })
+        Ok(AppState { config })
 
     }
     
@@ -84,30 +35,6 @@ impl AppState {
 
 
 // --------------------------- APP CONFIGURATION --------------------------- //
-#[derive(Debug)]
-pub enum ConfigError {
-    FileNotFound(&'static str),
-    ParseFailure,
-    SaveStateFailed,
-}
-
-impl std::fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ConfigError::FileNotFound(e) => write!(
-                f, "ConfigError::FileNotFound: {}", e
-            ),
-            ConfigError::ParseFailure => write!(
-                f, "ConfigError::ParseFailure: Couldn't parse config file" 
-            ),
-            ConfigError::SaveStateFailed => write!(
-                f, "ConfigError::SaveStateFailed" 
-            ),
-        }
-    }
-}
-
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub backtesting: BackTestSettings,

@@ -1,8 +1,13 @@
 pub use app_core::*;
+pub use app_core::{errors::error_handler};
+use sqlx::PgPool;
 
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
-pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
+pub async fn dev_test(
+    state: &AppState, 
+    db_pool: PgPool 
+) -> Result<(), RunTimeError> {
 
     // let dbi = database_ops::integrity_check(
     //     "kraken", 
@@ -14,7 +19,7 @@ pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
         "BTCUSD", 
         state.time_offset(),
         None,
-        state.database.get_pool() 
+        db_pool 
     ).await;
 
     Ok(())

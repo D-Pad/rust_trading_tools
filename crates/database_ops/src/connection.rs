@@ -180,19 +180,16 @@ pub struct Db {
 
 impl Db {
     
-    pub async fn new(
-        host: &str,
-        port: u16,
-        user: &str,
-        password: &str
-    ) -> Result<Self, DbError> {
+    pub async fn new() -> Result<Self, DbError> {
+
+        let db_login = DbLogin::new();
 
         let database_url = format!(
             "postgres://{}:{}@{}:{}/{}",
-            user,
-            password,
-            host,
-            port,
+            db_login.user,
+            db_login.password,
+            db_login.host,
+            db_login.port,
             DATABASE_NAME
         );
 
@@ -221,7 +218,8 @@ impl Db {
 pub struct DbLogin {
     pub host: String,
     pub user: String,
-    pub password: String
+    pub password: String,
+    pub port: u16
 }
 
 impl DbLogin {
@@ -230,7 +228,11 @@ impl DbLogin {
         let host: String = env::var("DB_HOST").unwrap_or_default(); 
         let user: String = env::var("DB_USER_NAME").unwrap_or_default();
         let password: String = env::var("DB_PASSWORD").unwrap_or_default();
-        DbLogin { host, user, password } 
+        let port: u16 = env::var("DB_PORT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(5432);
+        DbLogin { host, user, password, port } 
     }
 
     pub fn is_valid(&self) -> bool {

@@ -2351,6 +2351,7 @@ dependencies = [
  "app_core",
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "toml",
 ]

@@ -1,35 +1,18 @@
 use std::{collections::HashMap, io::{stdout, Write}};
 
-pub use database_ops::{self, DbError, DataDownloadStatus};
-pub use bars::BarBuildError;
 pub mod app_state;
-pub use app_state::{AppState, InitializationError};
+pub mod command_structs;
+pub mod engine;
+pub mod errors;
+
+use engine::Engine;
+pub use database_ops::{self, Db, DbError, DataDownloadStatus};
+pub use bars::BarBuildError;
+pub use app_state::{AppState};
+pub use errors::{RunTimeError, InitializationError};
 
 use tokio::sync::mpsc::unbounded_channel;
 use dotenvy::dotenv;
-
-
-#[derive(Debug)]
-pub enum RunTimeError {
-    DataBase(DbError),
-    Init(InitializationError),
-    Bar(BarBuildError),
-}
-
-impl std::fmt::Display for RunTimeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            RunTimeError::DataBase(e) => write!(f, "{}", e),
-            RunTimeError::Init(e) => write!(f, "{}", e),
-            RunTimeError::Bar(e) => write!(f, "{}", e)
-        }
-    }
-}
-
-
-pub fn error_handler(err: RunTimeError) {
-    eprintln!("\x1b[1;31m{}\x1b[0m", err) 
-}
 
 
 enum StatusMessageProgress {
@@ -144,17 +127,24 @@ impl std::fmt::Display for DownloadStatusViewer {
     }
 }
 
-pub async fn initiailze() -> Result<AppState, RunTimeError> {
+pub async fn initialize_app_engine() -> Result<Engine, RunTimeError> {
 
     dotenv().ok(); 
 
-    let state = app_state::AppState::new()
-        .await 
-        .map_err(|e| RunTimeError::Init(e))?;
+    let database = Db::new()
+        .await
+        .map_err(|e| RunTimeError::DataBase(e))?;
+
+    let engine = Engine::new(database)?;
 
     let mut active_exchanges: Vec<String> = Vec::new();
    
-    for (exchange, activated) in &state.config.supported_exchanges.active {
+    for (exchange, activated) in &engine
+        .state
+        .config
+        .supported_exchanges
+        .active 
+    {
         if *activated { active_exchanges.push(exchange.clone()) }
     };
  
@@ -193,15 +183,14 @@ pub async fn initiailze() -> Result<AppState, RunTimeError> {
     });
 
     database_ops::initialize(
-        active_exchanges, 
-        state.database.get_pool(),
-        state.time_offset(),
+        active_exchanges,
+        engine.state.time_offset(),
         prog_tx.clone()
     )
         .await
         .map_err(|_| RunTimeError::Init(InitializationError::InitFailure))?; 
 
-    Ok(state)
+    Ok(engine)
 }
 
 
