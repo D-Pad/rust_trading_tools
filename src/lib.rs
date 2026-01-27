@@ -1,7 +1,10 @@
+use std::{collections::HashMap};
+
 use app_state::{AppState, InitializationError};
-use database_ops::{DbError};
+use database_ops::{DbError, DataDownloadStatus};
 use dotenvy::dotenv;
 use bars::BarBuildError;
+use tokio::sync::mpsc::unbounded_channel;
 
 
 #[derive(Debug)]
@@ -41,6 +44,80 @@ pub async fn dev_test(state: &AppState) -> Result<(), RunTimeError> {
 }
 
 
+struct StatusMessage {
+    percent_complete: u8,
+    message: String,
+}
+
+impl StatusMessage {
+    fn new() -> Self {
+        StatusMessage {
+            message: String::new(),
+            percent_complete: 0,
+        }
+    }
+}
+
+struct DownloadStatusViewer {
+    pairs: HashMap<String, HashMap<String, StatusMessage>>
+}
+
+impl DownloadStatusViewer {
+
+    fn new() -> Self {
+        DownloadStatusViewer { pairs: HashMap::new() } 
+    }
+
+    fn update_status(&mut self, status: DataDownloadStatus) {
+
+        let (exchange, ticker) = status.exchange_and_ticker();
+
+        let entry = self.pairs.entry(exchange.to_string())
+            .or_insert_with(HashMap::new)
+            .entry(ticker.to_string())
+            .or_insert_with(StatusMessage::new);
+
+        match status {
+            DataDownloadStatus::Started { .. } => {
+                entry.message = "Downloading".to_string();
+            },
+            DataDownloadStatus::Progress { percent, .. } => {
+                entry.percent_complete = percent;
+            },
+            DataDownloadStatus::Finished { .. } => {
+                entry.percent_complete = 100;
+                entry.message = "Finished".to_string();
+            },
+            DataDownloadStatus::Error { message, .. } => {
+                entry.message = format!("Failed: {}", message);
+            }
+        }
+
+    }
+
+}
+
+impl std::fmt::Display for DownloadStatusViewer {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+       
+        let mut text = String::new();
+        
+        for exchange in self.pairs.keys() {
+            
+            text.push_str(&format!("\x1b[1;36m{}\x1b[0m:\n", exchange));
+            
+            if let Some(pairs) = self.pairs.get(exchange) {
+                for token in pairs.keys() {
+                    text.push_str(&format!("  \x1b[1;33m{}", token));       
+                }
+            }
+        }
+
+        write!(f, "{}", text)
+
+    }
+}
+
 pub async fn initiailze() -> Result<AppState, RunTimeError> {
 
     dotenv().ok(); 
@@ -54,12 +131,27 @@ pub async fn initiailze() -> Result<AppState, RunTimeError> {
     for (exchange, activated) in &state.config.supported_exchanges.active {
         if *activated { active_exchanges.push(exchange.clone()) }
     };
-  
+ 
+    // Progress listener
+    let (prog_tx, mut prog_rx) = unbounded_channel::<DataDownloadStatus>();
+
+    tokio::spawn(async move {
+
+        let mut viewer = DownloadStatusViewer::new();
+
+        while let Some(event) = prog_rx.recv().await {
+            
+            viewer.update_status(event);
+            print!("\r{}", viewer);
+        
+        }
+    });
 
     database_ops::initialize(
         active_exchanges, 
         state.database.get_pool(),
-        state.time_offset()
+        state.time_offset(),
+        prog_tx.clone()
     )
         .await
         .map_err(|_| RunTimeError::Init(InitializationError::InitFailure))?; 

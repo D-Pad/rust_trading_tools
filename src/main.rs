@@ -9,7 +9,7 @@ fn local_error_handler(err: RunTimeError) {
 
 #[tokio::main]
 async fn main() {
-  
+
     let app_state = match trading_app::initiailze().await {
         Ok(s) => s,
         Err(e) => {

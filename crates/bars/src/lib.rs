@@ -135,7 +135,9 @@ impl BarInfo {
                 BarBuildError::Period(TimePeriodError::InvalidPeriod)
             )?;
 
-        let time_based = period_is_time_based(period_key);
+        let time_based = period_is_time_based(period_key)
+            .map_err(|e| BarBuildError::Period(e))?;
+
         Ok(BarInfo { exchange, ticker, period, time_based })
     }
 }
@@ -256,7 +258,7 @@ pub async fn calculate_first_tick_id(
         
     let num_bars: u16 = app_state.config.chart_parameters.num_bars;
 
-    if period_is_time_based(symbol) {
+    if period_is_time_based(symbol).map_err(|e| BarBuildError::Period(e))? {
         
         let last_tick_timestamp: u64 = last_tick.1 / 1_000_000;
 

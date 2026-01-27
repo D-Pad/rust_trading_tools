@@ -75,13 +75,20 @@ pub fn get_period_portions_from_string(period: &str)
 }
 
 
-pub fn period_is_time_based(period_symbol: char) -> bool {
+pub fn period_is_time_based(period_symbol: char) 
+    -> Result<bool, TimePeriodError> 
+{
+    
     if period_symbol == 't' { 
-        false 
+        Ok(false) 
     }
-    else { 
-        true 
+    else if VALID_PERIODS.contains(&period_symbol) { 
+        Ok(true) 
     }
+    else {
+        Err(TimePeriodError::InvalidPeriod) 
+    }
+
 }
 
 

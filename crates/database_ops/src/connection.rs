@@ -136,6 +136,43 @@ impl From<RequestError> for FetchError {
 }
 
 
+// ----------------------------- STATUS ENUMS ------------------------------ //
+#[derive(Debug)]
+pub enum DataDownloadStatus {
+    Started {
+        exchange: String,
+        ticker: String,
+    },
+    Progress {
+        exchange: String,
+        ticker: String,
+        percent: u8,
+    },
+    Finished {
+        exchange: String,
+        ticker: String,
+    },
+    Error {
+        exchange: String,
+        ticker: String,
+        message: String,
+    },
+}
+
+impl DataDownloadStatus {
+    pub fn exchange_and_ticker(&self) -> (&str, &str) {
+        match self {
+            DataDownloadStatus::Started { exchange, ticker }
+            | DataDownloadStatus::Progress { exchange, ticker, .. }
+            | DataDownloadStatus::Finished { exchange, ticker }
+            | DataDownloadStatus::Error { exchange, ticker, .. } => {
+                (exchange.as_str(), ticker.as_str())
+            }
+        }
+    }
+}
+
+
 // ----------------------------- STRUCTS ----------------------------------- //
 #[derive(Debug)]
 pub struct Db {
@@ -150,28 +187,6 @@ impl Db {
         user: &str,
         password: &str
     ) -> Result<Self, DbError> {
-
-        // -------- OLD LOGIC FROM MySQL_ASYNC --------- //
-        // let init_pool = Pool::new(init_opts);
-        // 
-        // if let Ok(mut p) = init_pool.get_conn().await {
-        //     let _ = p.exec_drop(
-        //         format!("CREATE DATABASE IF NOT EXISTS {};", DATABASE_NAME),
-        //         ()
-        //     ).await;
-        // };
-
-        // let opts: OptsBuilder = OptsBuilder::default()
-        //     .ip_or_hostname(host)
-        //     .tcp_port(port)
-        //     .user(Some(user))
-        //     .pass(Some(password))
-        //     .db_name(Some(DATABASE_NAME))
-        //     .into();
-
-        // let pool = Pool::new(opts);
-
-        // Ok(Self { pool })
 
         let database_url = format!(
             "postgres://{}:{}@{}:{}/{}",

@@ -7,11 +7,11 @@ use std::{
 
 use reqwest;
 use serde::Deserialize;
-use tokio::time::{sleep, Duration};
-use sqlx::{PgPool, pool::{PoolConnection}, types::BigDecimal};
+use tokio::{time::{sleep, Duration}, sync::mpsc::UnboundedSender};
+use sqlx::{PgPool, pool::{PoolConnection}};
 
 use timestamp_tools::{get_current_unix_timestamp};
-use crate::connection::{DbError, FetchError, RequestError, get_table_name};
+use crate::{DataDownloadStatus, connection::{DbError, FetchError, RequestError, get_table_name}};
 use super::fetch_tables;
 pub use crate::connection;
 
@@ -269,15 +269,10 @@ pub async fn download_new_data_to_db_table(
     db_pool: PgPool,
     initial_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
-    show_progress: Option<bool>
+    progress_tx: UnboundedSender<DataDownloadStatus>,
 ) -> Result<(), DbError> {
  
     let current_time: u64 = get_current_unix_timestamp();
-
-    let progress_output: bool = match show_progress {
-        Some(b) => b,
-        None => true
-    };
 
     let client = match http_client {
         Some(c) => c,
@@ -374,16 +369,30 @@ pub async fn download_new_data_to_db_table(
         100 - ((curr * 100) / target) as u8
     }
 
-    fn display_progress(percent: &u8) {
-        print!(
-            "\r\x1b[0mDownload Progress: \x1b[1;32m{}%\x1b[0m", 
-            percent 
-        );
-        io::stdout().flush().ok();
+    fn send_progress_update(
+        progress_tx: UnboundedSender<DataDownloadStatus>,
+        sym: &str, 
+        percent: &u8
+    ) {
+        progress_tx.send(DataDownloadStatus::Progress { 
+            exchange: "Kraken".to_string(), 
+            ticker: sym.to_string(), 
+            percent: *percent 
+        });
     }
 
-    println!("\x1b[1;33mDownloading data from kraken\x1b[0m");
-    
+    fn send_failure_message(
+        progress_tx: UnboundedSender<DataDownloadStatus>,
+        sym: &str, 
+        msg: &str
+    ) {
+        progress_tx.send(DataDownloadStatus::Error { 
+            exchange: "Kraken".to_string(), 
+            ticker: sym.to_string(), 
+            message: msg.to_string() 
+        });
+    }
+
     loop {
         
         let new_data: TickDataResponse = match request_tick_data_from_kraken(
@@ -400,9 +409,9 @@ pub async fn download_new_data_to_db_table(
         let num_ticks: usize = match new_data.len() {
             Some(v) => v,
             None => { 
-                return Err(DbError::Fetch(FetchError::SystemError(
-                    "Failed to calculate length of trades".to_string()
-                )))
+                let msg = "Failed to calculate length of trades".to_string();
+                send_failure_message(progress_tx.clone(), ticker, &msg);
+                return Err(DbError::Fetch(FetchError::SystemError(msg)))
             }
         };
 
@@ -414,6 +423,8 @@ pub async fn download_new_data_to_db_table(
                 db_pool.clone(), 
                 Some(next_tick_id)
             ).await {
+                let msg = "Failed to write data to database".to_string();
+                send_failure_message(progress_tx.clone(), ticker, &msg);
                 return Err(e) 
             };
 
@@ -435,49 +446,46 @@ pub async fn download_new_data_to_db_table(
 
         next_tick_id = match &new_data.last_tick_id() {
             Some(v) => *v + 1,  // Expected first ID of next fetch
-            None => return Err(DbError::Fetch(FetchError::SystemError(
-                "Failed to fetch last tick ID from TickDataResponse"
-                    .to_string()
-            )))
+            None => {
+                let msg = "Failed to fetch last tick ID from TickDataResponse"
+                    .to_string(); 
+                send_failure_message(progress_tx.clone(), ticker, &msg); 
+                return Err(DbError::Fetch(FetchError::SystemError(msg)))
+            }
         };
 
         next_timestamp = match &new_data.next_fetch_timestamp() {
             Some(v) => v.to_string(),
-            None => return Err(DbError::Fetch(FetchError::SystemError(
-                "Failed to fetch next fetch time from TickDataResponse"
-                    .to_string()
-            )))
+            None => {
+                let msg ="Failed to fetch next fetch time from TickDataResponse"
+                    .to_string();
+                send_failure_message(progress_tx.clone(), ticker, &msg);
+                return Err(DbError::Fetch(FetchError::SystemError(msg)))
+            }
         };
      
-        if progress_output {
-           
-            let last_tick_time: u64 = match &new_data.timestamp_of_last_tick() {
-                Some(v) => *v as u64,
-                None => return Err(DbError::Fetch(FetchError::SystemError(
-                    "Failed to fetch last timestamp from TickDataResponse"
-                        .to_string()
-                )))
-            };
-            
-            num_seconds_left = current_time - min(last_tick_time, current_time);
-            percent_complete = get_percent_complete(
-                num_seconds_left, total_expected_seconds
-            );
+        let last_tick_time: u64 = match &new_data.timestamp_of_last_tick() {
+            Some(v) => *v as u64,
+            None => {
+                let msg = "Failed to fetch last timestamp from TickDataResponse"
+                    .to_string();
+                return Err(DbError::Fetch(FetchError::SystemError(msg)))
+            }
+        };
+        
+        num_seconds_left = current_time - min(last_tick_time, current_time);
+        percent_complete = get_percent_complete(
+            num_seconds_left, total_expected_seconds
+        );
 
-            display_progress(&percent_complete);
-
-        }
+        send_progress_update(progress_tx.clone(), ticker, &percent_complete);
 
         if num_ticks < 1000 {
-            
-            if progress_output { 
-                display_progress(&100);
-                println!("");
-            };
-
-            println!(
-                "\x1b[1;36mDownload complete.\x1b[0m"
-            ); 
+            send_progress_update(progress_tx.clone(), ticker, &100);
+            let _ = progress_tx.send(DataDownloadStatus::Finished { 
+                exchange: "Kraken".to_string(), 
+                ticker: ticker.to_string(), 
+            });
             break
         };
     

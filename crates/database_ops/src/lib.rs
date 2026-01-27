@@ -1,11 +1,20 @@
 use std::{cmp::{min, max}, fmt};
+
 use reqwest;
 use sqlx::{PgPool, pool::{PoolConnection}, types::BigDecimal};
+use tokio::sync::mpsc::UnboundedSender;
 
 use timestamp_tools::db_timestamp_to_date_string;
 
 pub mod connection;
-pub use connection::{Db, DbLogin, DbError, FetchError, get_table_name};
+pub use connection::{
+    Db, 
+    DbLogin, 
+    DbError,
+    DataDownloadStatus,
+    FetchError, 
+    get_table_name
+};
 pub mod kraken;
 
 
@@ -15,7 +24,7 @@ pub async fn download_new_data_to_db_table(
     db_pool: PgPool,
     initial_unix_timestamp_offset: u64,
     http_client: Option<&reqwest::Client>,
-    show_progress: Option<bool>
+    progress_tx: UnboundedSender<DataDownloadStatus>,
 ) -> Result<(), DbError> {
     
     let client = match http_client {
@@ -29,7 +38,7 @@ pub async fn download_new_data_to_db_table(
             db_pool, 
             initial_unix_timestamp_offset,
             Some(client),
-            show_progress
+            progress_tx,
         ).await?; 
     };
 
@@ -56,18 +65,6 @@ pub async fn fetch_first_tick_by_time_column(
         timestamp 
     );
     
-    // match db_pool.get_conn().await {
-    //     Ok(mut c) => {
-    //         if let Ok(d) = c.exec(query, ()).await {
-    //             d  
-    //         }
-    //         else {
-    //             Vec::new()
-    //         }
-    //     },
-    //     Err(_) => Vec::new() 
-    // }
-  
     type Vrow = Vec<(u64, u64, BigDecimal, BigDecimal)>;
     let row: Vrow = match sqlx::query_as::
         <_, (i64, i64, BigDecimal, BigDecimal)>
@@ -285,7 +282,8 @@ pub async fn first_time_setup(
 pub async fn initialize(
     active_exchanges: Vec<String>,
     db_pool: PgPool,
-    time_offset: u64 
+    time_offset: u64,
+    progress_tx: tokio::sync::mpsc::UnboundedSender<DataDownloadStatus>,
 ) -> Result<(), DbError> {
 
     first_time_setup(&active_exchanges, db_pool.clone()).await?;
@@ -318,7 +316,7 @@ pub async fn initialize(
                     db_pool.clone(), 
                     time_offset, 
                     None, 
-                    None 
+                    progress_tx.clone()
                 ).await?
 
             };
