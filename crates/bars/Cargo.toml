@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 chrono = { version = "0.4.42", features = ["clock", "std"] }
+sqlx = { version = "0.7", features = ["postgres"]}
 
 # My modules
-app_state = { path = "../app_state" }
 database_ops = { path = "../database_ops" }
 timestamp_tools = { path = "../timestamp_tools" }
 

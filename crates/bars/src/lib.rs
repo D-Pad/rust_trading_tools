@@ -1,8 +1,8 @@
 use std::fmt;
 use chrono::{DateTime, Utc};
+use sqlx::PgPool;
 
 use database_ops::*;
-use app_state::{AppState};
 use timestamp_tools::*;
 
 
@@ -156,7 +156,7 @@ impl BarSeries {
         ticker: String,
         period: String,
         bar_type: BarType,
-        app_state: &AppState
+        db_pool: PgPool 
     ) -> Result<Self, BarBuildError> {
     
         let info: BarInfo = BarInfo::new(exchange, ticker, period)?; 
@@ -167,7 +167,7 @@ impl BarSeries {
             &info.exchange, 
             &info.ticker, 
             num_ticks,
-            app_state.database.get_pool()
+            db_pool 
         ).await {
             Ok(d) => d,
             Err(_) => {
@@ -237,15 +237,16 @@ pub async fn calculate_first_tick_id(
     exchange: &str,
     ticker: &str,
     period: &str,
-    app_state: &AppState
+    db_pool: PgPool,
+    num_bars: u16
 ) -> Result<u64, BarBuildError> {
-
-    let pool = app_state.database.get_pool();
 
     let (symbol, n_periods) = get_period_portions_from_string(period)
         .map_err(|_| BarBuildError::Period(TimePeriodError::InvalidPeriod))?;
 
-    let last_tick = fetch_first_or_last_row(exchange, ticker, pool, true)
+    let last_tick = fetch_first_or_last_row(
+        exchange, ticker, db_pool.clone(), true
+    )
         .await 
         .map_err(|_| BarBuildError::TickIdCalculation(
             "Failed to fetch initial tick value".to_string()
@@ -256,8 +257,6 @@ pub async fn calculate_first_tick_id(
             "Failed to fetch initial tick value".to_string()
         ))?;
         
-    let num_bars: u16 = app_state.config.chart_parameters.num_bars;
-
     if period_is_time_based(symbol).map_err(|e| BarBuildError::Period(e))? {
         
         let last_tick_timestamp: u64 = last_tick.1 / 1_000_000;
@@ -275,7 +274,7 @@ pub async fn calculate_first_tick_id(
             exchange, 
             ticker, 
             &first_tick_time,
-            app_state.database.get_pool() 
+            db_pool 
         ).await;
 
         if tick.len() > 0 {

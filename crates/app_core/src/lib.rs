@@ -1,8 +1,9 @@
 use std::{collections::HashMap, io::{stdout, Write}};
 
-pub use app_state::{self, AppState, InitializationError};
 pub use database_ops::{self, DbError, DataDownloadStatus};
 pub use bars::BarBuildError;
+pub mod app_state;
+pub use app_state::{AppState, InitializationError};
 
 use tokio::sync::mpsc::unbounded_channel;
 use dotenvy::dotenv;
