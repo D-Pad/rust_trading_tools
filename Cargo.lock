@@ -34,6 +34,7 @@ dependencies = [
 name = "app_core"
 version = "0.1.0"
 dependencies = [
+ "arg_parsing",
  "bars",
  "charts",
  "database_ops",
@@ -46,6 +47,10 @@ dependencies = [
  "tokio",
  "toml",
 ]
+
+[[package]]
+name = "arg_parsing"
+version = "0.1.0"
 
 [[package]]
 name = "atoi"

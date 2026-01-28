@@ -1,4 +1,4 @@
-use std::{cmp::max, collections::HashMap, io::{Write, stdout}};
+use std::{collections::HashMap, io::{Write, stdout}};
 
 pub mod app_state;
 pub mod command_structs;
@@ -10,6 +10,8 @@ pub use database_ops::{self, Db, DbError, DataDownloadStatus};
 pub use bars::BarBuildError;
 pub use app_state::{AppState};
 pub use errors::{RunTimeError, InitializationError};
+pub use arg_parsing::{parse_args};
+
 
 use tokio::sync::mpsc::unbounded_channel;
 use dotenvy::dotenv;
