@@ -1,8 +1,9 @@
 use database_ops::*;
 
 use crate::app_state::AppState;
-use crate::command_structs::{Command, Response};
 use crate::errors::{RunTimeError};
+use crate::arg_parsing::{ParsedArgs, ParserError, Command, parse_args};
+
 
 use reqwest::Client;
 
@@ -10,7 +11,8 @@ use reqwest::Client;
 pub struct Engine {
     pub state: AppState,
     pub database: Db,
-    pub request_client: Client, 
+    pub request_client: Client,
+    pub args: ParsedArgs
 }
 
 impl Engine {
@@ -22,12 +24,15 @@ impl Engine {
 
         let request_client: Client = Client::new();
 
-        Ok(Engine { state, database, request_client })
+        let args: ParsedArgs = parse_args();
+
+        Ok(Engine { state, database, request_client, args })
 
     }
 
     // pub async fn handle(&mut self, cmd: Command) 
-    // -> Result<Response, RunTimeError> {
+    //     -> Result<Response, RunTimeError> 
+    // {
     //     match cmd {
     //         Command::AddPair { exchange, pair } => {
     //             self.database.add_pair(&exchange, &pair).await?;

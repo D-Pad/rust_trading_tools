@@ -2,5 +2,5 @@
 
 
 cd src 
-cargo run main.rs test_arg --more -s
+cargo run main.rs --start-server --add-pairs kraken SOLUSD
 

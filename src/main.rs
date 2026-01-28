@@ -15,13 +15,13 @@ fn local_error_handler(err: RunTimeError) {
 #[tokio::main]
 async fn main() {
 
-    let engine = match initialize_app_engine().await {
-        Ok(s) => s,
-        Err(e) => {
-            local_error_handler(e); 
-            process::exit(1);
-        }
-    };
+    // let engine = match initialize_app_engine().await {
+    //     Ok(s) => s,
+    //     Err(e) => {
+    //         local_error_handler(e); 
+    //         process::exit(1);
+    //     }
+    // };
 
     if let Err(e) = dev_test(
         // &engine.state, 

@@ -18,7 +18,6 @@ tokio = { version = "1.48.0", features = ["full"] }
 [workspace]
 members = [
     "crates/app_core", 
-    "crates/arg_parsing",
     "crates/bars", 
     "crates/charts",
     "crates/database_ops", 

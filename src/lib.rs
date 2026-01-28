@@ -10,7 +10,8 @@ pub async fn dev_test(
     // db_pool: PgPool,
 ) -> Result<(), RunTimeError> {
 
-    parse_args();
+    let args = parse_args();
+    args.to_commands();
     // database_ops::kraken::add_new_db_table(
     //     "BTCUSD", 
     //     state.time_offset(),
