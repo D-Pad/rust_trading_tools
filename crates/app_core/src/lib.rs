@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::{stdout, Write}};
+use std::{cmp::max, collections::HashMap, io::{Write, stdout}};
 
 pub mod app_state;
 pub mod command_structs;
@@ -185,6 +185,7 @@ pub async fn initialize_app_engine() -> Result<Engine, RunTimeError> {
     database_ops::initialize(
         active_exchanges,
         engine.state.time_offset(),
+        &engine.request_client,
         prog_tx.clone()
     )
         .await

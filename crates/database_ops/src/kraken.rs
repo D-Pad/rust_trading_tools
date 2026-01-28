@@ -156,7 +156,7 @@ pub struct AssetPairInfo {
 pub async fn add_new_db_table(
     ticker: &str,
     start_date_unix_timestamp_offset: u64,
-    http_client: Option<&reqwest::Client>,
+    client: &reqwest::Client,
     db_pool: PgPool 
 ) -> Result<(), DbError> {
 
@@ -195,7 +195,7 @@ pub async fn add_new_db_table(
 
     sleep(Duration::from_millis(500)).await;
     
-    let tick_info = request_asset_info_from_kraken(&ticker, http_client)
+    let tick_info = request_asset_info_from_kraken(&ticker, client)
         .await 
         .map_err(|e|  
             connection::DbError::Fetch(
@@ -259,7 +259,7 @@ pub async fn add_new_db_table(
     let initial_data: TickDataResponse = request_tick_data_from_kraken(
         ticker, 
         initial_fetch_time.to_string(),
-        http_client
+        client
     ).await.map_err(|e| DbError::Fetch(FetchError::Api(e)))?;
 
     write_data_to_db_table(ticker, &initial_data, db_pool.clone(), None)
@@ -274,16 +274,11 @@ pub async fn download_new_data_to_db_table(
     ticker: &str,
     db_pool: PgPool,
     initial_unix_timestamp_offset: u64,
-    http_client: Option<&reqwest::Client>,
+    client: &reqwest::Client,
     progress_tx: UnboundedSender<DataDownloadStatus>,
 ) -> Result<(), DbError> {
  
     let current_time: u64 = get_current_unix_timestamp();
-
-    let client = match http_client {
-        Some(c) => c,
-        None => &reqwest::Client::new()
-    }; 
 
     let mut conn = match db_pool
         .acquire()
@@ -310,7 +305,7 @@ pub async fn download_new_data_to_db_table(
         add_new_db_table(
             &ticker, 
             initial_unix_timestamp_offset, 
-            Some(&client),
+            &client,
             db_pool.clone()
         ).await?;
     };
@@ -402,7 +397,7 @@ pub async fn download_new_data_to_db_table(
         let new_data: TickDataResponse = match request_tick_data_from_kraken(
             ticker, 
             next_timestamp, 
-            Some(client)
+            client
         ).await {
             Ok(d) => d,
             Err(e) => {
@@ -506,7 +501,7 @@ pub async fn download_new_data_to_db_table(
 pub async fn request_tick_data_from_kraken(
     ticker: &str, 
     since_unix_timestamp: String, 
-    http_client: Option<&reqwest::Client> 
+    client: &reqwest::Client 
 ) -> Result<TickDataResponse, RequestError> {
     
     let url = format!(
@@ -515,11 +510,6 @@ pub async fn request_tick_data_from_kraken(
         since_unix_timestamp
     );
   
-    let client = match http_client {
-        Some(c) => c,
-        None => &reqwest::Client::new()
-    };
-    
     let response = client.get(&url).send().await?;
 
     if !response.status().is_success() {
@@ -547,7 +537,7 @@ pub async fn request_tick_data_from_kraken(
 
 pub async fn request_asset_info_from_kraken(
     ticker: &str,
-    http_client: Option<&reqwest::Client> 
+    client: &reqwest::Client 
 ) 
   -> Result<AssetPairInfo, reqwest::Error> {
     
@@ -555,11 +545,6 @@ pub async fn request_asset_info_from_kraken(
         "https://api.kraken.com/0/public/AssetPairs?pair={}",
         ticker
     );
-
-    let client = match http_client {
-        Some(c) => c,
-        None => &reqwest::Client::new()
-    };
 
     let response = client 
         .get(url)

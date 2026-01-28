@@ -6,7 +6,9 @@ use sqlx::PgPool;
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 pub async fn dev_test(
     state: &AppState, 
-    db_pool: PgPool 
+    time_offset: u64,
+    client: &reqwest::Client,
+    db_pool: PgPool,
 ) -> Result<(), RunTimeError> {
 
     // let dbi = database_ops::integrity_check(
@@ -18,7 +20,7 @@ pub async fn dev_test(
     database_ops::kraken::add_new_db_table(
         "BTCUSD", 
         state.time_offset(),
-        None,
+        client,
         db_pool 
     ).await;
 

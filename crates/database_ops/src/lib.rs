@@ -18,26 +18,46 @@ pub use connection::{
 pub mod kraken;
 
 
+pub async fn add_new_pair(
+    exchange: &str, 
+    ticker: &str,
+    time_offset: u64,
+    db_pool: PgPool,
+    client: &reqwest::Client
+) {
+    
+    match exchange {
+        "kraken" => {
+            kraken::add_new_db_table(
+                ticker, 
+                time_offset, 
+                client, 
+                db_pool.clone()
+            ).await;
+        },
+        _ => {
+
+        }
+    }
+
+}
+
+
 pub async fn download_new_data_to_db_table(
     exchange: &str, 
     ticker: &str,
     db_pool: PgPool,
     initial_unix_timestamp_offset: u64,
-    http_client: Option<&reqwest::Client>,
+    client: &reqwest::Client,
     progress_tx: UnboundedSender<DataDownloadStatus>,
 ) -> Result<(), DbError> {
-    
-    let client = match http_client {
-        Some(c) => c,
-        None => &reqwest::Client::new()
-    }; 
-    
+   
     if exchange == "kraken" {      
         kraken::download_new_data_to_db_table(
             ticker, 
             db_pool, 
             initial_unix_timestamp_offset,
-            Some(client),
+            client,
             progress_tx,
         ).await?; 
     };
@@ -282,7 +302,8 @@ pub async fn first_time_setup(
 pub async fn initialize(
     active_exchanges: Vec<String>,
     time_offset: u64,
-    progress_tx: tokio::sync::mpsc::UnboundedSender<DataDownloadStatus>,
+    client: &reqwest::Client,
+    progress_tx: tokio::sync::mpsc::UnboundedSender<DataDownloadStatus>
 ) -> Result<Db, DbError> {
 
     let db_login: DbLogin = DbLogin::new(); 
@@ -324,7 +345,7 @@ pub async fn initialize(
                     &ticker, 
                     db_pool.clone(), 
                     time_offset, 
-                    None, 
+                    client, 
                     progress_tx.clone()
                 ).await?
 

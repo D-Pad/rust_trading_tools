@@ -39,6 +39,7 @@ dependencies = [
  "database_ops",
  "dotenvy",
  "indicators",
+ "reqwest",
  "serde",
  "serde_json",
  "timestamp_tools",
@@ -2349,6 +2350,7 @@ name = "trading_app"
 version = "0.1.0"
 dependencies = [
  "app_core",
+ "reqwest",
  "serde",
  "serde_json",
  "sqlx",

@@ -4,10 +4,13 @@ use crate::app_state::AppState;
 use crate::command_structs::{Command, Response};
 use crate::errors::{RunTimeError};
 
+use reqwest::Client;
+
 
 pub struct Engine {
     pub state: AppState,
     pub database: Db,
+    pub request_client: Client, 
 }
 
 impl Engine {
@@ -17,7 +20,9 @@ impl Engine {
         let state: AppState = AppState::new()
             .map_err(|e| RunTimeError::Init(e))?;
 
-        Ok(Engine { state, database })
+        let request_client: Client = Client::new();
+
+        Ok(Engine { state, database, request_client })
 
     }
 
@@ -25,12 +30,12 @@ impl Engine {
     // -> Result<Response, RunTimeError> {
     //     match cmd {
     //         Command::AddPair { exchange, pair } => {
-    //             self.db.add_pair(&exchange, &pair).await?;
+    //             self.database.add_pair(&exchange, &pair).await?;
     //             self.state.add_pair(exchange, pair);
     //             Ok(Response::Ok)
     //         }
     //         Command::DropPair { exchange, pair } => {
-    //             self.db.drop_pair(&exchange, &pair).await?;
+    //             self.database.drop_pair(&exchange, &pair).await?;
     //             Ok(Response::Ok)
     //         }
     //     }
