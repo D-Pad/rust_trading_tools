@@ -2,5 +2,5 @@
 
 
 cd src 
-cargo run main.rs --start-server --add-pairs kraken SOLUSD
+cargo run main.rs --update-data 
 

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::{Write, stdout}};
+use std::{collections::HashMap};
 
 pub mod arg_parsing;
 pub mod app_state;
@@ -13,7 +13,6 @@ pub use errors::{RunTimeError, InitializationError};
 pub use arg_parsing::{parse_args, ParsedArgs, ParserError};
 
 use sqlx::PgPool;
-use tokio::{sync::mpsc::unbounded_channel};
 
 
 enum StatusMessageProgress {
@@ -137,58 +136,9 @@ pub async fn initialize_app_engine() -> Result<Engine, RunTimeError> {
 
     let engine = Engine::new(database)?;
 
-    let mut active_exchanges: Vec<String> = Vec::new();
-   
-    for (exchange, activated) in &engine
-        .state
-        .config
-        .supported_exchanges
-        .active 
-    {
-        if *activated { active_exchanges.push(exchange.clone()) }
-    };
- 
-    // Progress listener
-    let (prog_tx, mut prog_rx) = unbounded_channel::<DataDownloadStatus>();
+    let active_exchanges: Vec<String> = engine.state.get_active_exchanges();
 
-    tokio::spawn(async move {
-        let mut viewer = DownloadStatusViewer::new();
-        
-        print!("\x1b[?25l");  // Hide cursor
-        while let Some(event) = prog_rx.recv().await {
-            
-            viewer.update_status(event);
-          
-            // Move cursor to top
-            if viewer.last_rendered_lines > 0 {
-                print!("\x1b[{}A", viewer.last_rendered_lines);
-            };
-
-            // Clear old lines
-            for _ in 0..viewer.last_rendered_lines {
-                print!("\r\x1b[2K\n");
-            };
-
-            // Move cursor to top, again
-            if viewer.last_rendered_lines > 0 {
-                print!("\x1b[{}A", viewer.last_rendered_lines);
-            };
-
-            viewer.render_lines();
-            print!("{}", viewer);
-            stdout().flush().ok();
-        
-        }
-        print!("\x1b[?25h");  // Show cursor
-    });
-
-    database_ops::initialize(
-        active_exchanges,
-        engine.state.time_offset(),
-        &engine.request_client,
-        prog_tx.clone()
-    )
-        .await
+    database_ops::initialize(&active_exchanges).await
         .map_err(|e| RunTimeError::DataBase(e))?; 
 
     Ok(engine)

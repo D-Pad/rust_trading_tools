@@ -1,16 +1,23 @@
+use std::io::{self, Write};
+
 use database_ops::*;
 
-use crate::app_state::AppState;
-use crate::errors::{RunTimeError};
-use crate::arg_parsing::{
-    ParsedArgs,
-    Response,
-    Command, 
-    parse_args
+use crate::{
+    app_state::AppState,
+    errors::{RunTimeError},
+    arg_parsing::{
+        ParsedArgs,
+        Response,
+        Command, 
+        parse_args
+    },
+    DataDownloadStatus,
+    DownloadStatusViewer,
+    PgPool
 };
 
-
 use reqwest::Client;
+use tokio::{sync::mpsc::unbounded_channel};
 
 
 pub struct Engine {
@@ -35,12 +42,23 @@ impl Engine {
 
     }
 
+    pub async fn execute_commands(&mut self) -> Result<Response, RunTimeError> {
+        
+        let commands = self.args.to_commands();
+
+        for cmd in commands {
+            self.handle(cmd).await?; 
+        };
+
+        Ok(Response::Ok)
+    }
+
     pub async fn handle(&mut self, cmd: Command) 
         -> Result<Response, RunTimeError> {
         match cmd {
             
             Command::AddPair { exchange, pair } => {
-                
+              
                 add_new_pair(
                     &exchange, 
                     &pair, 
@@ -49,22 +67,85 @@ impl Engine {
                     &self.request_client
                 ).await.map_err(|e| RunTimeError::DataBase(e))?;
 
-                Ok(Response::Ok)
             },
 
             Command::DropPair { exchange, pair } => {
+                
                 drop_pair(&exchange, &pair, self.database.get_pool())
                     .await 
                     .map_err(|e| RunTimeError::DataBase(e))?;
 
-                Ok(Response::Ok)
             },
 
             Command::StartServer => { 
                 // TODO: Add server starting logic 
-                Ok(Response::Ok) 
+            },
+
+            Command::UpdatePairs => {
+                run_database_table_updates(
+                    &self.state, 
+                    &self.request_client, 
+                    self.database.get_pool(),
+                ).await?;
             }
-        }
+        };
+        
+        Ok(Response::Ok)
     }
+}
+
+
+pub async fn run_database_table_updates(
+    state: &AppState,
+    client: &reqwest::Client,
+    db_pool: PgPool
+) -> Result<(), RunTimeError> {
+
+    // Progress listener
+    let (prog_tx, mut prog_rx) = unbounded_channel::<DataDownloadStatus>();
+
+    tokio::spawn(async move {
+        let mut viewer = DownloadStatusViewer::new();
+        
+        print!("\x1b[?25l");  // Hide cursor
+        while let Some(event) = prog_rx.recv().await {
+            
+            viewer.update_status(event);
+          
+            // Move cursor to top
+            if viewer.last_rendered_lines > 0 {
+                print!("\x1b[{}A", viewer.last_rendered_lines);
+            };
+
+            // Clear old lines
+            for _ in 0..viewer.last_rendered_lines {
+                print!("\r\x1b[2K\n");
+            };
+
+            // Move cursor to top, again
+            if viewer.last_rendered_lines > 0 {
+                print!("\x1b[{}A", viewer.last_rendered_lines);
+            };
+
+            viewer.render_lines();
+            print!("{}", viewer);
+            io::stdout().flush().ok();
+        
+        }
+        print!("\x1b[?25h");  // Show cursor
+    });
+
+    update_database_tables(
+        &state.get_active_exchanges(),
+        state.time_offset(),
+        client,
+        db_pool,
+        prog_tx.clone()
+    )
+        .await
+        .map_err(|e| RunTimeError::DataBase(e))?;
+
+    Ok(())
+
 }
 

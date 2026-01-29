@@ -323,12 +323,7 @@ pub async fn first_time_setup(
 }
 
 
-pub async fn initialize(
-    active_exchanges: Vec<String>,
-    time_offset: u64,
-    client: &reqwest::Client,
-    progress_tx: tokio::sync::mpsc::UnboundedSender<DataDownloadStatus>
-) -> Result<Db, DbError> {
+pub async fn initialize(active_exchanges: &Vec<String>) -> Result<Db, DbError> {
 
     let db_login: DbLogin = DbLogin::new(); 
  
@@ -345,15 +340,28 @@ pub async fn initialize(
 
     first_time_setup(&active_exchanges, db_pool.clone()).await?;
 
+    Ok(database)
+
+}
+
+
+pub async fn update_database_tables(
+    active_exchanges: &Vec<String>,
+    time_offset: u64,
+    client: &reqwest::Client,
+    db_pool: PgPool,
+    progress_tx: tokio::sync::mpsc::UnboundedSender<DataDownloadStatus>
+) -> Result<(), DbError> {
+
+    println!("\x1b[1;33mUpdating existing database tables\x1b[0m");
+    
     let existing_tables = fetch_tables(db_pool.clone()).await?;
     
     for exchange_name in active_exchanges {
    
-        println!("\x1b[1;33mUpdating existing database tables\x1b[0m");
-
         let exchange_tables: Vec<&String> = existing_tables
             .iter() 
-            .filter(|x| x.contains(&exchange_name))
+            .filter(|x| x.contains(exchange_name))
             .collect();
 
         if exchange_name == "kraken" {
@@ -377,7 +385,7 @@ pub async fn initialize(
         };
     };
 
-    Ok(database)
+    Ok(())
 
 }
 

@@ -13,6 +13,7 @@ pub enum Command {
         pair: String
     },
     StartServer,
+    UpdatePairs,
 }
 
 pub enum Response {
@@ -29,6 +30,7 @@ pub struct ParsedArgs {
 
     // Unique commands 
     pub start_server: bool,
+    pub update_tables: bool,
     pub add_pairs: Option<HashMap<String, Vec<String>>>,
     pub remove_pairs: Option<HashMap<String, Vec<String>>>,
 
@@ -45,6 +47,7 @@ impl ParsedArgs {
             command: String::new(),
 
             start_server: false,
+            update_tables: false, 
             add_pairs: None,
             remove_pairs: None,
 
@@ -56,12 +59,12 @@ impl ParsedArgs {
         self.parser_error.is_none()
     }
 
-    pub fn to_commands(self) -> Vec<Command> {
+    pub fn to_commands(&self) -> Vec<Command> {
         
         let mut commands: Vec<Command> = Vec::new();
         
         // Add pairs
-        if let Some(additions) = self.add_pairs {
+        if let Some(additions) = &self.add_pairs {
             for (exchange, pairs) in additions {
                 for pair in pairs {
                     commands.push(Command::AddPair { 
@@ -73,7 +76,7 @@ impl ParsedArgs {
         };
 
         // Drop pairs
-        if let Some(removals) = self.remove_pairs {
+        if let Some(removals) = &self.remove_pairs {
             for (exchange, pairs) in removals {
                 for pair in pairs {
                     commands.push(Command::DropPair { 
@@ -86,6 +89,10 @@ impl ParsedArgs {
 
         if self.start_server {
             commands.push(Command::StartServer);
+        };
+
+        if self.update_tables {
+            commands.push(Command::UpdatePairs);
         };
 
         commands
@@ -181,6 +188,7 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
             match &arg[2..] {
                 "start-server" => parsed_args.start_server = true,
                 "add-pairs" | "rm-pairs" => flag_name = arg[2..].to_string(),
+                "update-data" => parsed_args.update_tables = true,
                 _ => {
                     invalid_flags.push(arg.clone());
                 }
@@ -198,6 +206,7 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
              
                 match ch {
                     's' => parsed_args.start_server = true,
+                    'u' => parsed_args.update_tables = true, 
                     'A' => {
                         flag_name = "add-pairs".to_string();
                         break;

@@ -26,7 +26,19 @@ impl AppState {
         Ok(AppState { config })
 
     }
-    
+
+    pub fn get_active_exchanges(&self) -> Vec<String> {
+
+        let mut active_exchanges: Vec<String> = Vec::new();
+   
+        for (exchange, activated) in &self.config.supported_exchanges.active {
+            if *activated { active_exchanges.push(exchange.clone()) }
+        }; 
+
+        active_exchanges
+
+    }
+
     pub fn time_offset(&self) -> u64 {
         self.config.data_download.cache_size_settings_to_seconds()
     }
