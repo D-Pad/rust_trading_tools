@@ -24,7 +24,7 @@ pub async fn add_new_pair(
     time_offset: u64,
     db_pool: PgPool,
     client: &reqwest::Client
-) {
+) -> Result<(), DbError> {
     
     match exchange {
         "kraken" => {
@@ -33,13 +33,33 @@ pub async fn add_new_pair(
                 time_offset, 
                 client, 
                 db_pool.clone()
-            ).await;
+            ).await?;
         },
         _ => {
 
         }
-    }
+    };
 
+    Ok(())
+
+}
+
+
+pub async fn drop_pair(
+    exchange: &str, 
+    ticker: &str,
+    db_pool: PgPool
+) -> Result<(), DbError> {
+    
+    let query = format!(r#"
+    DROP TABLE asset_{exchange}_{ticker} 
+    "#);
+
+    sqlx::query(&query)
+        .execute(&db_pool)
+        .await.map_err(|_| DbError::QueryFailed(query.to_string()))?;
+
+    Ok(())
 }
 
 
@@ -163,8 +183,7 @@ pub async fn fetch_first_or_last_row(
             .map(|(i, t, p, v)| (i as u64, t as u64, p, v))
             .collect() 
         ,
-        Err(e) => {
-            println!("{}", e); 
+        Err(_) => {
             return Err(DbError::QueryFailed(query))
         }
     };
@@ -179,9 +198,9 @@ pub async fn fetch_rows(
     ticker: &str,
     limit: Option<u64>,
     db_pool: PgPool
-) -> Result<Vec<(u64, u64, f64, f64)>, DbError> {
+) -> Result<Vec<(u64, u64, BigDecimal, BigDecimal)>, DbError> {
 
-    let table_name = get_table_name(ticker, exchange);
+    let table_name = get_table_name(exchange, ticker);
 
     let mut conn: PoolConnection<sqlx::Postgres> = match db_pool
         .acquire()
@@ -200,7 +219,7 @@ pub async fn fetch_rows(
         r#"SELECT id FROM {table_name} 
         ORDER BY id DESC LIMIT 1"#
     );
-    
+   
     let last_id: u64 = match sqlx::query_scalar::<_, i64>(last_id_query)
         .fetch_all(&mut *conn)
         .await 
@@ -228,13 +247,16 @@ pub async fn fetch_rows(
     
     let query: String = format!(
         r#"
-        SELECT id, timestamp, price, volume
+        SELECT id, time, price, volume
         FROM {table_name} WHERE id >= {tick_id};
         "#,
     );
 
-    type Drow = Vec<(u64, u64, f64, f64)>;
-    let rows: Drow = match sqlx::query_as::<_, (i64, i64, f64, f64)>(&query)
+    type Drow = Vec<(u64, u64, BigDecimal, BigDecimal)>;
+   
+    let rows: Drow = match sqlx::query_as::<
+        _, (i64, i64, BigDecimal, BigDecimal)
+    >(&query)
         .fetch_all(&mut *conn)
         .await 
     {
@@ -242,11 +264,13 @@ pub async fn fetch_rows(
             .map(|(i, t, p, vol)| (i as u64, t as u64, p, vol))
             .collect()
         ,
-        Err(_) => return Err(
-            DbError::QueryFailed(
-                "Failed to fetch last tick ID".to_string() 
+        Err(e) => return {
+            Err(
+                DbError::QueryFailed(
+                    "Failed to fetch last tick ID".to_string() 
+                )
             )
-        )
+        }
     };
 
     Ok(rows)

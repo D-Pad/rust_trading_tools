@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env::args, error::Error};
+use std::{collections::HashMap, env::args};
 
 
 // --------------------------- COMMAND ENUMS ------------------------------- //
@@ -13,6 +13,10 @@ pub enum Command {
         pair: String
     },
     StartServer,
+}
+
+pub enum Response {
+    Ok
 }
 
 
@@ -119,10 +123,13 @@ pub enum ParserError {
 }
 
 
-pub fn parse_args() -> ParsedArgs {
+pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
 
     // Initialization
-    let mut arguments: Vec<String> = args().collect();
+    let mut arguments: Vec<String> = match passed_arguments {
+        Some(a) => a, 
+        None => args().collect()
+    };
     
     let mut executable_path: String = String::new();   
     let mut executable_name: String = String::new();   
@@ -250,7 +257,6 @@ pub fn parse_args() -> ParsedArgs {
         parsed_args.remove_pairs = Some(pairs_to_rm);
     };
 
-    println!("{}", parsed_args);
     parsed_args
 
 }

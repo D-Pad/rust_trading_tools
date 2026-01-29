@@ -1,5 +1,6 @@
 use num_traits::{PrimInt, Unsigned};
 use chrono::{DateTime, Datelike, TimeZone, Utc, Duration};
+use sqlx::types::BigDecimal;
 
 
 #[derive(Debug)]
@@ -142,7 +143,7 @@ pub fn db_timestamp_to_date_string(timestamp: u64) -> String {
 
 // --------------------------- CANDLE PERIOD ------------------------------- //
 pub fn get_tick_indices_and_dates<'a> (
-    tick_data: &'a [(u64, u64, f64, f64)],
+    tick_data: &'a [(u64, u64, BigDecimal, BigDecimal)],
     period_number: u64,
     period_symbol: char
 ) -> Result<
@@ -253,16 +254,14 @@ pub fn get_tick_indices_and_dates<'a> (
             .collect(); 
 
         for &index in &indices {
-            let open_row = tick_data[index];
-            let open_date = micros_u64_to_datetime(open_row.1)?;
+            let open_date = micros_u64_to_datetime(tick_data[index].1)?;
             open_dates.push(open_date);
            
             let mut close_index = index + (period_number as usize);
             if close_index > max_index { 
                 close_index = max_index; 
             }; 
-            let close_row = tick_data[close_index];
-            let close_date = micros_u64_to_datetime(close_row.1)?;
+            let close_date = micros_u64_to_datetime(tick_data[close_index].1)?;
             close_dates.push(close_date);
 
         };

@@ -1,6 +1,7 @@
 use std::fmt;
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgPool, types::BigDecimal};
+use num_traits::identities::Zero;
 
 use database_ops::*;
 use timestamp_tools::*;
@@ -8,7 +9,7 @@ use timestamp_tools::*;
 
 #[derive(Debug)]
 pub enum BarBuildError {
-    TickFetch,
+    TickFetch(String),
     BuildFailed(String),
     DateConversion,
     Period(TimePeriodError),
@@ -19,7 +20,9 @@ pub enum BarBuildError {
 impl std::fmt::Display for BarBuildError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            BarBuildError::TickFetch => write!(f, "BarBuildError::TickFetch"),
+            BarBuildError::TickFetch(e) => {
+                write!(f, "BarBuildError::TickFetch: {}", e)
+            }, 
             BarBuildError::BuildFailed(e) => write!(
                 f, "BarBuildError::BuildFailed: {}", e),
             BarBuildError::DateConversion => write!(
@@ -48,47 +51,52 @@ pub enum BarType {
 // ------------------------------ BAR TYPES -------------------------------- //
 #[derive(Debug)]
 pub struct Bar {
-    open: f64, 
-    high: f64,
-    low: f64,
-    close: f64,
-    volume: f64,
+    open: BigDecimal, 
+    high: BigDecimal,
+    low: BigDecimal,
+    close: BigDecimal,
+    volume: BigDecimal,
     open_date: DateTime<Utc>,
     close_date: DateTime<Utc>,
-    tick_data: Vec<(u64, u64, f64, f64)>
+    tick_data: Vec<(u64, u64, BigDecimal, BigDecimal)>
 }
 
 impl Bar {
     
     fn new(
-        tick_data: Vec<(u64, u64, f64, f64)>,
+        tick_data: Vec<(u64, u64, BigDecimal, BigDecimal)>,
         open_date: DateTime<Utc>,
         close_date: DateTime<Utc>
     ) -> Self {
       
-        fn min_max_vol(data: &[(u64, u64, f64, f64)]) -> (f64, f64, f64) {
+        fn min_max_vol(data: &[(u64, u64, BigDecimal, BigDecimal)]) 
+            -> (BigDecimal, BigDecimal, BigDecimal) {
             
-            let mut min: f64 = 0.0; 
-            let mut max: f64 = 0.0; 
-            let mut volume: f64 = 0.0; 
+            let mut min: BigDecimal = BigDecimal::zero(); 
+            let mut max: BigDecimal = BigDecimal::zero(); 
+            let mut volume: BigDecimal = BigDecimal::zero(); 
             
             for tick in data {
                 
-                if min == 0.0 { min = tick.2 } 
+                if min.is_zero() { 
+                    min = tick.2.clone(); 
+                } 
                 else if tick.2 < min {
-                    min = tick.2; 
+                    min = tick.2.clone(); 
                 };
                 
-                if tick.2 > max { max = tick.2 };
+                if tick.2 > max { 
+                    max = tick.2.clone() 
+                };
                 
-                volume += tick.3;
+                volume += tick.3.clone();
             
             }
             (min, max, volume)
         }
 
-        let open = tick_data[0].2;
-        let close = tick_data[tick_data.len() - 1].2;
+        let open = tick_data[0].2.clone();
+        let close = tick_data[tick_data.len() - 1].2.clone();
         let (low, high, volume) = min_max_vol(&tick_data);
 
         Bar { 
@@ -116,7 +124,7 @@ impl fmt::Display for Bar {
             self.volume
         )
     }
-} 
+}  
 
 
 pub struct BarInfo {
@@ -144,7 +152,7 @@ impl BarInfo {
 
 
 pub struct BarSeries {
-    pub tick_data: Vec<(u64, u64, f64, f64)>,
+    pub tick_data: Vec<(u64, u64, BigDecimal, BigDecimal)>,
     pub bars: Vec<Bar>,
     pub info: BarInfo
 }
@@ -163,7 +171,8 @@ impl BarSeries {
 
         let num_ticks: Option<u64> = Some(1_000_000);
 
-        let tick_data: Vec<(u64, u64, f64, f64)> = match fetch_rows(
+        type TickRow = Vec<(u64, u64, BigDecimal, BigDecimal)>;
+        let tick_data: TickRow = match fetch_rows(
             &info.exchange, 
             &info.ticker, 
             num_ticks,
@@ -171,7 +180,13 @@ impl BarSeries {
         ).await {
             Ok(d) => d,
             Err(_) => {
-                return Err(BarBuildError::TickFetch); 
+                return Err(
+                    BarBuildError::TickFetch(format!(
+                        "Failed to fetch rows: asset_{}_{}", 
+                        info.exchange, 
+                        info.ticker 
+                    ))
+                ); 
             }
         };
 

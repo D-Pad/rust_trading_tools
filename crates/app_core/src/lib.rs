@@ -7,13 +7,13 @@ pub mod errors;
 
 use engine::Engine;
 pub use database_ops::{self, Db, DbError, DataDownloadStatus};
-pub use bars::BarBuildError;
+pub use bars::{self, BarBuildError, BarSeries, BarType};
 pub use app_state::{AppState};
 pub use errors::{RunTimeError, InitializationError};
 pub use arg_parsing::{parse_args, ParsedArgs, ParserError};
 
-
-use tokio::sync::mpsc::unbounded_channel;
+use sqlx::PgPool;
+use tokio::{sync::mpsc::unbounded_channel};
 use dotenvy::dotenv;
 
 
@@ -129,6 +129,7 @@ impl std::fmt::Display for DownloadStatusViewer {
     }
 }
 
+// ----------------------------- FUNCTIONS --------------------------------- //
 pub async fn initialize_app_engine() -> Result<Engine, RunTimeError> {
 
     dotenv().ok(); 
@@ -191,18 +192,36 @@ pub async fn initialize_app_engine() -> Result<Engine, RunTimeError> {
         prog_tx.clone()
     )
         .await
-        .map_err(|_| RunTimeError::Init(InitializationError::InitFailure))?; 
+        .map_err(|e| RunTimeError::DataBase(e))?; 
 
     Ok(engine)
 }
 
 
+pub async fn build_candles(
+    exchange: &str, 
+    ticker: &str, 
+    period: &str,
+    db_pool: PgPool
+) 
+    -> Result<BarSeries, BarBuildError> 
+{
+    BarSeries::new(
+        exchange.to_string(), 
+        ticker.to_string(), 
+        period.to_string(), 
+        BarType::Candle, 
+        db_pool).await
+}
+
+
+// -------------------------- UNIT TESTING --------------------------------- //
 #[cfg(test)]
 mod tests {
 
     use bars::*;
-    use app_state::*;
-    use database_ops::{Db, DbLogin, fetch_tables, integrity_check};
+    use crate::engine::Engine;
+    use database_ops::{Db, fetch_tables, integrity_check};
     
     use dotenvy;
     use tokio;
@@ -212,13 +231,7 @@ mod tests {
        
         dotenvy::dotenv().ok(); 
         
-        let dbl = DbLogin::new();
-        let db = match Db::new(
-            &dbl.host,
-            5432,
-            &dbl.user,
-            &dbl.password 
-        ).await {
+        let db = match Db::new().await {
             Ok(d) => d,
             Err(e) => panic!("{:?}", e)
         };
@@ -236,13 +249,7 @@ mod tests {
          
         dotenvy::dotenv().ok(); 
         
-        let dbl = DbLogin::new();
-        let db = match Db::new(
-            &dbl.host,
-            5432,
-            &dbl.user,
-            &dbl.password 
-        ).await {
+        let db = match Db::new().await {
             Ok(d) => d,
             Err(e) => panic!("{:?}", e)
         };
@@ -285,8 +292,9 @@ mod tests {
     async fn candle_test() {
         
         dotenvy::dotenv().ok(); 
-        
-        let app_state = AppState::new().await.unwrap();
+       
+        let database: Db = Db::new().await.unwrap();
+        let engine: Engine = Engine::new(database).unwrap();
 
         let exchange = "kraken".to_string();
         let ticker = "BTCUSD".to_string();
@@ -297,12 +305,11 @@ mod tests {
             ticker, 
             period, 
             BarType::Candle, 
-            &app_state
+            engine.database.get_pool()
         ).await {
             Ok(c) => c,
             Err(e) => {
-                println!("Test failed: {}", e); 
-                panic!()
+                panic!("Test failed: {}", e)
             }
         };
     }

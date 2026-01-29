@@ -2,7 +2,12 @@ use database_ops::*;
 
 use crate::app_state::AppState;
 use crate::errors::{RunTimeError};
-use crate::arg_parsing::{ParsedArgs, ParserError, Command, parse_args};
+use crate::arg_parsing::{
+    ParsedArgs,
+    Response,
+    Command, 
+    parse_args
+};
 
 
 use reqwest::Client;
@@ -24,26 +29,42 @@ impl Engine {
 
         let request_client: Client = Client::new();
 
-        let args: ParsedArgs = parse_args();
+        let args: ParsedArgs = parse_args(None);
 
         Ok(Engine { state, database, request_client, args })
 
     }
 
-    // pub async fn handle(&mut self, cmd: Command) 
-    //     -> Result<Response, RunTimeError> 
-    // {
-    //     match cmd {
-    //         Command::AddPair { exchange, pair } => {
-    //             self.database.add_pair(&exchange, &pair).await?;
-    //             self.state.add_pair(exchange, pair);
-    //             Ok(Response::Ok)
-    //         }
-    //         Command::DropPair { exchange, pair } => {
-    //             self.database.drop_pair(&exchange, &pair).await?;
-    //             Ok(Response::Ok)
-    //         }
-    //     }
-    // }
+    pub async fn handle(&mut self, cmd: Command) 
+        -> Result<Response, RunTimeError> {
+        match cmd {
+            
+            Command::AddPair { exchange, pair } => {
+                
+                add_new_pair(
+                    &exchange, 
+                    &pair, 
+                    self.state.time_offset(),
+                    self.database.get_pool(),
+                    &self.request_client
+                ).await.map_err(|e| RunTimeError::DataBase(e))?;
+
+                Ok(Response::Ok)
+            },
+
+            Command::DropPair { exchange, pair } => {
+                drop_pair(&exchange, &pair, self.database.get_pool())
+                    .await 
+                    .map_err(|e| RunTimeError::DataBase(e))?;
+
+                Ok(Response::Ok)
+            },
+
+            Command::StartServer => { 
+                // TODO: Add server starting logic 
+                Ok(Response::Ok) 
+            }
+        }
+    }
 }
 
