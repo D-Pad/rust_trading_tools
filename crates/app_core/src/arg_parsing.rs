@@ -2,18 +2,24 @@ use std::{collections::HashMap, env::args};
 
 
 // --------------------------- COMMAND ENUMS ------------------------------- //
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Command {
     AddPair {
         exchange: String,
-        pair: String
+        ticker: String
     },
     DropPair {
         exchange: String,
-        pair: String
+        ticker: String
     },
     StartServer,
     UpdatePairs,
+
+    CandleBuilder {
+        exchange: String,
+        ticker: String,
+        period: String,
+    },
 }
 
 pub enum Response {
@@ -26,7 +32,7 @@ pub enum Response {
 pub struct ParsedArgs {
     pub executable_path: String,
     pub executable_name: String,
-    pub command: String,
+    pub command: Option<Command>,
 
     // Unique commands 
     pub start_server: bool,
@@ -41,10 +47,11 @@ pub struct ParsedArgs {
 impl ParsedArgs {
     
     fn new() -> Self {
+        
         ParsedArgs {
             executable_path: String::new(),
             executable_name: String::new(),
-            command: String::new(),
+            command: None,
 
             start_server: false,
             update_tables: false, 
@@ -53,6 +60,7 @@ impl ParsedArgs {
 
             parser_error: None
         }     
+    
     }
 
     pub fn is_ok(self) -> bool {
@@ -61,15 +69,18 @@ impl ParsedArgs {
 
     pub fn to_commands(&self) -> Vec<Command> {
         
-        let mut commands: Vec<Command> = Vec::new();
-        
+        let mut commands: Vec<Command> = Vec::new();       
+        if let Some(d) = &self.command {
+            commands.push(d.clone());
+        };
+
         // Add pairs
         if let Some(additions) = &self.add_pairs {
             for (exchange, pairs) in additions {
-                for pair in pairs {
+                for ticker in pairs {
                     commands.push(Command::AddPair { 
                         exchange: exchange.clone(), 
-                        pair: pair.clone() 
+                        ticker: ticker.clone() 
                     });
                 }; 
             };
@@ -78,10 +89,10 @@ impl ParsedArgs {
         // Drop pairs
         if let Some(removals) = &self.remove_pairs {
             for (exchange, pairs) in removals {
-                for pair in pairs {
+                for ticker in pairs {
                     commands.push(Command::DropPair { 
                         exchange: exchange.clone(), 
-                        pair: pair.clone() 
+                        ticker: ticker.clone() 
                     });
                 }; 
             };
@@ -110,8 +121,8 @@ impl std::fmt::Display for ParsedArgs {
         write!(f, "\n  \x1b[33mexecutable_name\x1b[0m: {}",
             self.executable_name)?;
         
-        if self.command != "" { 
-            write!(f, "\n  \x1b[33mcommand\x1b[0m: {}", self.command)?;
+        if !self.command.is_none() { 
+            write!(f, "\n  \x1b[33mcommand\x1b[0m: {:?}", self.command)?;
         };
         
         write!(f, "\n  \x1b[33mstart_server\x1b[0m: {}", self.start_server)?;
@@ -126,7 +137,10 @@ impl std::fmt::Display for ParsedArgs {
 
 #[derive(Debug)]
 pub enum ParserError {
-    UnknownFlags(Vec<String>)
+    UnknownCommand(String),
+    UnknownFlags(Vec<String>),
+    TooManyArgs(String),
+    MissingArgs(String),
 }
 
 
@@ -176,8 +190,11 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
 
     let mut flag_found = false;
     let mut option_counter: u8 = 0;
-    
-    for arg in arguments {
+   
+    let mut main_command_buffer: Vec<String> = Vec::new();
+    let mut expected_command_arg_len: usize = 0; 
+
+    for (i, arg) in arguments.iter().enumerate() {
   
         // --------------------- Long flag parsing --------------------- //
         if is_long_flag(&arg) {
@@ -225,8 +242,47 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
         }
         
         // ----------------------- Initial command --------------------- //
-        else if &parsed_args.command == "" && !flag_found {
-            parsed_args.command = arg;
+        else if !flag_found {
+            
+            if i == 0 {
+
+                match &arg[..] {
+                    "candles" => {
+                        expected_command_arg_len = 4;
+                    },
+                    "start" => {
+                        expected_command_arg_len = 1;
+                    },
+                    _ => {
+                        parsed_args.parser_error = Some(
+                            ParserError::UnknownCommand(arg.to_string())
+                        ); 
+                        return parsed_args
+                    }
+                }
+                
+                main_command_buffer.push(arg.to_string());
+
+            }
+            else if main_command_buffer.len() < expected_command_arg_len {
+
+                main_command_buffer.push(arg.to_string());
+
+            }
+            else {
+                
+                parsed_args.parser_error = Some(
+                    ParserError::TooManyArgs(
+                        format!(
+                            "Expected only {} arguments", 
+                            expected_command_arg_len
+                        ) 
+                    )
+                ); 
+                
+                return parsed_args
+            };
+        
         }
         
         // ----------------------- Option parsing ---------------------- //
@@ -257,6 +313,35 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
         }
 
     }; 
+
+    if main_command_buffer.len() < expected_command_arg_len {
+        parsed_args.parser_error = Some(
+            ParserError::MissingArgs(
+                format!(
+                    "Arguments missing: Expected {}", 
+                    expected_command_arg_len
+                )
+            )
+        )
+    }
+    else {
+
+        let main_cmd = main_command_buffer.remove(0);
+        
+        if &main_cmd == "candles" {
+
+            let exchange = main_command_buffer.remove(0);
+            let ticker = main_command_buffer.remove(0);
+            let period = main_command_buffer.remove(0);
+            
+            parsed_args.command = Some(Command::CandleBuilder { 
+                exchange, 
+                ticker, 
+                period,  
+            })
+        };
+
+    };
 
     if invalid_flags.len() > 0 {
         parsed_args.parser_error = Some(

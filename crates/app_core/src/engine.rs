@@ -1,5 +1,6 @@
 use std::io::{self, Write};
 
+use bars::{BarSeries, BarType};
 use database_ops::*;
 
 use crate::{
@@ -57,11 +58,11 @@ impl Engine {
         -> Result<Response, RunTimeError> {
         match cmd {
             
-            Command::AddPair { exchange, pair } => {
+            Command::AddPair { exchange, ticker } => {
               
                 add_new_pair(
                     &exchange, 
-                    &pair, 
+                    &ticker, 
                     self.state.time_offset(),
                     self.database.get_pool(),
                     &self.request_client
@@ -69,9 +70,9 @@ impl Engine {
 
             },
 
-            Command::DropPair { exchange, pair } => {
+            Command::DropPair { exchange, ticker } => {
                 
-                drop_pair(&exchange, &pair, self.database.get_pool())
+                drop_pair(&exchange, &ticker, self.database.get_pool())
                     .await 
                     .map_err(|e| RunTimeError::DataBase(e))?;
 
@@ -87,6 +88,18 @@ impl Engine {
                     &self.request_client, 
                     self.database.get_pool(),
                 ).await?;
+            },
+
+            Command::CandleBuilder { exchange, ticker, period } => {
+    
+                BarSeries::new(
+                    exchange, 
+                    ticker, 
+                    period, 
+                    BarType::Candle, 
+                    self.database.get_pool() 
+                ).await;
+
             }
         };
         
