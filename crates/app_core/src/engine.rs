@@ -92,14 +92,17 @@ impl Engine {
 
             Command::CandleBuilder { exchange, ticker, period } => {
     
-                BarSeries::new(
+                let bars = BarSeries::new(
                     exchange, 
                     ticker, 
                     period, 
                     BarType::Candle, 
                     self.database.get_pool() 
-                ).await;
+                )
+                    .await
+                    .map_err(|e| RunTimeError::Bar(e))?;
 
+                println!("{}", bars);
             }
         };
         

@@ -246,6 +246,24 @@ impl<'a> IntoIterator for &'a BarSeries {
     }
 }
 
+impl fmt::Display for BarSeries {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Date,Open,High,Low,Close,Volume")?;
+        for bar in &self.bars {
+            write!(f, 
+                "\n{},{},{},{},{},{}", 
+                bar.open_date,
+                bar.open,
+                bar.high,
+                bar.low,
+                bar.close,
+                bar.volume
+            )?;
+        };
+        Ok(())
+    }
+}
+
 
 // ---------------- HELPER FUNCTIONS --------------- //
 pub async fn calculate_first_tick_id(
