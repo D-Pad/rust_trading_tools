@@ -172,7 +172,7 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
     
     for arg in arguments {
   
-        // ------------------- Long flag parsing --------------------- //
+        // --------------------- Long flag parsing --------------------- //
         if is_long_flag(&arg) {
            
             flag_found = true;
@@ -188,7 +188,7 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
 
         }
         
-        // ------------------- Short flag parsing -------------------- //
+        // --------------------- Short flag parsing -------------------- //
         else if is_short_flag(&arg) {
             
             flag_found = true;
@@ -198,10 +198,16 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
              
                 match ch {
                     's' => parsed_args.start_server = true,
-                    'A' => flag_name = "add-pairs".to_string(),
-                    'R' => flag_name = "rm-pairs".to_string(),
+                    'A' => {
+                        flag_name = "add-pairs".to_string();
+                        break;
+                    },
+                    'R' => {
+                        flag_name = "rm-pairs".to_string();
+                        break;
+                    },
                     _ => {
-                        invalid_flags.push(ch.to_string()); 
+                        invalid_flags.push(ch.to_string());
                     }
                 }
 
@@ -209,12 +215,12 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
             
         }
         
-        // ------------------- Initial command --------------------- //
+        // ----------------------- Initial command --------------------- //
         else if &parsed_args.command == "" && !flag_found {
             parsed_args.command = arg;
         }
         
-        // ------------------- Option parsing ---------------------- //
+        // ----------------------- Option parsing ---------------------- //
         else {
             
             if flag_name == "add-pairs" || flag_name == "rm-pairs" {

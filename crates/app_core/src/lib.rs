@@ -14,7 +14,6 @@ pub use arg_parsing::{parse_args, ParsedArgs, ParserError};
 
 use sqlx::PgPool;
 use tokio::{sync::mpsc::unbounded_channel};
-use dotenvy::dotenv;
 
 
 enum StatusMessageProgress {
@@ -132,8 +131,6 @@ impl std::fmt::Display for DownloadStatusViewer {
 // ----------------------------- FUNCTIONS --------------------------------- //
 pub async fn initialize_app_engine() -> Result<Engine, RunTimeError> {
 
-    dotenv().ok(); 
-
     let database = Db::new()
         .await
         .map_err(|e| RunTimeError::DataBase(e))?;
@@ -223,15 +220,12 @@ mod tests {
     use crate::engine::Engine;
     use database_ops::{Db, fetch_tables, integrity_check};
     
-    use dotenvy;
     use tokio;
 
     #[tokio::test]
     async fn database_connection_test() {
-       
-        dotenvy::dotenv().ok(); 
         
-        let db = match Db::new().await {
+        let db: Db = match Db::new().await {
             Ok(d) => d,
             Err(e) => panic!("{:?}", e)
         };
@@ -247,9 +241,7 @@ mod tests {
     #[tokio::test]
     async fn database_integrity_check() {
          
-        dotenvy::dotenv().ok(); 
-        
-        let db = match Db::new().await {
+        let db: Db = match Db::new().await {
             Ok(d) => d,
             Err(e) => panic!("{:?}", e)
         };
@@ -276,8 +268,6 @@ mod tests {
                     None 
                 ).await;
 
-                println!("\n{}", check_val);
-
                 if !check_val.is_ok {
                     let msg = format!(
                         "Failed check on asset_{exchange}_{ticker}"
@@ -291,8 +281,6 @@ mod tests {
     #[tokio::test]
     async fn candle_test() {
         
-        dotenvy::dotenv().ok(); 
-       
         let database: Db = Db::new().await.unwrap();
         let engine: Engine = Engine::new(database).unwrap();
 
@@ -315,5 +303,4 @@ mod tests {
     }
 
 }
-
 

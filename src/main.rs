@@ -26,7 +26,7 @@ async fn main() {
     if let Err(e) = dev_test(
         // &engine.state, 
         // &engine.request_client,
-        engine.database.get_pool()
+        // engine.database.get_pool()
     ).await 
     {
         local_error_handler(e); 

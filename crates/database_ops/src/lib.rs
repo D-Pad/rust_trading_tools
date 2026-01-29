@@ -267,7 +267,7 @@ pub async fn fetch_rows(
         Err(e) => return {
             Err(
                 DbError::QueryFailed(
-                    "Failed to fetch last tick ID".to_string() 
+                    format!("Failed to fetch last tick ID: {}", e) 
                 )
             )
         }

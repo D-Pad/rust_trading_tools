@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap, 
     time::{SystemTime, UNIX_EPOCH},
-    io::{self, Write},
     cmp::{min, max}
 };
 
@@ -178,8 +177,6 @@ pub async fn add_new_db_table(
         )
     };
     
-    const INIT_TIME_OFFSET: u64 = 60 * 60 * 24 * 14;  // 2 weeks of seconds
-    
     let current_ts = match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(t) => t.as_secs(),
         Err(_) => return Err(
@@ -190,8 +187,6 @@ pub async fn add_new_db_table(
             ) 
         ) 
     };
-
-    let mut initial_fetch_time: u64 = current_ts - INIT_TIME_OFFSET;
 
     sleep(Duration::from_millis(500)).await;
     
@@ -254,7 +249,7 @@ pub async fn add_new_db_table(
 
     sleep(Duration::from_millis(500)).await;
    
-    initial_fetch_time = current_ts - start_date_unix_timestamp_offset;  
+    let initial_fetch_time = current_ts - start_date_unix_timestamp_offset;  
 
     let initial_data: TickDataResponse = request_tick_data_from_kraken(
         ticker, 
@@ -363,7 +358,7 @@ pub async fn download_new_data_to_db_table(
     };
 
     let total_expected_seconds = current_time - last_timestamp_in_db;
-    let mut num_seconds_left = total_expected_seconds.clone();
+    let mut num_seconds_left: u64;
     let mut percent_complete: u8;
 
     fn get_percent_complete(curr: u64, target: u64) -> u8 {
@@ -375,7 +370,7 @@ pub async fn download_new_data_to_db_table(
         sym: &str, 
         percent: &u8
     ) {
-        progress_tx.send(DataDownloadStatus::Progress { 
+        let _ = progress_tx.send(DataDownloadStatus::Progress { 
             exchange: "Kraken".to_string(), 
             ticker: sym.to_string(), 
             percent: *percent 
@@ -386,7 +381,7 @@ pub async fn download_new_data_to_db_table(
         progress_tx: UnboundedSender<DataDownloadStatus>,
         sym: &str, 
     ) {
-        progress_tx.send(DataDownloadStatus::Error { 
+        let _ = progress_tx.send(DataDownloadStatus::Error { 
             exchange: "Kraken".to_string(), 
             ticker: sym.to_string(), 
         });
@@ -422,7 +417,6 @@ pub async fn download_new_data_to_db_table(
                 db_pool.clone(), 
                 Some(next_tick_id)
             ).await {
-                let msg = "Failed to write data to database".to_string();
                 send_failure_message(progress_tx.clone(), ticker);
                 return Err(e) 
             };

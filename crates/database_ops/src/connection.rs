@@ -1,4 +1,5 @@
 use sqlx::{PgPool, postgres::PgPoolOptions};
+use dotenvy;
 use std::env;
 
 
@@ -225,6 +226,9 @@ pub struct DbLogin {
 impl DbLogin {
     
     pub fn new() -> DbLogin {
+        
+        dotenvy::dotenv().ok(); 
+
         let host: String = env::var("DB_HOST").unwrap_or_default(); 
         let user: String = env::var("DB_USER_NAME").unwrap_or_default();
         let password: String = env::var("DB_PASSWORD").unwrap_or_default();

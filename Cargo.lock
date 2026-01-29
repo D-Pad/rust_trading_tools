@@ -37,7 +37,6 @@ dependencies = [
  "bars",
  "charts",
  "database_ops",
- "dotenvy",
  "indicators",
  "reqwest",
  "serde",
@@ -322,6 +321,7 @@ dependencies = [
 name = "database_ops"
 version = "0.1.0"
 dependencies = [
+ "dotenvy",
  "reqwest",
  "serde",
  "serde_json",
