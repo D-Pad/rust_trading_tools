@@ -1,10 +1,11 @@
 # Rust Trading Tools
-This app is in very early development, but will eventually facilitate trading
-tools that can be used for automated trading. Currenly only works with Kraken,
-as Kraken is the only API in the US that I'm aware of that offers free data.
-The candles are built from raw tick data, allowing for an unlimited number of 
-candle period sizes. Kraken only returns 1000 trades per API request, so 
-downloading historical data can take awhile.  
+This app is in very early development, but will eventually facilitate the
+creation of trading tools that can be used for automated trading. Currently 
+only works with Kraken, as Kraken is the only API in the US that I'm aware of 
+that offers free data. The candles are built from raw tick data, allowing for 
+an unlimited number of candle period sizes. Kraken only returns 1000 trades 
+per API request, so downloading historical data can take awhile depending on 
+how far back in time you want the data to go.
 
 A PostgreSQL database is required to use this code. Setup the database 
 credentials with a .env file, or make sure that your environment has the 
@@ -19,7 +20,6 @@ The following samples assume that the compiled executable is named `dtrade`
 ## Adding Pairs to the Database
 To add a new pair to the database, you can pass the `--add-pairs` flag on 
 launch, followed by the desired asset pair names.  
-**Example:**
 ```bash
 dtrade --add-pairs SOLUSD ETHUSD
 ```
@@ -43,7 +43,6 @@ be performed to fully populate the database.
 
 ## Updating Trade Data in the Database
 Pass the `--update-data` flag on launch to update all database tables.  
-**Example:**
 ```bash
 dtrade --update-data
 ```
@@ -53,7 +52,6 @@ the current unix timestamp.
 ## Exporting Candle Data
 Candles can be built via the `candles` command. Three arguments must be passed
 with it to build the data (`[EXCHANGE] [TICKER] [PERIOD]`).  
-**Example:**
 ```bash
 dtrade candles kraken BTCUSD 1h
 ```

@@ -28,6 +28,7 @@ async fn main() {
         process::exit(2);
     };
 
+    println!("{}", engine.args);
     // if let Err(e) = dev_test().await {
     //     local_error_handler(e); 
     // };

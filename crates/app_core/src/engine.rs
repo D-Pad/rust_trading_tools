@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use bars::{BarSeries, BarType};
+use bars::{BarSeries, BarType, bar_integrity_check};
 use database_ops::*;
 
 use crate::{
@@ -90,7 +90,8 @@ impl Engine {
                 ).await?;
             },
 
-            Command::CandleBuilder { exchange, ticker, period } => {
+            Command::CandleBuilder { 
+                exchange, ticker, period, integrity_check } => {
     
                 let bars = BarSeries::new(
                     exchange, 
@@ -102,7 +103,17 @@ impl Engine {
                     .await
                     .map_err(|e| RunTimeError::Bar(e))?;
 
-                println!("{}", bars);
+                if !integrity_check {
+                    println!("{}", bars);
+                }
+                else {
+                    let is_ok: bool = bar_integrity_check(&bars);
+                    print!("\x1b[1;36mCandle integrity\x1b[0m: ");
+                    match is_ok {
+                        true => println!("\x1b[1;32mOK\x1b[0m"),
+                        false => println!("\x1b[1;31mCorrupted\x1b[0m"),
+                    }; 
+                };
             }
         };
         

@@ -131,22 +131,35 @@ pub struct BarInfo {
     exchange: String,
     ticker: String,
     period: String,
-    time_based: bool
+    time_based: bool,
+    seconds_in_period: Option<u64>
 }
 
 impl BarInfo {
+    
     pub fn new(exchange: String, ticker: String, period: String) 
         -> Result<Self, BarBuildError> 
     {
-        let (period_key, _) = get_period_portions_from_string(&period)
+        let (sym, n) = get_period_portions_from_string(&period)
             .map_err(|_| 
                 BarBuildError::Period(TimePeriodError::InvalidPeriod)
             )?;
 
-        let time_based = period_is_time_based(period_key)
+        let time_based = period_is_time_based(sym)
             .map_err(|e| BarBuildError::Period(e))?;
 
-        Ok(BarInfo { exchange, ticker, period, time_based })
+        let seconds_in_period = match calculate_seconds_in_period(n, sym) {
+            Ok(d) => Some(d),
+            Err(_) => None
+        };
+
+        Ok(BarInfo { 
+            exchange, 
+            ticker, 
+            period, 
+            time_based, 
+            seconds_in_period
+        })
     }
 }
 
@@ -235,6 +248,10 @@ impl BarSeries {
 
     }
 
+    pub fn len(&self) -> usize {
+        self.bars.len()
+    }
+
 }
 
 impl<'a> IntoIterator for &'a BarSeries {
@@ -265,7 +282,7 @@ impl fmt::Display for BarSeries {
 }
 
 
-// ---------------- HELPER FUNCTIONS --------------- //
+// --------------------------- HELPER FUNCTIONS ---------------------------- //
 pub async fn calculate_first_tick_id(
     exchange: &str,
     ticker: &str,
@@ -331,6 +348,64 @@ pub async fn calculate_first_tick_id(
     }
 
 }
+
+
+pub fn bar_integrity_check(bars: &BarSeries) -> bool {
+
+    if bars.len() == 0 { 
+        return false 
+    }; 
+   
+    if bars.info.time_based {
+    
+        let mut previous_ts: i64 = match bars.into_iter().next() {
+            Some(d) => d.close_date.timestamp(),
+            None => return false
+        }; 
+ 
+        let target_seconds: i64 = match bars.info.seconds_in_period {
+            Some(d) => d as i64,
+            None => return false
+        };
+
+        let mut diff: i64;
+        let mut this_ts: i64;
+        
+        for bar in bars.into_iter().skip(1) {
+            this_ts = bar.close_date.timestamp(); 
+            diff = this_ts - previous_ts; 
+
+            if diff != target_seconds {
+                return false
+            };
+
+            previous_ts = this_ts;
+        
+        };
+
+    }
+    else {
+
+        let (_, n) = match get_period_portions_from_string(&bars.info.period) {
+            Ok(d) => d,
+            Err(_) => return false
+        };
+
+        let expected_length: usize = n as usize;
+        let cutoff_target: usize = bars.len() - 1;
+
+        for (i, bar) in bars.into_iter().enumerate() {
+            if i < cutoff_target { 
+                if bar.tick_data.len() != expected_length {
+                    return false
+                };
+            };
+        };
+
+    };
+
+    true
+} 
 
 
 

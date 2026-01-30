@@ -19,6 +19,7 @@ pub enum Command {
         exchange: String,
         ticker: String,
         period: String,
+        integrity_check: bool
     },
 }
 
@@ -195,22 +196,34 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
     let mut expected_command_arg_len: usize = 0; 
 
     for (i, arg) in arguments.iter().enumerate() {
+       
+        // Main command options
+        if main_command_buffer.len() > 0 {
+            let arg_sl = &arg[..];
+            if main_command_buffer[0] == "candles" {
+                if arg_sl == "--integrity" || arg_sl == "-i" {
+                    expected_command_arg_len += 1;
+                    main_command_buffer.push("integrity".to_string());
+                    continue
+                }; 
+            };
+        };
   
         // --------------------- Long flag parsing --------------------- //
         if is_long_flag(&arg) {
            
             flag_found = true;
             option_counter = 0;
-                
+               
             match &arg[2..] {
                 "start-server" => parsed_args.start_server = true,
-                "add-pairs" | "rm-pairs" => flag_name = arg[2..].to_string(),
+                "add-pairs" 
+                | "rm-pairs" => flag_name = arg[2..].to_string(),
                 "update-data" => parsed_args.update_tables = true,
                 _ => {
                     invalid_flags.push(arg.clone());
                 }
             };
-
         }
         
         // --------------------- Short flag parsing -------------------- //
@@ -333,11 +346,19 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
             let exchange = main_command_buffer.remove(0);
             let ticker = main_command_buffer.remove(0);
             let period = main_command_buffer.remove(0);
+            let mut integrity_check: bool = false;
+
+            if main_command_buffer.len() > 0 {
+                if main_command_buffer[0] == "integrity" {
+                    integrity_check = true;
+                };
+            };
             
             parsed_args.command = Some(Command::CandleBuilder { 
                 exchange, 
                 ticker, 
-                period,  
+                period,
+                integrity_check
             })
         };
 
