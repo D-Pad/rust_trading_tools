@@ -1,4 +1,5 @@
 use std::{collections::HashMap, env::args};
+use bars::{BarSeries};
 
 
 // --------------------------- COMMAND ENUMS ------------------------------- //
@@ -23,13 +24,17 @@ pub enum Command {
     },
 }
 
+pub enum DataResponse {
+    Bars(BarSeries),
+}
+
 pub enum Response {
-    Ok
+    Ok,
+    Data(DataResponse),
 }
 
 
 // ----------------------------- STRUCTS ----------------------------------- //
-#[derive(Debug)]
 pub struct ParsedArgs {
     pub executable_path: String,
     pub executable_name: String,
@@ -199,8 +204,11 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
        
         // Main command options
         if main_command_buffer.len() > 0 {
-            let arg_sl = &arg[..];
+            
             if main_command_buffer[0] == "candles" {
+            
+                let arg_sl = &arg[..];
+                
                 if arg_sl == "--integrity" || arg_sl == "-i" {
                     expected_command_arg_len += 1;
                     main_command_buffer.push("integrity".to_string());

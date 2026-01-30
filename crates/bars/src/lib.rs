@@ -15,6 +15,7 @@ pub enum BarBuildError {
     Period(TimePeriodError),
     TickIdCalculation(String),
     Db(DbError),
+    IntegrityCorruption,
 }
 
 impl std::fmt::Display for BarBuildError {
@@ -33,6 +34,8 @@ impl std::fmt::Display for BarBuildError {
                 f, "BarBuildError::TickIdCalculation: {}", e),
             BarBuildError::Db(e) => write!(
                 f, "BarBuildError::Db::{}", e),
+            BarBuildError::IntegrityCorruption => write!(
+                f, "BarBuildError::IntegrityCorruption")
         }
     }
 }
@@ -162,7 +165,6 @@ impl BarInfo {
         })
     }
 }
-
 
 pub struct BarSeries {
     pub tick_data: Vec<(u64, u64, BigDecimal, BigDecimal)>,

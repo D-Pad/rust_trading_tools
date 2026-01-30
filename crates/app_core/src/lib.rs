@@ -10,7 +10,13 @@ pub use database_ops::{self, Db, DbError, DataDownloadStatus};
 pub use bars::{self, BarBuildError, BarSeries, BarType};
 pub use app_state::{AppState};
 pub use errors::{RunTimeError, InitializationError};
-pub use arg_parsing::{parse_args, ParsedArgs, ParserError};
+pub use arg_parsing::{
+    parse_args, 
+    ParsedArgs, 
+    ParserError,
+    Response,
+    DataResponse
+};
 
 use sqlx::PgPool;
 

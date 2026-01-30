@@ -1,15 +1,16 @@
 use std::io::{self, Write};
 
-use bars::{BarSeries, BarType, bar_integrity_check};
+use bars::{BarSeries, BarType, BarBuildError, bar_integrity_check};
 use database_ops::*;
 
 use crate::{
     app_state::AppState,
     errors::{RunTimeError},
     arg_parsing::{
+        Command,
+        DataResponse,
         ParsedArgs,
         Response,
-        Command, 
         parse_args
     },
     DataDownloadStatus,
@@ -47,15 +48,26 @@ impl Engine {
         
         let commands = self.args.to_commands();
 
+        let mut response: Option<Response> = None;
+
         for cmd in commands {
-            self.handle(cmd).await?; 
+            match self.handle(cmd).await? {
+                Response::Ok => {},
+                Response::Data(data) => {
+                    response = Some(Response::Data(data));
+                }
+            }; 
         };
 
-        Ok(Response::Ok)
+        Ok(match response {
+            Some(data) => data,
+            None => Response::Ok
+        })
     }
 
     pub async fn handle(&mut self, cmd: Command) 
         -> Result<Response, RunTimeError> {
+        
         match cmd {
             
             Command::AddPair { exchange, ticker } => {
@@ -68,6 +80,7 @@ impl Engine {
                     &self.request_client
                 ).await.map_err(|e| RunTimeError::DataBase(e))?;
 
+                Ok(Response::Ok)
             },
 
             Command::DropPair { exchange, ticker } => {
@@ -76,10 +89,12 @@ impl Engine {
                     .await 
                     .map_err(|e| RunTimeError::DataBase(e))?;
 
+                Ok(Response::Ok)
             },
 
             Command::StartServer => { 
                 // TODO: Add server starting logic 
+                Ok(Response::Ok)
             },
 
             Command::UpdatePairs => {
@@ -88,6 +103,8 @@ impl Engine {
                     &self.request_client, 
                     self.database.get_pool(),
                 ).await?;
+                
+                Ok(Response::Ok)
             },
 
             Command::CandleBuilder { 
@@ -103,21 +120,23 @@ impl Engine {
                     .await
                     .map_err(|e| RunTimeError::Bar(e))?;
 
-                if !integrity_check {
-                    println!("{}", bars);
-                }
-                else {
+                if integrity_check {
                     let is_ok: bool = bar_integrity_check(&bars);
                     print!("\x1b[1;36mCandle integrity\x1b[0m: ");
                     match is_ok {
                         true => println!("\x1b[1;32mOK\x1b[0m"),
-                        false => println!("\x1b[1;31mCorrupted\x1b[0m"),
+                        false => {
+                            println!("\x1b[1;31mCorrupted\x1b[0m");
+                            return Err(RunTimeError::Bar(
+                                BarBuildError::IntegrityCorruption
+                            )) 
+                        },
                     }; 
                 };
+
+                Ok(Response::Data(DataResponse::Bars(bars)))
             }
-        };
-        
-        Ok(Response::Ok)
+        }    
     }
 }
 

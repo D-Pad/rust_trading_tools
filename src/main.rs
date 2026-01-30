@@ -1,7 +1,8 @@
 use std::process;
 use trading_app::{
-    RunTimeError, 
-    // dev_test, 
+    RunTimeError,
+    Response,
+    DataResponse,
     error_handler, 
     initialize_app_engine,
 };
@@ -23,12 +24,22 @@ async fn main() {
         }
     };
 
-    if let Err(e) = engine.execute_commands().await {
-        local_error_handler(e);
-        process::exit(2);
+    let response = match engine.execute_commands().await {
+        Ok(d) => d,
+        Err(e) => {
+            local_error_handler(e);
+            process::exit(2);
+        }
     };
 
-    println!("{}", engine.args);
+    if let Response::Data(data) = response {
+        match data {
+            DataResponse::Bars(_) => {
+                    
+            }
+        }
+    };
+
     // if let Err(e) = dev_test().await {
     //     local_error_handler(e); 
     // };
