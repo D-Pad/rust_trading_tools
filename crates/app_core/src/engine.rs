@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use bars::{BarSeries, BarType, BarBuildError, bar_integrity_check};
+use bars::{BarSeries, BarType, BarBuildError};
 use database_ops::*;
 
 use crate::{
@@ -121,7 +121,7 @@ impl Engine {
                     .map_err(|e| RunTimeError::Bar(e))?;
 
                 if integrity_check {
-                    let is_ok: bool = bar_integrity_check(&bars);
+                    let is_ok: bool = bars.bar_integrity_check();
                     print!("\x1b[1;36mCandle integrity\x1b[0m: ");
                     match is_ok {
                         true => println!("\x1b[1;32mOK\x1b[0m"),

@@ -250,6 +250,66 @@ impl BarSeries {
 
     }
 
+    pub fn bar_integrity_check(&self) -> bool {
+   
+        let bars = &self.bars;
+
+        if bars.len() == 0 { 
+            return false 
+        }; 
+       
+        if self.info.time_based {
+        
+            let mut previous_ts: i64 = match bars.into_iter().next() {
+                Some(d) => d.close_date.timestamp(),
+                None => return false
+            }; 
+     
+            let target_seconds: i64 = match self.info.seconds_in_period {
+                Some(d) => d as i64,
+                None => return false
+            };
+    
+            let mut diff: i64;
+            let mut this_ts: i64;
+            
+            for bar in bars.into_iter().skip(1) {
+                this_ts = bar.close_date.timestamp(); 
+                diff = this_ts - previous_ts; 
+    
+                if diff != target_seconds {
+                    return false
+                };
+    
+                previous_ts = this_ts;
+            
+            };
+    
+        }
+        else {
+   
+            let period: &String = &self.info.period;
+            let (_, n) = match get_period_portions_from_string(period) {
+                Ok(d) => d,
+                Err(_) => return false
+            };
+    
+            let expected_length: usize = n as usize;
+            let cutoff_target: usize = bars.len() - 1;
+    
+            for (i, bar) in bars.into_iter().enumerate() {
+                if i < cutoff_target { 
+                    if bar.tick_data.len() != expected_length {
+                        return false
+                    };
+                };
+            };
+    
+        };
+    
+        true
+    }
+
     pub fn len(&self) -> usize {
         self.bars.len()
     }
@@ -349,65 +409,6 @@ pub async fn calculate_first_tick_id(
 
     }
 
-}
-
-
-pub fn bar_integrity_check(bars: &BarSeries) -> bool {
-
-    if bars.len() == 0 { 
-        return false 
-    }; 
-   
-    if bars.info.time_based {
-    
-        let mut previous_ts: i64 = match bars.into_iter().next() {
-            Some(d) => d.close_date.timestamp(),
-            None => return false
-        }; 
- 
-        let target_seconds: i64 = match bars.info.seconds_in_period {
-            Some(d) => d as i64,
-            None => return false
-        };
-
-        let mut diff: i64;
-        let mut this_ts: i64;
-        
-        for bar in bars.into_iter().skip(1) {
-            this_ts = bar.close_date.timestamp(); 
-            diff = this_ts - previous_ts; 
-
-            if diff != target_seconds {
-                return false
-            };
-
-            previous_ts = this_ts;
-        
-        };
-
-    }
-    else {
-
-        let (_, n) = match get_period_portions_from_string(&bars.info.period) {
-            Ok(d) => d,
-            Err(_) => return false
-        };
-
-        let expected_length: usize = n as usize;
-        let cutoff_target: usize = bars.len() - 1;
-
-        for (i, bar) in bars.into_iter().enumerate() {
-            if i < cutoff_target { 
-                if bar.tick_data.len() != expected_length {
-                    return false
-                };
-            };
-        };
-
-    };
-
-    true
 } 
-
 
 

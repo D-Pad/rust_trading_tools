@@ -36,7 +36,7 @@ pub enum Response {
 
 // ----------------------------- STRUCTS ----------------------------------- //
 pub struct ParsedArgs {
-    pub executable_path: String,
+    // pub executable_path: String,
     pub executable_name: String,
     pub command: Option<Command>,
 
@@ -55,7 +55,7 @@ impl ParsedArgs {
     fn new() -> Self {
         
         ParsedArgs {
-            executable_path: String::new(),
+            // executable_path: String::new(),
             executable_name: String::new(),
             command: None,
 
@@ -122,8 +122,8 @@ impl std::fmt::Display for ParsedArgs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "\x1b[1;36mParsed Arguments: \x1b[0m\x1b[1m{{\x1b[0m")?;
         
-        write!(f, "\n  \x1b[33mexecutable_path\x1b[0m: {}",
-            self.executable_path)?;
+        // write!(f, "\n  \x1b[33mexecutable_path\x1b[0m: {}",
+        //     self.executable_path)?;
         write!(f, "\n  \x1b[33mexecutable_name\x1b[0m: {}",
             self.executable_name)?;
         
@@ -158,24 +158,22 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
         None => args().collect()
     };
     
-    let mut executable_path: String = String::new();   
-    let mut executable_name: String = String::new();   
+    // let mut executable_path: String = String::new();   
+    let executable_name: String;   
     
     let mut parsed_args: ParsedArgs = ParsedArgs::new();
 
     // Main program path and name
     if arguments.len() > 1 {
-        executable_path = arguments.remove(0); 
+        // executable_path = arguments.remove(0); 
+        let _ = arguments.remove(0); 
         executable_name = arguments.remove(0);
-    }
-    else if arguments.len() > 0 {
-        executable_path = arguments.remove(0);
     }
     else {
         return parsed_args;
     };
 
-    parsed_args.executable_path = executable_path; 
+    // parsed_args.executable_path = executable_path; 
     parsed_args.executable_name = executable_name;
 
     // Helper functions
