@@ -22,6 +22,115 @@ use reqwest::Client;
 use tokio::{sync::mpsc::unbounded_channel};
 
 
+const HELP_STRING: &'static str = r#"
+NAME
+    dtrade — Cryptocurrency data management and candle builder tool
+
+SYNOPSIS
+    dtrade COMMAND [OPTIONS]...
+
+    dtrade --help | -h
+    dtrade --version
+
+DESCRIPTION
+    dtrade is a command-line tool for managing cryptocurrency pair data in a database
+    and building OHLCV candles from exchange data.
+
+    It supports multiple sub-commands for database maintenance and candle generation.
+
+COMMANDS
+    candles EXCHANGE TICKER PERIOD [--integrity | -i]
+        Build OHLCV candles for the given exchange, trading pair and timeframe.
+
+        Examples:
+            dtrade candles kraken btcusd 1h
+            dtrade candles binance ethusdt 15m -i
+
+        Arguments:
+            EXCHANGE     Name of the exchange (kraken, binance, ...)
+            TICKER       Trading pair symbol (btcusd, ethusdt, solusd, ...)
+            PERIOD       Candle timeframe (1m, 5m, 15m, 1h, 4h, 1d, ...)
+
+        Options:
+            --integrity, -i
+                Perform database integrity check before/after building candles
+
+    database --add-pairs EXCHANGE TICKER [TICKER...]
+        Add one or more trading pairs to the database for the given exchange.
+
+        Example:
+            dtrade database --add-pairs kraken SOLUSD ETHUSD XRPUSD
+
+    database --rm-pairs EXCHANGE TICKER [TICKER...]
+        Remove one or more trading pairs from the database for the given exchange.
+
+        Example:
+            dtrade database --rm-pairs kraken SOLUSD
+
+    database --update
+        Update/fetch latest pair metadata and information from exchanges.
+
+        Example:
+            dtrade database --update
+
+    database --integrity [EXCHANGE [TICKER]]
+        Check database integrity (missing candles, duplicates, gaps, etc.).
+
+        When no arguments are given, checks all exchanges and pairs.
+        When only EXCHANGE is given, checks all pairs on that exchange.
+        When both are given, checks only the specified pair.
+
+        Examples:
+            dtrade database --integrity
+            dtrade database --integrity kraken
+            dtrade database --integrity kraken BTCUSD
+
+    start
+        Start the trading server / background service (if implemented).
+
+OPTIONS (global)
+    --help, -h
+        Show this help message and exit.
+
+    --version
+        Show version information and exit.
+
+EXAMPLES
+    Fetch and add new pairs from Kraken:
+        dtrade database --add-pairs kraken SOLUSD ETHUSD
+
+    Build 1-hour candles for BTC/USD on Kraken with integrity check:
+        dtrade candles kraken btcusd 1h --integrity
+
+    Full integrity check across everything:
+        dtrade database --integrity
+
+    Update pair metadata for all configured exchanges:
+        dtrade database --update
+
+    Mixed command (integrity check + update):
+        dtrade database --integrity kraken BTCUSD --update
+
+EXIT STATUS
+    0     Success
+    1     General error / invalid usage
+    2     Parser error (unknown flags, missing arguments, ...)
+    3     Database connection / query failure
+    4     Exchange API error
+
+BUGS / LIMITATIONS
+    Currently only Kraken is fully tested for pair adding/removal.
+    More exchanges will be added in future versions.
+    --integrity on very large datasets may be slow.
+
+SEE ALSO
+    Rust crates: sqlx, reqwest, clap (for future refactors), tokio
+    Related projects: ccxt (exchange library inspiration)
+
+Report bugs or suggestions at: <https://github.com/D-Pad/rust_trading_tools/issues>
+"#;
+
+
 pub struct Engine {
     pub state: AppState,
     pub database: Db,
@@ -141,6 +250,11 @@ impl Engine {
                     self.database.get_pool() 
                 ).await;
 
+                Ok(Response::Ok)
+            },
+
+            Command::Help => {
+                println!("{}", HELP_STRING);
                 Ok(Response::Ok)
             }
         }    

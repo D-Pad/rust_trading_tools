@@ -17,8 +17,9 @@ pub enum Command {
         exchange: String,
         ticker: String
     },
-    StartServer,
     UpdatePairs,
+    
+    StartServer,
 
     CandleBuilder {
         exchange: String,
@@ -26,6 +27,8 @@ pub enum Command {
         period: String,
         integrity_check: bool
     },
+
+    Help,
 }
 
 impl std::fmt::Display for Command {
@@ -56,6 +59,9 @@ impl std::fmt::Display for Command {
             },
             Command::DbIntegrityCheck { exchange, ticker } => {
                 write!(f, "DbIntegrityCheck: {} {}", exchange, ticker)
+            },
+            Command::Help => {
+                write!(f, "Help")
             },
         }
     }
@@ -278,8 +284,12 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
                 _ => {}
             }
 
+        }
+
+        else {
+            parsed_args.commands.push(Command::Help);
         };
- 
+
     }; 
 
     if unknown_flags.len() > 0 {
