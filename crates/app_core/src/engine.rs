@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::{collections::HashMap, io::{self, Write}};
 
 use bars::{BarSeries, BarType, BarBuildError};
 use database_ops::*;
@@ -46,11 +46,12 @@ impl Engine {
 
     pub async fn execute_commands(&mut self) -> Result<Response, RunTimeError> {
         
-        let commands = self.args.to_commands();
-
         let mut response: Option<Response> = None;
 
-        for cmd in commands {
+        for _ in 0..self.args.commands.len() {
+            
+            let cmd = self.args.commands.remove(0);
+            
             match self.handle(cmd).await? {
                 Response::Ok => {},
                 Response::Data(data) => {
@@ -108,7 +109,8 @@ impl Engine {
             },
 
             Command::CandleBuilder { 
-                exchange, ticker, period, integrity_check } => {
+                exchange, ticker, period, integrity_check 
+            } => {
     
                 let bars = BarSeries::new(
                     exchange, 
@@ -122,19 +124,24 @@ impl Engine {
 
                 if integrity_check {
                     let is_ok: bool = bars.bar_integrity_check();
-                    print!("\x1b[1;36mCandle integrity\x1b[0m: ");
-                    match is_ok {
-                        true => println!("\x1b[1;32mOK\x1b[0m"),
-                        false => {
-                            println!("\x1b[1;31mCorrupted\x1b[0m");
-                            return Err(RunTimeError::Bar(
-                                BarBuildError::IntegrityCorruption
-                            )) 
-                        },
+                    if !is_ok {
+                        return Err(RunTimeError::Bar(
+                            BarBuildError::IntegrityCorruption
+                        )) 
                     }; 
                 };
 
                 Ok(Response::Data(DataResponse::Bars(bars)))
+            },
+
+            Command::DbIntegrityCheck { exchange, ticker } => {
+                db_integrity_check(
+                    &exchange, 
+                    &ticker, 
+                    self.database.get_pool() 
+                ).await;
+
+                Ok(Response::Ok)
             }
         }    
     }
@@ -194,4 +201,67 @@ pub async fn run_database_table_updates(
     Ok(())
 
 }
+
+async fn db_integrity_check(
+    exchange: &str, 
+    ticker: &str, 
+    db_pool: PgPool
+) -> String {
+  
+    let tables: Vec<String> = match fetch_tables(db_pool.clone()).await {
+        Ok(d) => d,
+        Err(_) => Vec::new()
+    };
+
+    let mut tables_to_check: HashMap<String, Vec<String>> = HashMap::new();
+
+    if exchange != "all" {
+        tables_to_check.entry(exchange.to_string())
+            .or_insert(Vec::new());
+    };
+
+    if ticker != "all" {
+        tables_to_check.entry(exchange.to_string())
+            .or_insert(Vec::new())
+            .push(ticker.to_lowercase());
+    };
+
+    for table in &tables {
+        
+        if !table.starts_with("asset") { continue };
+      
+        let tokens: Vec<&str> = table.split("_").skip(1).collect();
+        if !tokens.len() == 2 { continue };
+        
+        let ex = tokens[0];
+        let t = tokens[1];
+        
+        if exchange == "all" { 
+            tables_to_check.entry(ex.to_string())
+                .or_insert(Vec::new());
+        };
+
+        if ticker == "all" { 
+             tables_to_check.entry(ex.to_string())
+                .or_insert(Vec::new())
+                .push(t.to_string());
+        };
+    
+    };
+
+    let mut integrity = String::new();
+    
+    for (exc, pairs) in tables_to_check {
+        for pair in pairs {
+            let check = database_ops::integrity_check(
+                &exc, &pair, db_pool.clone(), None 
+            ).await;
+            integrity.push_str(&format!("{}\n", check));
+        }; 
+    };
+
+    integrity
+
+}
+
 

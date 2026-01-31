@@ -2,5 +2,5 @@
 
 
 cd src 
-cargo run main.rs candles kraken BTCUSD 50t -i
+cargo run main.rs candles kraken BTCUSD 50t
 
