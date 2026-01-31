@@ -1,5 +1,6 @@
 pub use database_ops::DbError;
 pub use bars::BarBuildError;
+pub use crate::arg_parsing::{ParserError};
 
 
 #[derive(Debug)]
@@ -7,6 +8,7 @@ pub enum RunTimeError {
     DataBase(DbError),
     Init(InitializationError),
     Bar(BarBuildError),
+    Arguments(ParserError),
 }
 
 impl std::fmt::Display for RunTimeError {
@@ -14,7 +16,8 @@ impl std::fmt::Display for RunTimeError {
         match self {
             RunTimeError::DataBase(e) => write!(f, "{}", e),
             RunTimeError::Init(e) => write!(f, "{}", e),
-            RunTimeError::Bar(e) => write!(f, "{}", e)
+            RunTimeError::Bar(e) => write!(f, "{}", e),
+            RunTimeError::Arguments(e) => write!(f, "{}", e),
         }
     }
 }

@@ -133,6 +133,27 @@ pub enum ParserError {
     MissingArgs(String),
 }
 
+impl std::fmt::Display for ParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParserError::UnknownCommand(e) => {
+                write!(f, "UnknownCommand: {}", e)
+            },
+            ParserError::UnknownArg(e) => {
+                write!(f, "UnknownArg: {}", e)
+            },
+            ParserError::UnknownFlags(e) => {
+                write!(f, "UnknownFlags: {:?}", e)
+            },
+            ParserError::TooManyArgs(e) => {
+                write!(f, "TooManyArgs: {:?}", e)
+            },
+            ParserError::MissingArgs(e) => {
+                write!(f, "MissingArgs: {:?}", e)
+            },
+        }
+    }
+}
 
 pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
 

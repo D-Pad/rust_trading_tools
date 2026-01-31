@@ -114,9 +114,10 @@ EXAMPLES
 EXIT STATUS
     0     Success
     1     General error / invalid usage
-    2     Parser error (unknown flags, missing arguments, ...)
-    3     Database connection / query failure
-    4     Exchange API error
+    2     App initialization error 
+    3     Parser error (unknown flags, missing arguments, ...)
+    4     Database connection / query failure
+    5     Candle builder error
 
 BUGS / LIMITATIONS
     Currently only Kraken is fully tested for pair adding/removal.
@@ -148,6 +149,10 @@ impl Engine {
         let request_client: Client = Client::new();
 
         let args: ParsedArgs = parse_args(None);
+
+        if let Some(e) = args.parser_error {
+            return Err(RunTimeError::Arguments(e))
+        };
 
         Ok(Engine { state, database, request_client, args })
 

@@ -20,17 +20,29 @@ async fn main() {
         Ok(s) => s,
         Err(e) => {
             local_error_handler(e); 
-            process::exit(1);
+            process::exit(2);
         }
     };
 
     let response = match engine.execute_commands().await {
         Ok(d) => d,
         Err(e) => {
+            let exit_code: i32 = match e {
+                RunTimeError::Init(_) => 2,
+                RunTimeError::Arguments(_) => 3,
+                RunTimeError::DataBase(_) => 4,
+                RunTimeError::Bar(_) => 5,
+            };
             local_error_handler(e);
-            process::exit(2);
+            process::exit(exit_code);
         }
     };
+
+    // 0     Success
+    // 1     General error / invalid usage
+    // 2     App initialization error 
+    // 3     Parser error (unknown flags, missing arguments, ...)
+    // 4     Database connection / query failure
 
     if let Response::Data(data) = response {
         match data {
