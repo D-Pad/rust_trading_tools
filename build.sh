@@ -2,5 +2,5 @@
 
 
 cd src 
-cargo run main.rs database --update 
+cargo run main.rs start 
 

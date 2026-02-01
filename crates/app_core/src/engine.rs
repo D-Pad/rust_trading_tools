@@ -136,7 +136,8 @@ pub struct Engine {
     pub state: AppState,
     pub database: Db,
     pub request_client: Client,
-    pub args: ParsedArgs
+    pub args: ParsedArgs,
+    pub one_shot: bool,
 }
 
 impl Engine {
@@ -154,7 +155,9 @@ impl Engine {
             return Err(RunTimeError::Arguments(e))
         };
 
-        Ok(Engine { state, database, request_client, args })
+        let one_shot: bool = true;
+
+        Ok(Engine { state, database, request_client, args, one_shot })
 
     }
 
@@ -170,7 +173,7 @@ impl Engine {
                 Response::Ok => {},
                 Response::Data(data) => {
                     response = Some(Response::Data(data));
-                }
+                }   
             }; 
         };
 
@@ -207,8 +210,8 @@ impl Engine {
                 Ok(Response::Ok)
             },
 
-            Command::StartServer => { 
-                // TODO: Add server starting logic 
+            Command::StartServer => {
+                self.one_shot = false;
                 Ok(Response::Ok)
             },
 
@@ -249,12 +252,13 @@ impl Engine {
             },
 
             Command::DbIntegrityCheck { exchange, ticker } => {
-                db_integrity_check(
+                let check = db_integrity_check(
                     &exchange, 
                     &ticker, 
                     self.database.get_pool() 
                 ).await;
 
+                println!("{check}");
                 Ok(Response::Ok)
             },
 
