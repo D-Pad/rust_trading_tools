@@ -2,7 +2,7 @@ use std::{cmp::{min, max}, fmt};
 
 use reqwest;
 use sqlx::{PgPool, pool::{PoolConnection}, types::BigDecimal};
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::{sync::mpsc::UnboundedSender, task::JoinSet};
 
 use timestamp_tools::db_timestamp_to_date_string;
 
@@ -356,6 +356,8 @@ pub async fn update_database_tables(
     println!("\x1b[1;33mUpdating existing database tables\x1b[0m");
     
     let existing_tables = fetch_tables(db_pool.clone()).await?;
+
+    let mut tasks: JoinSet<Result<(), DbError>> = JoinSet::new();
     
     for exchange_name in active_exchanges {
    
@@ -373,16 +375,30 @@ pub async fn update_database_tables(
                     None => continue 
                 };
 
-                kraken::download_new_data_to_db_table(
-                    &ticker, 
-                    db_pool.clone(), 
-                    time_offset, 
-                    client, 
-                    progress_tx.clone()
-                ).await?
+                let task_db_pool = db_pool.clone();
+                let task_tx = progress_tx.clone();
+                let task_client = client.clone();
 
+                tasks.spawn(async move {
+                    kraken::download_new_data_to_db_table(
+                        &ticker, 
+                        task_db_pool, 
+                        time_offset, 
+                        &task_client, 
+                        task_tx 
+                    ).await 
+                });
             };
         };
+    };
+
+    while let Some(res) = tasks.join_next().await {
+        match res {
+            Ok(inner) => inner?,
+            Err(join_err) => {
+                return Err(DbError::TaskJoin(join_err))
+            }
+        } 
     };
 
     Ok(())

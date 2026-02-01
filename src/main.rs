@@ -38,12 +38,6 @@ async fn main() {
         }
     };
 
-    // 0     Success
-    // 1     General error / invalid usage
-    // 2     App initialization error 
-    // 3     Parser error (unknown flags, missing arguments, ...)
-    // 4     Database connection / query failure
-
     if let Response::Data(data) = response {
         match data {
             DataResponse::Bars(_) => {

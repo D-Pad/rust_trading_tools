@@ -1,6 +1,7 @@
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use dotenvy;
 use std::env;
+use tokio::task::{JoinError};
 
 
 pub const DATABASE_NAME: &'static str = "dpad_llc_trading_app";
@@ -65,6 +66,7 @@ pub enum DbError {
     ParseError,
     QueryFailed(String),
     TableCreationFailed(String),
+    TaskJoin(JoinError),
 }
 
 impl From<FetchError> for DbError {
@@ -105,6 +107,9 @@ impl std::fmt::Display for DbError {
             ),
             DbError::TableCreationFailed(e) => write!(
                 f, "DbError: Failed to create new table: {} ", e
+            ),
+            DbError::TaskJoin(e) => write!(
+                f, "DbError: Async tasks join failed: {} ", e
             )
         }
     }
