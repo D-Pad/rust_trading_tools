@@ -1,15 +1,14 @@
 pub use app_core::*;
 pub use app_core::{
     errors::error_handler, 
-    engine::Engine, 
+    engine::{Engine, Server}, 
     RunTimeError,
     Response,
     DataResponse,
     initialize_app_engine,
 };
 
-
-// use sqlx::PgPool;
+use servers::{CliServer};
 
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
@@ -48,9 +47,18 @@ pub async fn app_start() -> i32 {
         }
     };
 
-    if !engine.one_shot {
-        let server: Server = Server::new(engine, true);
+    // Start the server if tried
+    if let Server::CLI = engine.op_mode {
+        
+        let server: CliServer = CliServer::new(engine);
         server.start(); 
+    
+    }
+
+    else if let Server::HTTP = engine.op_mode {
+        
+        todo!();
+    
     };
 
     exit_code

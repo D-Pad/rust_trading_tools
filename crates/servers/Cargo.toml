@@ -1,0 +1,8 @@
+[package]
+name = "servers"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+app_core = { path = "../app_core" }
+

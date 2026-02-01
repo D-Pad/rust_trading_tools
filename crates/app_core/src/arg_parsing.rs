@@ -19,7 +19,9 @@ pub enum Command {
     },
     UpdatePairs,
     
-    StartServer,
+    StartServer {
+        http: bool
+    },
 
     CandleBuilder {
         exchange: String,
@@ -40,8 +42,13 @@ impl std::fmt::Display for Command {
             Command::DropPair { exchange, ticker } => {
                 write!(f, "DropPair: {}-{}", exchange, ticker)
             },
-            Command::StartServer => {
-                write!(f, "StartServer")
+            Command::StartServer { http } => {
+                if *http {
+                    write!(f, "StartServer: HTTP")
+                }
+                else {
+                    write!(f, "StartServer: TUI")
+                }
             },
             Command::UpdatePairs => {
                 write!(f, "UpdatePairs")
@@ -200,6 +207,7 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
     let mut db_int_check_name: String = "all".to_string(); 
     let mut db_int_check_ticker: String = "all".to_string(); 
     let mut db_int_check: bool = false;
+    let mut server_start_http_mode: bool = false;
 
     for (i, arg) in arguments.iter().enumerate() {
      
@@ -301,6 +309,14 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
                     };
 
                 },
+
+                "start" => {
+
+                    if arg == "--http" {
+                        server_start_http_mode = true;
+                    };
+
+                },
                 
                 _ => {}
             }
@@ -360,7 +376,9 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
         },
 
         "start" => {
-            parsed_args.commands.push(Command::StartServer);
+            parsed_args.commands.push(Command::StartServer {
+                http: server_start_http_mode
+            });
         },
 
         _ => {}

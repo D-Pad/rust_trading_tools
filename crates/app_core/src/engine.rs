@@ -86,7 +86,7 @@ COMMANDS
             dtrade database --integrity kraken BTCUSD
 
     start
-        Start the trading server / background service (if implemented).
+        Start the trading server / background service.
 
 OPTIONS (global)
     --help, -h
@@ -132,12 +132,29 @@ Report bugs or suggestions at: <https://github.com/D-Pad/rust_trading_tools/issu
 "#;
 
 
+pub enum Server {
+    CLI,
+    HTTP,
+    OneShot,
+}
+
+impl std::fmt::Display for Server {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Server::CLI => { write!(f, "CLI Mode") },
+            Server::HTTP => { write!(f, "HTTP Mode") },
+            Server::OneShot => { write!(f, "One-Shot Mode") }
+        }
+    }
+}
+
+
 pub struct Engine {
     pub state: AppState,
     pub database: Db,
     pub request_client: Client,
     pub args: ParsedArgs,
-    pub one_shot: bool,
+    pub op_mode: Server,
 }
 
 impl Engine {
@@ -155,9 +172,9 @@ impl Engine {
             return Err(RunTimeError::Arguments(e))
         };
 
-        let one_shot: bool = true;
+        let op_mode: Server = Server::OneShot;
 
-        Ok(Engine { state, database, request_client, args, one_shot })
+        Ok(Engine { state, database, request_client, args, op_mode })
 
     }
 
@@ -210,8 +227,13 @@ impl Engine {
                 Ok(Response::Ok)
             },
 
-            Command::StartServer => {
-                self.one_shot = false;
+            Command::StartServer { http } => {
+                if http {
+                    self.op_mode = Server::HTTP;
+                }
+                else {
+                    self.op_mode = Server::CLI;
+                };
                 Ok(Response::Ok)
             },
 

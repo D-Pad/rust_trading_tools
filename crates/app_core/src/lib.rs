@@ -3,7 +3,6 @@ use std::{collections::HashMap};
 pub mod arg_parsing;
 pub mod app_state;
 pub mod engine;
-pub mod cli_server;
 pub mod errors;
 
 use engine::Engine;
@@ -18,8 +17,6 @@ pub use arg_parsing::{
     Response,
     DataResponse
 };
-
-pub use cli_server::Server;
 
 use sqlx::PgPool;
 
