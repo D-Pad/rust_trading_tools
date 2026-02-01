@@ -21,6 +21,13 @@ pub use arg_parsing::{
 use sqlx::PgPool;
 
 
+pub enum AppEvent {
+    Input(String),
+    Tick,
+    Quit
+}
+
+
 enum StatusMessageProgress {
     Started,
     Completed,

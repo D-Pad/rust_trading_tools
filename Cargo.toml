@@ -7,6 +7,7 @@ edition = "2024"
 # My modules
 app_core = { path = "crates/app_core" }   
 servers = { path = "crates/servers" }   
+tui = { path = "crates/tui" }   
 
 # Third party
 reqwest = { version = "0.13.1", features = ["json"] }
@@ -22,8 +23,9 @@ members = [
     "crates/bars", 
     "crates/charts",
     "crates/database_ops", 
-    "crates/indicators", "crates/servers",
+    "crates/indicators",
     "crates/servers", 
-    "crates/timestamp_tools"
+    "crates/timestamp_tools", 
+    "crates/tui"
 ]
 

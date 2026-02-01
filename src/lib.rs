@@ -7,8 +7,10 @@ pub use app_core::{
     DataResponse,
     initialize_app_engine,
 };
-
 use servers::{CliServer};
+use tui::tui_test;
+
+use tokio::sync::mpsc::channel;
 
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
@@ -49,9 +51,17 @@ pub async fn app_start() -> i32 {
 
     // Start the server if tried
     if let Server::CLI = engine.op_mode {
-        
-        let server: CliServer = CliServer::new(engine);
-        server.start(); 
+       
+        let (transmitter, receiver) = channel(32);
+
+        let mut server: CliServer = CliServer::new(engine, receiver);
+        let input_tx = transmitter.clone(); 
+
+        tokio::spawn(async move { 
+            tui_test(input_tx).await;
+        });
+
+        server.run().await;
     
     }
 
