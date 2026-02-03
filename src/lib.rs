@@ -79,7 +79,7 @@ pub async fn app_start() -> i32 {
         let input_tx = transmitter.clone(); 
 
         tokio::spawn(async move {
-            let mut tui = TerminalInterface::new(input_tx, pool);
+            let mut tui = TerminalInterface::new(input_tx, pool).await;
             tui.run().await;
         });
 

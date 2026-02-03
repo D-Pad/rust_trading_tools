@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, io::{self}};
+use std::{collections::{BTreeMap, HashMap}, io::{self}};
 
 use sqlx::PgPool;
 use tokio::{sync::mpsc::Sender};
@@ -24,7 +24,8 @@ use ratatui::{
     layout::{
         Constraint,
         Direction,
-        Layout
+        Layout,
+        Rect
     }, 
     style::{
         Modifier,
@@ -47,6 +48,29 @@ use app_core::{
 };
 
 
+fn move_up(state: &mut ListState, len: usize) {
+    if len == 0 {
+        return;
+    }
+    let i = match state.selected() {
+        Some(i) if i > 0 => i - 1,
+        _ => 0,
+    };
+    state.select(Some(i));
+}
+
+fn move_down(state: &mut ListState, len: usize) {
+    if len == 0 {
+        return;
+    }
+    let i = match state.selected() {
+        Some(i) if i + 1 < len => i + 1,
+        _ => 0,
+    };
+    state.select(Some(i));
+}
+
+
 enum Focus {
     Operations,
     Top,
@@ -54,35 +78,107 @@ enum Focus {
 }
 
 // ------------ SCREENS ------------- //
-enum Screen {
-    DatabaseManager(DatabaseScreen),
+enum Screen<'a> {
+    DatabaseManager(DatabaseScreen<'a>),
     CandleBuilder(CandleScreen),
     SystemSettings(SettingsScreen)
 }
 
+
 // ------------ DATABASE SCREEN -------------- //
-struct DatabaseScreen {
+struct DatabaseScreen<'a> {
     focus: DbFocus,
     top_state: ListState,
     btm_state: ListState,
-    selected_action: Option<DbAction>
+    selected_action: Option<&'a DbAction>,
 }
 
-impl DatabaseScreen {
-    fn handle_key(
-        &mut self,
-        key: KeyEvent,
-        options: &BTreeMap<&'static str, Vec<&'static str>>,
-        selected_op: &str,
-    ) {
+impl<'a> DatabaseScreen<'a> {
+ 
+    fn new() -> Self {
+      
+        DatabaseScreen {
+            focus: DbFocus::Top,
+            top_state: ListState::default(),
+            btm_state: ListState::default(),
+            selected_action: None,
+        }
+
+    }
+
+    fn draw(&mut self, frame: &mut Frame, area: Rect) {
+
+        let nested_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage(30),
+                Constraint::Percentage(70),
+            ])
+            .split(area);
+
+        let top_items: Vec<ListItem> = Self::SCREEN_OPTIONS
+            .iter()
+            .map(|v| ListItem::new(v.name()))
+            .collect();
+
+        let top_list = List::new(top_items)
+            .block(
+                Block::default()
+                    .title(match self.selected_action {
+                        Some(a) => {
+                            a.name()
+                        },
+                        None => ""
+                    })
+                    .borders(Borders::ALL)
+            )
+            .highlight_style(
+                if let DbFocus::Top = self.focus {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                }
+            );
+        
+        frame.render_stateful_widget(
+            top_list,
+            nested_chunks[0],
+            &mut self.top_state
+        );
+
+        // let btm_items: Vec<ListItem> = match selected_action {
+        //     Some(action) => {
+        //         match selected_op {
+        //              
+        //         }
+        //     }, 
+        //     None => Vec::new()
+        // };
+
+        // let btm_list = List::new(btm_items)
+        //     .block(
+        //         Block::default()
+        //             .title(match selected_action {
+        //                 Some(t) => t,
+        //                 None => ""
+        //             })
+        //             .borders(Borders::ALL)
+        //     );
+        // 
+        // f.render_widget(btm_list, nested_chunks[1]);
+
+
+    }
+
+    fn handle_key(&mut self, key: KeyEvent) {
+
+        let top_len = Self::SCREEN_OPTIONS.len();
+
         match key.code {
+            
             KeyCode::Up => match self.focus {
                 DbFocus::Top => {
-                    let len = options.get(selected_op)
-                        .map(|v| v.len())
-                        .unwrap_or(0);
-                    
-                    move_up(&mut self.top_state, len);
+                    move_up(&mut self.top_state, top_len);
                 }
                 DbFocus::Bottom => {
                     // later
@@ -91,11 +187,7 @@ impl DatabaseScreen {
 
             KeyCode::Down => match self.focus {
                 DbFocus::Top => {
-                    let len = options.get(selected_op)
-                        .map(|v| v.len())
-                        .unwrap_or(0);
-                    
-                    move_down(&mut self.top_state, len);
+                    move_down(&mut self.top_state, top_len);
                 }
                 DbFocus::Bottom => {
                     // later
@@ -105,16 +197,11 @@ impl DatabaseScreen {
             KeyCode::Enter => match self.focus {
                 DbFocus::Top => {
                     if let Some(i) = self.top_state.selected() {
-                        self.selected_action = options
-                            .get(selected_op)
-                            .and_then(|v| v.get(i))
-                            .and_then(|s| match *s {
-                                "Add new pairs" => Some(DbAction::AddPairs),
-                                "Remove pairs" => Some(DbAction::RemovePairs),
-                                "Update data" => Some(DbAction::UpdateData),
-                                _ => None,
-                            });
-                    }
+                        self.selected_action = Some(
+                            &Self::SCREEN_OPTIONS[i]
+                        )
+                    };
+
                     self.focus = DbFocus::Bottom;
                     self.btm_state.select(Some(0));
                 }
@@ -135,6 +222,15 @@ impl DatabaseScreen {
             _ => {}
         }
     }
+
+    const SCREEN_NAME: &'static str = "Database Management";
+
+    const SCREEN_OPTIONS: [DbAction; 3] = [
+        DbAction::AddPairs, 
+        DbAction::RemovePairs, 
+        DbAction::UpdateData
+    ];
+
 }
 
 enum DbFocus {
@@ -148,6 +244,15 @@ enum DbAction {
     UpdateData
 }
 
+impl DbAction {
+    fn name(&self) -> &'static str {
+        match self {
+            DbAction::AddPairs => "Add new pairs",
+            DbAction::RemovePairs => "Delete pairs",
+            DbAction::UpdateData => "Update data",
+        }
+    }
+}
 
 // -------------- CANDLE SCREEN ------------- //
 struct CandleScreen {
@@ -164,6 +269,32 @@ enum CandleStep {
     Ready,
 }
 
+impl CandleScreen {
+
+    fn new() -> Self {
+        
+        CandleScreen {
+            step: CandleStep::Exchange,
+            exchange_state: ListState::default(),
+            pair_state: ListState::default(),
+            interval_state: ListState::default()
+        }
+    
+    }
+
+    fn draw(&mut self) {
+
+    }
+
+    fn handle_key(&self, key: KeyEvent) {
+
+    }
+
+    const SCREEN_NAME: &'static str = "Candle Builder";
+
+    const SCREEN_OPTIONS: [&'static str; 0] = [];
+}
+
 
 // ------------- SYSTEM SETTINGS -------------- //
 struct SettingsScreen {
@@ -171,182 +302,58 @@ struct SettingsScreen {
     dirty: bool,
 }
 
+impl SettingsScreen {
 
-// ---------------------------- TERMINAL INTERFACE ------------------------- //
-pub struct TerminalInterface {
-    transmitter: Sender<AppEvent>,
-    db_pool: PgPool,
-    options: BTreeMap<&'static str, Vec<&'static str>>,
-    operation_state: ListState,
-    screen: Screen,
-    selected_op: &str,
+    fn new() -> Self {
+        SettingsScreen {
+            settings_state: ListState::default(),
+            dirty: false
+        } 
+    }
+
+    fn draw(&mut self) {
+
+    }
+
+    fn handle_key(&self, key: KeyEvent) {
+
+    }
+
+    const SCREEN_NAME: &'static str = "System Settings";
+
+    const SCREEN_OPTIONS: [&'static str; 0] = [];
+
 }
 
-impl TerminalInterface {
-    
-    pub fn new(transmitter: Sender<AppEvent>, db_pool: PgPool) -> Self {
-        let options = BTreeMap::from([
-            (
-                "Database Manager", 
-                vec![
-                    "Add new pairs", 
-                    "Remove pairs", 
-                    "Update data"
-                ]
-            ),
-            (
-                "Candle Builder",
-                vec![]
-            ),
-            (
-                "System Settings",
-                vec![]
-            )
-        ]);
 
+// ---------------------------- TERMINAL INTERFACE ------------------------- //
+pub struct TerminalInterface<'a> {
+    transmitter: Sender<AppEvent>,
+    db_pool: PgPool,
+    operation_state: ListState,
+    token_pairs: HashMap<String, Vec<String>>,
+    screen: Screen<'a>,
+}
+
+impl<'a> TerminalInterface<'a> {
+    
+    pub async fn new(transmitter: Sender<AppEvent>, db_pool: PgPool) -> Self {
+        
         let mut operation_state = ListState::default();
         operation_state.select(Some(0));
-      
-        let mut selected_op = self.operations() 
-            .get(0) 
-            .cloned() 
-            .ok_or_else(|| { 
-                io::Error::new(
-                    io::ErrorKind::Other, "No operations available") 
-            })?;
+        
+        let tokens = fetch_exchanges_and_pairs_from_db(db_pool.clone()).await;
 
-        let db_screen = DatabaseScreen {
-            focus: DbFocus::Top,
-            top_state: ListState::default(),
-            btm_state: ListState::default(),
-            selected_action: None 
-        };
+        let screen: Screen = Screen::DatabaseManager(DatabaseScreen::new());
 
         TerminalInterface { 
             transmitter, 
             db_pool, 
-            options,
             operation_state,
-            screen: Screen::DatabaseManager(db_screen)
+            token_pairs: tokens,
+            screen 
         }
     }
-
-    fn draw(&mut self, f: &mut Frame) {
-        
-    }
-
-    fn key_handle(&mut self, key: KeyEvent) {
-
-        let operations = self.operations();
-        match key.code {
-            KeyCode::Char('q') => break,
-           
-            KeyCode::Down => match focus {
-                Focus::Operations => {
-                    let i = match self.operation_state.selected() {
-                        Some(i) if i + 1 < operations.len() => i + 1,
-                        Some(i) => i,
-                        None => 0,
-                    };
-                    self.operation_state.select(Some(i));
-                    selected_op = operations[i];
-                },
-            
-                Focus::Top => {
-                    let len = self.options.get(selected_op)
-                        .map(|v| v.len())
-                        .unwrap_or(0);
-                    
-                    let i = match top_state.selected() {
-                        Some(i) if i + 1 < len => i + 1,
-                        Some(i) => i,
-                        None => 0,
-                    };
-                    top_state.select(Some(i));
-                },
-            
-                Focus::Bottom => {
-                    // later
-                }
-            },
-
-            KeyCode::Up => match focus {
-                Focus::Operations => {
-                    let i = match self.operation_state.selected() {
-                        Some(i) if i > 0 => i - 1,
-                        Some(i) => i,
-                        None => 0,
-                    };
-                    self.operation_state.select(Some(i));
-                    selected_op = operations[i];
-                },
-            
-                Focus::Top => {
-                    let len = self.options.get(selected_op)
-                        .map(|v| v.len())
-                        .unwrap_or(0);
-                    
-                    let i = match top_state.selected() {
-                        Some(i) if i > 0 => i - 1,
-                        Some(i) => i,
-                        None => 0,
-                    };
-                    top_state.select(Some(i));
-                },
-            
-                Focus::Bottom => {
-                    // later
-                }                   
-            },
-
-            KeyCode::Enter => {
-                match focus {
-                    Focus::Operations => {
-                        focus = Focus::Top;
-                        top_state.select(Some(0));
-                        self.selected_action = None;
-                    }
-
-                    Focus::Top => {
-                        if let Some(i) = top_state.selected() { 
-                            self.selected_action = self.options 
-                                .get(selected_op)
-                                .and_then(|v| v.get(i))
-                                .copied();
-                        };
-
-                        focus = Focus::Bottom;
-                        btm_state.select(Some(0));
-                    }
-
-                    Focus::Bottom => {
-                        // Final selection action
-                        // Example: send event
-                    }
-                };
-                if let Some(i) = self.operation_state.selected() {
-                    selected_op = operations[i];
-                };
-            },
-
-            KeyCode::Esc => match focus {
-                Focus::Operations => {},
-                Focus::Top => {
-                    focus = Focus::Operations
-                },
-                Focus::Bottom => {
-                    focus = Focus::Top;
-                    self.selected_action = None;
-                }
-            },
-
-            _ => {}
-        }
-    } 
-
-    fn operations(&self) -> Vec<&str> {
-        self.options.keys().cloned().collect()
-    } 
 
     pub async fn run(&mut self) 
         -> io::Result<()> {
@@ -358,20 +365,19 @@ impl TerminalInterface {
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?; 
  
-        let mut top_state = ListState::default();
-        let mut btm_state = ListState::default();
-
         let mut focus = Focus::Operations;
 
-        let exchanges_and_tables = fetch_exchanges_and_pairs_from_db(
-            self.db_pool.clone()
-        );
+        let operations: [&'static str; 3] = [
+            DatabaseScreen::SCREEN_NAME,
+            CandleScreen::SCREEN_NAME,
+            SettingsScreen::SCREEN_NAME
+        ];
 
         loop {
             
-            terminal.draw(|f| {
+            terminal.draw(|frame| {
                 
-                let size = f.area();
+                let size = frame.area();
 
                 let main_chunks = Layout::default()
                     .direction(Direction::Horizontal)
@@ -386,7 +392,7 @@ impl TerminalInterface {
                     .title("Operations")
                     .borders(Borders::ALL);
 
-                let ops: Vec<ListItem> = self.operations() 
+                let ops: Vec<ListItem> = operations 
                     .iter()
                     .map(|table| ListItem::new(*table))
                     .collect();
@@ -401,7 +407,7 @@ impl TerminalInterface {
                         }
                     );
 
-                f.render_stateful_widget(
+                frame.render_stateful_widget(
                     op_list, 
                     main_chunks[0],
                     &mut self.operation_state
@@ -410,72 +416,47 @@ impl TerminalInterface {
                 // ----------------------- Main Pane ----------------------- //
                 let main_area = main_chunks[1];                
 
-                let nested_chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Percentage(30),
-                        Constraint::Percentage(70),
-                    ])
-                    .split(main_area);
-
                 let main_block = Block::default()
                     .borders(Borders::ALL);
  
-                f.render_widget(main_block, main_area);
+                frame.render_widget(main_block, main_area);
 
-                let top_items: Vec<ListItem> = self.options
-                    .get(selected_op)
-                    .into_iter()
-                    .flat_map(|v| v.iter())
-                    .map(|s| ListItem::new(*s))
-                    .collect();
+                match &mut self.screen {
 
-                let top_list = List::new(top_items)
-                    .block(
-                        Block::default()
-                            .title(selected_op)
-                            .borders(Borders::ALL)
-                    )
-                    .highlight_style(
-                        if let Focus::Top = focus {
-                            Style::default().add_modifier(Modifier::REVERSED)
-                        } else {
-                            Style::default()
-                        }
-                    );
-                
-                f.render_stateful_widget(
-                    top_list,
-                    nested_chunks[0],
-                    &mut top_state
-                );
+                    Screen::DatabaseManager(screen) => {
+                        screen.draw(frame, main_area);
+                    },
 
-                // let btm_items: Vec<ListItem> = match selected_action {
-                //     Some(action) => {
-                //         match selected_op {
-                //              
-                //         }
-                //     }, 
-                //     None => Vec::new()
-                // };
+                    Screen::CandleBuilder(screen) => {
+                        // screen.draw();
+                    },
 
-                // let btm_list = List::new(btm_items)
-                //     .block(
-                //         Block::default()
-                //             .title(match selected_action {
-                //                 Some(t) => t,
-                //                 None => ""
-                //             })
-                //             .borders(Borders::ALL)
-                //     );
-                // 
-                // f.render_widget(btm_list, nested_chunks[1]);
+                    Screen::SystemSettings(screen) => {
+                        // screen.draw();
+                    },
+                }
 
             })?;
 
             // Handle events
             if let Event::Key(key) = event::read()? {
+                match key.code {
+                    KeyCode::Char('q') => break,
+                    _ => {}
+                };
+                match &mut self.screen {
+                    Screen::DatabaseManager(screen) => {
+                        screen.handle_key(key);
+                    },
 
+                    Screen::CandleBuilder(screen) => {
+                        screen.handle_key(key);
+                    },
+
+                    Screen::SystemSettings(screen) => {
+                        screen.handle_key(key);
+                    },                   
+                };
             }
         }
 
