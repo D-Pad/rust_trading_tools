@@ -1,4 +1,4 @@
-use std::{collections::{BTreeMap, HashMap}, io::{self}};
+use std::{collections::{HashMap}, io::{self}};
 
 use sqlx::PgPool;
 use tokio::{sync::mpsc::Sender};
@@ -73,15 +73,15 @@ fn move_down(state: &mut ListState, len: usize) {
 
 enum Focus {
     Operations,
-    Top,
-    Bottom
+    Main, 
 }
 
 // ------------ SCREENS ------------- //
 enum Screen<'a> {
     DatabaseManager(DatabaseScreen<'a>),
     CandleBuilder(CandleScreen),
-    SystemSettings(SettingsScreen)
+    SystemSettings(SettingsScreen),
+    Placeholder,
 }
 
 
@@ -91,17 +91,26 @@ struct DatabaseScreen<'a> {
     top_state: ListState,
     btm_state: ListState,
     selected_action: Option<&'a DbAction>,
+    token_pairs: HashMap<String, Vec<String>>,
+    db_pool: PgPool,
 }
 
 impl<'a> DatabaseScreen<'a> {
  
-    fn new() -> Self {
-      
+    async fn new(db_pool: PgPool) -> Self {
+    
+        let mut top_state = ListState::default();
+        top_state.select(Some(0));
+
+        let tokens = fetch_exchanges_and_pairs_from_db(db_pool.clone()).await;
+        
         DatabaseScreen {
             focus: DbFocus::Top,
-            top_state: ListState::default(),
+            top_state,
             btm_state: ListState::default(),
             selected_action: None,
+            token_pairs: tokens,
+            db_pool,
         }
 
     }
@@ -124,12 +133,7 @@ impl<'a> DatabaseScreen<'a> {
         let top_list = List::new(top_items)
             .block(
                 Block::default()
-                    .title(match self.selected_action {
-                        Some(a) => {
-                            a.name()
-                        },
-                        None => ""
-                    })
+                    .title(Self::SCREEN_NAME)
                     .borders(Borders::ALL)
             )
             .highlight_style(
@@ -146,27 +150,37 @@ impl<'a> DatabaseScreen<'a> {
             &mut self.top_state
         );
 
-        // let btm_items: Vec<ListItem> = match selected_action {
-        //     Some(action) => {
-        //         match selected_op {
-        //              
-        //         }
-        //     }, 
-        //     None => Vec::new()
-        // };
+        let btm_items: Vec<ListItem> = match self.selected_action {
+            Some(action) => {
+                match action {
+                    DbAction::AddPairs => Vec::new(),
+                    DbAction::RemovePairs | DbAction::UpdateData => {
+                        let mut vals: Vec<ListItem> = Vec::new();
+                        for (key, val) in &self.token_pairs {
+                            for v in val {
+                                vals.push(ListItem::new(
+                                    format!("{} {}", key, v) 
+                                ));
+                            };
+                        };
+                        vals
+                    }
+                }
+            }, 
+            None => Vec::new()
+        };
 
-        // let btm_list = List::new(btm_items)
-        //     .block(
-        //         Block::default()
-        //             .title(match selected_action {
-        //                 Some(t) => t,
-        //                 None => ""
-        //             })
-        //             .borders(Borders::ALL)
-        //     );
-        // 
-        // f.render_widget(btm_list, nested_chunks[1]);
-
+        let btm_list = List::new(btm_items)
+            .block(
+                Block::default()
+                    .title(match self.selected_action {
+                        Some(t) => t.name(),
+                        None => ""
+                    })
+                    .borders(Borders::ALL)
+            );
+        
+        frame.render_widget(btm_list, nested_chunks[1]);
 
     }
 
@@ -176,7 +190,7 @@ impl<'a> DatabaseScreen<'a> {
 
         match key.code {
             
-            KeyCode::Up => match self.focus {
+            KeyCode::Up | KeyCode::Char('k') => match self.focus {
                 DbFocus::Top => {
                     move_up(&mut self.top_state, top_len);
                 }
@@ -185,7 +199,7 @@ impl<'a> DatabaseScreen<'a> {
                 }
             },
 
-            KeyCode::Down => match self.focus {
+            KeyCode::Down | KeyCode::Char('j') => match self.focus {
                 DbFocus::Top => {
                     move_down(&mut self.top_state, top_len);
                 }
@@ -197,9 +211,7 @@ impl<'a> DatabaseScreen<'a> {
             KeyCode::Enter => match self.focus {
                 DbFocus::Top => {
                     if let Some(i) = self.top_state.selected() {
-                        self.selected_action = Some(
-                            &Self::SCREEN_OPTIONS[i]
-                        )
+                        self.selected_action = Some(&Self::SCREEN_OPTIONS[i]);
                     };
 
                     self.focus = DbFocus::Bottom;
@@ -216,7 +228,9 @@ impl<'a> DatabaseScreen<'a> {
                     self.focus = DbFocus::Top;
                     self.selected_action = None;
                 }
-                DbFocus::Top => {}
+                DbFocus::Top => {
+                    self.top_state.select(None);
+                }
             },
 
             _ => {}
@@ -331,7 +345,6 @@ pub struct TerminalInterface<'a> {
     transmitter: Sender<AppEvent>,
     db_pool: PgPool,
     operation_state: ListState,
-    token_pairs: HashMap<String, Vec<String>>,
     screen: Screen<'a>,
 }
 
@@ -342,15 +355,12 @@ impl<'a> TerminalInterface<'a> {
         let mut operation_state = ListState::default();
         operation_state.select(Some(0));
         
-        let tokens = fetch_exchanges_and_pairs_from_db(db_pool.clone()).await;
-
-        let screen: Screen = Screen::DatabaseManager(DatabaseScreen::new());
+        let screen: Screen = Screen::Placeholder;
 
         TerminalInterface { 
             transmitter, 
             db_pool, 
             operation_state,
-            token_pairs: tokens,
             screen 
         }
     }
@@ -366,7 +376,7 @@ impl<'a> TerminalInterface<'a> {
         let mut terminal = Terminal::new(backend)?; 
  
         let mut focus = Focus::Operations;
-
+ 
         let operations: [&'static str; 3] = [
             DatabaseScreen::SCREEN_NAME,
             CandleScreen::SCREEN_NAME,
@@ -434,29 +444,81 @@ impl<'a> TerminalInterface<'a> {
                     Screen::SystemSettings(screen) => {
                         // screen.draw();
                     },
+
+                    Screen::Placeholder => {}
                 }
 
             })?;
 
             // Handle events
             if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') => break,
-                    _ => {}
-                };
-                match &mut self.screen {
-                    Screen::DatabaseManager(screen) => {
-                        screen.handle_key(key);
-                    },
+            
+                if let KeyCode::Char('q') = key.code {
+                    break;
+                }
+                else if let Focus::Operations = focus {
+                   
+                    match key.code {
+                    
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            move_up(
+                                &mut self.operation_state, 
+                                operations.len()
+                            );
+                        }, 
+                        
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            move_down(
+                                &mut self.operation_state, 
+                                operations.len()
+                            );
+                        },
+                        
+                        KeyCode::Enter => {
+                            if let Some(i) = self.operation_state.selected() {
+                                self.screen = match i {
+                                    0 => Screen::DatabaseManager(
+                                        DatabaseScreen::new(
+                                            self.db_pool.clone()        
+                                        ).await
+                                    ),
+                                    1 => Screen::CandleBuilder(
+                                        CandleScreen::new()
+                                    ),
+                                    2 => Screen::SystemSettings(
+                                        SettingsScreen::new()
+                                    ),
+                                    _ => Screen::Placeholder 
+                                };
+                                focus = Focus::Main;
+                            }
+                        },
 
-                    Screen::CandleBuilder(screen) => {
-                        screen.handle_key(key);
-                    },
+                        _ => {}
+                    }
+                }
+                else {
 
-                    Screen::SystemSettings(screen) => {
-                        screen.handle_key(key);
-                    },                   
+                    match &mut self.screen {
+
+
+                        Screen::DatabaseManager(screen) => {
+
+                            if let KeyCode::Esc = key.code {
+                                if let DbFocus::Top = screen.focus {
+                                    focus = Focus::Operations;
+                                };
+                            };
+                            screen.handle_key(key);
+
+                        },
+
+                        _ => {} 
+
+                    } 
+
                 };
+
             }
         }
 
