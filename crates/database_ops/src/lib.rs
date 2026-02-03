@@ -1,4 +1,4 @@
-use std::{cmp::{min, max}, fmt};
+use std::{cmp::{min, max}, fmt, collections::HashMap};
 
 use reqwest;
 use sqlx::{PgPool, pool::{PoolConnection}, types::BigDecimal};
@@ -147,6 +147,48 @@ pub async fn fetch_tables(
     };
 
     Ok(tables)
+
+}
+
+
+pub async fn fetch_exchanges_and_pairs_from_db(db_pool: PgPool) 
+    -> HashMap<String, Vec<String>> {
+   
+    let tables: Vec<String> = fetch_tables(db_pool)
+        .await
+        .unwrap_or(Vec::new());
+
+    let mut exchanges_and_pairs: HashMap<String, Vec<String>> = HashMap::new();
+   
+    for table in tables {
+        if table.starts_with("asset_") { 
+            
+            let parts: Vec<&str> = table.split("_").collect();
+            let [_, exchange, asset] = parts.as_slice() else {
+                continue;
+            };
+            
+            let mut ex_title: String = String::new();
+            let first_char: String = match exchange
+                .to_uppercase()
+                .chars()
+                .next() 
+            {
+                Some(c) => c.to_string(),
+                None => return exchanges_and_pairs 
+            };
+
+            ex_title.push_str(&first_char);
+            ex_title.push_str(&exchange[1..]);
+            
+            exchanges_and_pairs.entry(ex_title)
+                .or_insert(Vec::new())
+                .push(asset.to_uppercase());
+
+        };
+    };
+
+    exchanges_and_pairs
 
 }
 

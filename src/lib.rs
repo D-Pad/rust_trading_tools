@@ -1,3 +1,4 @@
+use app_core::database_ops::fetch_exchanges_and_pairs_from_db;
 pub use app_core::*;
 pub use app_core::{
     errors::error_handler, 
@@ -8,12 +9,31 @@ pub use app_core::{
     initialize_app_engine,
 };
 use servers::{CliServer};
-use tui::tui_test;
+use tui::TerminalInterface;
 
 use tokio::sync::mpsc::channel;
 
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
+pub async fn test_fn() -> i32 {
+
+    let mut exit_code: i32 = 0;
+
+    let mut engine: Engine = match initialize_app_engine().await {
+        Ok(s) => s,
+        Err(e) => {
+            error_handler(e); 
+            exit_code = 2;
+            return exit_code
+        }
+    };
+
+    fetch_exchanges_and_pairs_from_db(engine.database.get_pool()).await;
+
+    exit_code
+
+}
+
 pub async fn app_start() -> i32 {
 
     let mut exit_code: i32 = 0;
@@ -54,11 +74,13 @@ pub async fn app_start() -> i32 {
        
         let (transmitter, receiver) = channel(32);
 
+        let pool = engine.database.get_pool();
         let mut server: CliServer = CliServer::new(engine, receiver);
         let input_tx = transmitter.clone(); 
 
-        tokio::spawn(async move { 
-            tui_test(input_tx).await;
+        tokio::spawn(async move {
+            let mut tui = TerminalInterface::new(input_tx, pool);
+            tui.run().await;
         });
 
         server.run().await;
