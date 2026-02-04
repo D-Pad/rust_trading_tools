@@ -370,6 +370,30 @@ impl<'a> TerminalInterface<'a> {
         }
     }
 
+    fn add_line(
+        &mut self, 
+        msg: &'static str, 
+        color: Color, 
+        bold: bool,
+        bg: Option<Color>
+    ) {
+        
+        let mut style = Style::default().fg(color);
+        if bold {
+            style = style.bold();
+        };
+
+        if let Some(col) = bg {
+            style = style.bg(col)
+        };
+
+        self.output_buffer.push_back(Line::styled(msg, style));
+    }
+
+    fn clear_lines(&mut self) {
+        self.output_buffer.clear();
+    }
+
     pub async fn run(&mut self) 
         -> io::Result<()> {
 
@@ -388,12 +412,7 @@ impl<'a> TerminalInterface<'a> {
             SettingsScreen::SCREEN_NAME
         ];
 
-        self.output_buffer.push_back(
-            Line::styled( 
-                "Running interface",
-                Style::default().fg(Color::Red)
-            )
-        );
+        // self.add_line("Testing", Color::Red, true, Some(Color::Cyan));
 
         loop {
             
@@ -411,7 +430,7 @@ impl<'a> TerminalInterface<'a> {
                     .split(size);
 
                 // --------------------- OUTPUT WINDOW --------------------- //
-                 let text = Text::from(
+                let text = Text::from(
                     self.output_buffer
                         .iter()
                         .cloned()
