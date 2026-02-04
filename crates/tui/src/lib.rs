@@ -42,14 +42,14 @@ use ratatui::{
     },
     text::{Text, Line}
 };
-
 use app_core::{
-    AppEvent,
     engine::Engine,
     database_ops::{
         fetch_exchanges_and_pairs_from_db
     }
 };
+
+use tokio::sync::mpsc::{channel, Sender, Receiver};
 
 
 fn move_up(state: &mut ListState, len: usize) {
@@ -101,22 +101,25 @@ struct DatabaseScreen<'a> {
 
 impl<'a> DatabaseScreen<'a> {
  
-    async fn new(db_pool: PgPool) -> Self {
+    fn new(db_pool: PgPool) -> Self {
     
         let mut top_state = ListState::default();
         top_state.select(Some(0));
-
-        let tokens = fetch_exchanges_and_pairs_from_db(db_pool.clone()).await;
-        
+ 
         DatabaseScreen {
             focus: DbFocus::Top,
             top_state,
             btm_state: ListState::default(),
             selected_action: None,
-            token_pairs: tokens,
+            token_pairs: HashMap::new(),
             db_pool,
         }
 
+    }
+
+    async fn pre_draw(&mut self) {
+        let pool = self.db_pool.clone();
+        self.token_pairs = fetch_exchanges_and_pairs_from_db(pool).await;
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) {
@@ -155,24 +158,17 @@ impl<'a> DatabaseScreen<'a> {
         );
 
         let btm_items: Vec<ListItem> = match self.selected_action {
-            Some(action) => {
-                match action {
-                    DbAction::AddPairs => Vec::new(),
-                    DbAction::RemovePairs | DbAction::UpdateData => {
-                        let mut vals: Vec<ListItem> = Vec::new();
-                        for (key, val) in &self.token_pairs {
-                            for v in val {
-                                vals.push(ListItem::new(
-                                    format!("{} {}", key, v) 
-                                ));
-                            };
-                        };
-                        vals
+            Some(DbAction::RemovePairs | DbAction::UpdateData) => {
+                let mut items = Vec::new();
+                for (key, vals) in &self.token_pairs {
+                    for v in vals {
+                        items.push(ListItem::new(format!("{key} - {v}")))
                     }
-                }
-            }, 
-            None => Vec::new()
-        };
+                };
+                items
+            },
+            Some(DbAction::AddPairs) | None => Vec::new(),
+        }; 
 
         let btm_list = List::new(btm_items)
             .block(
@@ -182,10 +178,39 @@ impl<'a> DatabaseScreen<'a> {
                         None => ""
                     })
                     .borders(Borders::ALL)
+            )
+            .highlight_style(
+                if let DbFocus::Bottom = self.focus {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                }
             );
         
-        frame.render_widget(btm_list, nested_chunks[1]);
+        frame.render_stateful_widget(
+            btm_list, 
+            nested_chunks[1],
+            &mut self.btm_state
+        );
 
+    }
+
+    fn pairs_to_vec(&self) -> Vec<(String, String, ListItem)> {
+        
+        let mut vals: Vec<(String, String, ListItem)> = Vec::new();
+        
+        for (key, val) in &self.token_pairs {
+            for v in val {
+                vals.push(
+                    (   
+                        key.clone(),
+                        v.clone(),
+                        ListItem::new(format!("{} - {}", key, v))
+                    ),
+                );
+            };
+        };
+        vals 
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
@@ -199,7 +224,7 @@ impl<'a> DatabaseScreen<'a> {
                     move_up(&mut self.top_state, top_len);
                 }
                 DbFocus::Bottom => {
-                    // later
+                    move_up(&mut self.btm_state, top_len);
                 }
             },
 
@@ -208,7 +233,7 @@ impl<'a> DatabaseScreen<'a> {
                     move_down(&mut self.top_state, top_len);
                 }
                 DbFocus::Bottom => {
-                    // later
+                    move_down(&mut self.btm_state, top_len);
                 }
             },
 
@@ -223,7 +248,7 @@ impl<'a> DatabaseScreen<'a> {
                 }
 
                 DbFocus::Bottom => {
-                    // execute action
+                     
                 }
             },
 
@@ -350,6 +375,8 @@ pub struct TerminalInterface<'a> {
     screen: Screen<'a>,
     output_buffer: VecDeque<Line<'static>>,
     engine: Engine,
+    transmitter: Sender<String>,
+    receiver: Receiver<String>,
 }
 
 impl<'a> TerminalInterface<'a> {
@@ -362,11 +389,15 @@ impl<'a> TerminalInterface<'a> {
         let screen: Screen = Screen::Placeholder;
         let output_buffer: VecDeque<Line<'static>> = VecDeque::new();
 
+        let (transmitter, receiver) = channel(10); 
+
         TerminalInterface { 
             operation_state,
             screen,
             output_buffer,
             engine,
+            transmitter,
+            receiver
         }
     }
 
@@ -415,7 +446,24 @@ impl<'a> TerminalInterface<'a> {
         // self.add_line("Testing", Color::Red, true, Some(Color::Cyan));
 
         loop {
-            
+
+            match &mut self.screen {
+
+                Screen::DatabaseManager(screen) => {
+                    screen.pre_draw().await;
+                },
+
+                Screen::CandleBuilder(screen) => {
+                    // screen.draw();
+                },
+
+                Screen::SystemSettings(screen) => {
+                    // screen.draw();
+                },
+
+                Screen::Placeholder => {}
+            };
+
             terminal.draw(|frame| {
                 
                 let size = frame.area();
@@ -538,7 +586,7 @@ impl<'a> TerminalInterface<'a> {
                                     0 => Screen::DatabaseManager(
                                         DatabaseScreen::new(
                                             self.engine.database.get_pool() 
-                                        ).await
+                                        )
                                     ),
                                     1 => Screen::CandleBuilder(
                                         CandleScreen::new()

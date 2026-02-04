@@ -338,7 +338,9 @@ pub async fn run_database_table_updates(
         state.time_offset(),
         client,
         db_pool,
-        prog_tx.clone()
+        prog_tx.clone(),
+        None,
+        None
     )
         .await
         .map_err(|e| RunTimeError::DataBase(e))?;

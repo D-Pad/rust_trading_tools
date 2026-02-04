@@ -392,17 +392,19 @@ pub async fn update_database_tables(
     time_offset: u64,
     client: &reqwest::Client,
     db_pool: PgPool,
-    progress_tx: tokio::sync::mpsc::UnboundedSender<DataDownloadStatus>
+    progress_tx: tokio::sync::mpsc::UnboundedSender<DataDownloadStatus>,
+    exchange: Option<&str>,
+    ticker: Option<&str>
 ) -> Result<(), DbError> {
 
-    println!("\x1b[1;33mUpdating existing database tables\x1b[0m");
-    
     let existing_tables = fetch_tables(db_pool.clone()).await?;
 
     let mut tasks: JoinSet<Result<(), DbError>> = JoinSet::new();
     
     for exchange_name in active_exchanges {
-   
+  
+        if let Some(e) = exchange && e != exchange_name { continue };
+
         let exchange_tables: Vec<&String> = existing_tables
             .iter() 
             .filter(|x| x.contains(exchange_name))

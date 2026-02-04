@@ -1,5 +1,5 @@
 use std::process;
-use trading_app::{app_start, test_fn};
+use trading_app::{app_start};
 
 
 #[tokio::main]

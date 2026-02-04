@@ -10,29 +10,8 @@ pub use app_core::{
 };
 use tui::TerminalInterface;
 
-use tokio::sync::mpsc::channel;
-
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
-pub async fn test_fn() -> i32 {
-
-    let mut exit_code: i32 = 0;
-
-    let mut engine: Engine = match initialize_app_engine().await {
-        Ok(s) => s,
-        Err(e) => {
-            error_handler(e); 
-            exit_code = 2;
-            return exit_code
-        }
-    };
-
-    fetch_exchanges_and_pairs_from_db(engine.database.get_pool()).await;
-
-    exit_code
-
-}
-
 pub async fn app_start() -> i32 {
 
     let mut exit_code: i32 = 0;
