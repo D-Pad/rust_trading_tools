@@ -1,7 +1,6 @@
-use std::{collections::{HashMap}, io::{self}};
+use std::{collections::{HashMap, VecDeque}, io::{self}};
 
 use sqlx::PgPool;
-use tokio::{sync::mpsc::Sender};
 use ratatui::{
     Frame, 
     Terminal, 
@@ -29,19 +28,24 @@ use ratatui::{
     }, 
     style::{
         Modifier,
-        Style
+        Style,
+        Color
     }, 
     widgets::{
         Block,
         Borders,
         List,
         ListItem,
-        ListState
-    }
+        ListState,
+        Wrap,
+        Paragraph 
+    },
+    text::{Text, Line}
 };
 
 use app_core::{
-    AppEvent, 
+    AppEvent,
+    engine::Engine,
     database_ops::{
         fetch_exchanges_and_pairs_from_db
     }
@@ -342,26 +346,27 @@ impl SettingsScreen {
 
 // ---------------------------- TERMINAL INTERFACE ------------------------- //
 pub struct TerminalInterface<'a> {
-    transmitter: Sender<AppEvent>,
-    db_pool: PgPool,
     operation_state: ListState,
     screen: Screen<'a>,
+    output_buffer: VecDeque<Line<'static>>,
+    engine: Engine,
 }
 
 impl<'a> TerminalInterface<'a> {
     
-    pub async fn new(transmitter: Sender<AppEvent>, db_pool: PgPool) -> Self {
+    pub async fn new(engine: Engine) -> Self {
         
         let mut operation_state = ListState::default();
         operation_state.select(Some(0));
         
         let screen: Screen = Screen::Placeholder;
+        let output_buffer: VecDeque<Line<'static>> = VecDeque::new();
 
         TerminalInterface { 
-            transmitter, 
-            db_pool, 
             operation_state,
-            screen 
+            screen,
+            output_buffer,
+            engine,
         }
     }
 
@@ -383,19 +388,53 @@ impl<'a> TerminalInterface<'a> {
             SettingsScreen::SCREEN_NAME
         ];
 
+        self.output_buffer.push_back(
+            Line::styled( 
+                "Running interface",
+                Style::default().fg(Color::Red)
+            )
+        );
+
         loop {
             
             terminal.draw(|frame| {
                 
                 let size = frame.area();
 
+
+                let vertical_chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Min(5),   
+                        Constraint::Length(7),
+                    ])
+                    .split(size);
+
+                // --------------------- OUTPUT WINDOW --------------------- //
+                 let text = Text::from(
+                    self.output_buffer
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                );
+                
+                let output = Paragraph::new(text)
+                    .block(
+                        Block::default()
+                        .title("Output")
+                        .borders(Borders::ALL))
+                    .wrap(Wrap { trim: false });
+
+                frame.render_widget(output, vertical_chunks[1]);
+
+                // --------------------- MAIN PANE ------------------------- //
                 let main_chunks = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([
-                        Constraint::Length(20),
+                        Constraint::Length(21),
                         Constraint::Percentage(100),
                     ].as_ref())
-                    .split(size);
+                    .split(vertical_chunks[0]);
 
                 // ---------------------- Operation Panes ------------------ // 
                 let operations_block = Block::default()
@@ -479,7 +518,7 @@ impl<'a> TerminalInterface<'a> {
                                 self.screen = match i {
                                     0 => Screen::DatabaseManager(
                                         DatabaseScreen::new(
-                                            self.db_pool.clone()        
+                                            self.engine.database.get_pool() 
                                         ).await
                                     ),
                                     1 => Screen::CandleBuilder(

@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 # My modules
 app_core = { path = "crates/app_core" }   
-servers = { path = "crates/servers" }   
 tui = { path = "crates/tui" }   
 
 # Third party
@@ -24,7 +23,6 @@ members = [
     "crates/charts",
     "crates/database_ops", 
     "crates/indicators",
-    "crates/servers", 
     "crates/timestamp_tools", 
     "crates/tui"
 ]
