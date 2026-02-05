@@ -22,7 +22,7 @@ members = [
     "crates/bars", 
     "crates/charts",
     "crates/database_ops", 
-    "crates/indicators",
+    "crates/indicators", 
     "crates/timestamp_tools", 
     "crates/tui"
 ]

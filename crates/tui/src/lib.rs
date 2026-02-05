@@ -43,13 +43,14 @@ use ratatui::{
     text::{Text, Line}
 };
 use app_core::{
-    engine::Engine,
     database_ops::{
-        fetch_exchanges_and_pairs_from_db
-    }
+        DataDownloadStatus, 
+        fetch_exchanges_and_pairs_from_db,
+        update_database_tables
+    }, engine::Engine
 };
 
-use tokio::sync::mpsc::{channel, Sender, Receiver};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 
 fn move_up(state: &mut ListState, len: usize) {
@@ -89,6 +90,70 @@ enum Screen<'a> {
 }
 
 
+// -------------- MESSAGING ------------------ //
+struct OutputMsg {
+    text: String,
+    color: Color,
+    bold: bool,
+    bg_color: Option<Color>,
+}
+
+impl OutputMsg {
+    fn new(text: String, color: Color, bold: bool, bg_color: Option<Color>) 
+        -> Self {
+        OutputMsg { text, color, bold, bg_color }
+    }
+}
+
+impl From<DataDownloadStatus> for OutputMsg {
+    
+    fn from(status: DataDownloadStatus) -> Self {
+        
+        match status {
+            DataDownloadStatus::Started { exchange, ticker } => {
+                OutputMsg::new(
+                    format!("Starting download: {exchange} / {ticker}"),
+                    Color::Green,
+                    true,
+                    None,
+                )
+            }
+
+            DataDownloadStatus::Progress {
+                exchange,
+                ticker,
+                percent,
+            } => {
+                OutputMsg::new(
+                    format!("Downloading {exchange} / {ticker}: {percent}%"),
+                    Color::Yellow,
+                    false,
+                    None,
+                )
+            }
+
+            DataDownloadStatus::Finished { exchange, ticker } => {
+                OutputMsg::new(
+                    format!("Finished download: {exchange} / {ticker}"),
+                    Color::Green,
+                    false,
+                    None,
+                )
+            }
+
+            DataDownloadStatus::Error { exchange, ticker } => {
+                OutputMsg::new(
+                    format!("ERROR downloading {exchange} / {ticker}"),
+                    Color::Red,
+                    true,
+                    None,
+                )
+            }
+        }
+    }
+}
+
+
 // ------------ DATABASE SCREEN -------------- //
 struct DatabaseScreen<'a> {
     focus: DbFocus,
@@ -98,12 +163,12 @@ struct DatabaseScreen<'a> {
     selected_action: Option<&'a DbAction>,
     token_pairs: HashMap<String, Vec<String>>,
     db_pool: PgPool,
-    transmitter: Sender<OutputMsg>
+    transmitter: UnboundedSender<OutputMsg>,
 }
 
 impl<'a> DatabaseScreen<'a> {
  
-    fn new(db_pool: PgPool, transmitter: Sender<OutputMsg>) -> Self {
+    fn new(db_pool: PgPool, transmitter: UnboundedSender<OutputMsg>) -> Self {
     
         let mut top_state = ListState::default();
         top_state.select(Some(0));
@@ -203,7 +268,7 @@ impl<'a> DatabaseScreen<'a> {
 
     }
     
-    async fn handle_key(&mut self, key: KeyEvent) {
+    async fn handle_key(&mut self, key: KeyEvent, engine: &Engine) {
 
         let top_len = Self::SCREEN_OPTIONS.len();
 
@@ -240,18 +305,47 @@ impl<'a> DatabaseScreen<'a> {
                 DbFocus::Bottom => {
 
                     if let Some(i) = self.btm_state.selected() {
-                    
-                        let msg = OutputMsg::new(
-                            format!(
-                                "Updating: {}", 
-                                self.btm_item_data[i].clone()
-                            ),
-                            Color::Yellow,
-                            false,
-                            None
-                        );
 
-                        self.transmitter.send(msg).await;
+                        let (prog_tx, mut prog_rx) = 
+                            unbounded_channel::<DataDownloadStatus>();
+
+                        let ui_tx = self.transmitter.clone();
+
+                        tokio::spawn(async move {
+                            while let Some(status) = prog_rx.recv().await {
+                                let msg: OutputMsg = status.into();
+                                let _ = ui_tx.send(msg); 
+                            }
+                        });
+                  
+                        let time_offset = engine.state.time_offset();
+                        let client = &engine.request_client;
+                        let db_pool = self.db_pool.clone();
+                        
+                        let tokens: Vec<&str> = self.btm_item_data[i]
+                            .split(" - ")
+                            .collect();
+
+                        let exchange: &str = tokens[0];
+                        let ticker: &str = tokens[1];
+
+                        self.transmitter.send(
+                            OutputMsg::new(
+                                "Testing".to_string(), 
+                                Color::Red, 
+                                true, 
+                                Some(Color::Cyan)
+                            )
+                        );
+                        // update_database_tables(
+                        //     &engine.state.get_active_exchanges(),
+                        //     time_offset, 
+                        //     client, 
+                        //     db_pool, 
+                        //     prog_tx, 
+                        //     Some(&exchange), 
+                        //     Some(&ticker)
+                        // ).await;
                     }
                 }
             },
@@ -374,20 +468,6 @@ impl SettingsScreen {
 
 
 // ---------------------------- TERMINAL INTERFACE ------------------------- //
-struct OutputMsg {
-    text: String,
-    color: Color,
-    bold: bool,
-    bg_color: Option<Color>,
-}
-
-impl OutputMsg {
-    fn new(text: String, color: Color, bold: bool, bg_color: Option<Color>) 
-        -> Self {
-        OutputMsg { text, color, bold, bg_color }
-    }
-}
-
 pub struct TerminalInterface<'a> {
     operation_state: ListState,
     screen: Screen<'a>,
@@ -449,7 +529,7 @@ impl<'a> TerminalInterface<'a> {
             SettingsScreen::SCREEN_NAME
         ];
 
-        let (transmitter, mut receiver) = channel::<OutputMsg>(10);
+        let (transmitter, mut receiver) = unbounded_channel::<OutputMsg>();
 
         loop {
 
@@ -594,10 +674,15 @@ impl<'a> TerminalInterface<'a> {
                             if let Some(i) = self.operation_state.selected() {
                                 self.screen = match i {
                                     0 => Screen::DatabaseManager(
+                                        
                                         DatabaseScreen::new(
-                                            self.engine.database.get_pool(),
+                                            self.engine
+                                                .database
+                                                .get_pool(),
+                                            
                                             transmitter.clone()
                                         )
+                                    
                                     ),
                                     1 => Screen::CandleBuilder(
                                         CandleScreen::new()
@@ -626,7 +711,7 @@ impl<'a> TerminalInterface<'a> {
                                     focus = Focus::Operations;
                                 };
                             };
-                            screen.handle_key(key).await;
+                            screen.handle_key(key, &self.engine).await;
 
                         },
 

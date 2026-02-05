@@ -394,7 +394,7 @@ pub async fn update_database_tables(
     db_pool: PgPool,
     progress_tx: tokio::sync::mpsc::UnboundedSender<DataDownloadStatus>,
     exchange: Option<&str>,
-    ticker: Option<&str>
+    ticker_sym: Option<&str>
 ) -> Result<(), DbError> {
 
     let existing_tables = fetch_tables(db_pool.clone()).await?;
@@ -418,6 +418,8 @@ pub async fn update_database_tables(
                     Some(a) => a.to_uppercase(),
                     None => continue 
                 };
+        
+                if let Some(e) = ticker_sym && e != ticker { continue };
 
                 let task_db_pool = db_pool.clone();
                 let task_tx = progress_tx.clone();
