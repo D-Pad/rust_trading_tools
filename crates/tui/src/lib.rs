@@ -94,14 +94,16 @@ struct DatabaseScreen<'a> {
     focus: DbFocus,
     top_state: ListState,
     btm_state: ListState,
+    btm_item_data: Vec<String>,
     selected_action: Option<&'a DbAction>,
     token_pairs: HashMap<String, Vec<String>>,
     db_pool: PgPool,
+    transmitter: Sender<OutputMsg>
 }
 
 impl<'a> DatabaseScreen<'a> {
  
-    fn new(db_pool: PgPool) -> Self {
+    fn new(db_pool: PgPool, transmitter: Sender<OutputMsg>) -> Self {
     
         let mut top_state = ListState::default();
         top_state.select(Some(0));
@@ -110,9 +112,11 @@ impl<'a> DatabaseScreen<'a> {
             focus: DbFocus::Top,
             top_state,
             btm_state: ListState::default(),
+            btm_item_data: Vec::new(),
             selected_action: None,
             token_pairs: HashMap::new(),
             db_pool,
+            transmitter
         }
 
     }
@@ -157,18 +161,22 @@ impl<'a> DatabaseScreen<'a> {
             &mut self.top_state
         );
 
-        let btm_items: Vec<ListItem> = match self.selected_action {
+        self.btm_item_data = match self.selected_action {
             Some(DbAction::RemovePairs | DbAction::UpdateData) => {
                 let mut items = Vec::new();
                 for (key, vals) in &self.token_pairs {
                     for v in vals {
-                        items.push(ListItem::new(format!("{key} - {v}")))
+                        items.push(format!("{key} - {v}"))
                     }
                 };
                 items
             },
             Some(DbAction::AddPairs) | None => Vec::new(),
-        }; 
+        };
+
+        let btm_items: Vec<ListItem> = self.btm_item_data.iter()
+            .map(|v| ListItem::new(v.clone()))
+            .collect();
 
         let btm_list = List::new(btm_items)
             .block(
@@ -194,26 +202,8 @@ impl<'a> DatabaseScreen<'a> {
         );
 
     }
-
-    fn pairs_to_vec(&self) -> Vec<(String, String, ListItem)> {
-        
-        let mut vals: Vec<(String, String, ListItem)> = Vec::new();
-        
-        for (key, val) in &self.token_pairs {
-            for v in val {
-                vals.push(
-                    (   
-                        key.clone(),
-                        v.clone(),
-                        ListItem::new(format!("{} - {}", key, v))
-                    ),
-                );
-            };
-        };
-        vals 
-    }
-
-    fn handle_key(&mut self, key: KeyEvent) {
+    
+    async fn handle_key(&mut self, key: KeyEvent) {
 
         let top_len = Self::SCREEN_OPTIONS.len();
 
@@ -248,7 +238,21 @@ impl<'a> DatabaseScreen<'a> {
                 }
 
                 DbFocus::Bottom => {
-                     
+
+                    if let Some(i) = self.btm_state.selected() {
+                    
+                        let msg = OutputMsg::new(
+                            format!(
+                                "Updating: {}", 
+                                self.btm_item_data[i].clone()
+                            ),
+                            Color::Yellow,
+                            false,
+                            None
+                        );
+
+                        self.transmitter.send(msg).await;
+                    }
                 }
             },
 
@@ -370,13 +374,25 @@ impl SettingsScreen {
 
 
 // ---------------------------- TERMINAL INTERFACE ------------------------- //
+struct OutputMsg {
+    text: String,
+    color: Color,
+    bold: bool,
+    bg_color: Option<Color>,
+}
+
+impl OutputMsg {
+    fn new(text: String, color: Color, bold: bool, bg_color: Option<Color>) 
+        -> Self {
+        OutputMsg { text, color, bold, bg_color }
+    }
+}
+
 pub struct TerminalInterface<'a> {
     operation_state: ListState,
     screen: Screen<'a>,
     output_buffer: VecDeque<Line<'static>>,
     engine: Engine,
-    transmitter: Sender<String>,
-    receiver: Receiver<String>,
 }
 
 impl<'a> TerminalInterface<'a> {
@@ -389,36 +405,26 @@ impl<'a> TerminalInterface<'a> {
         let screen: Screen = Screen::Placeholder;
         let output_buffer: VecDeque<Line<'static>> = VecDeque::new();
 
-        let (transmitter, receiver) = channel(10); 
-
         TerminalInterface { 
             operation_state,
             screen,
             output_buffer,
             engine,
-            transmitter,
-            receiver
         }
     }
 
-    fn add_line(
-        &mut self, 
-        msg: &'static str, 
-        color: Color, 
-        bold: bool,
-        bg: Option<Color>
-    ) {
+    fn add_line(&mut self, msg: OutputMsg) {
         
-        let mut style = Style::default().fg(color);
-        if bold {
+        let mut style = Style::default().fg(msg.color);
+        if msg.bold {
             style = style.bold();
         };
 
-        if let Some(col) = bg {
+        if let Some(col) = msg.bg_color {
             style = style.bg(col)
         };
 
-        self.output_buffer.push_back(Line::styled(msg, style));
+        self.output_buffer.push_back(Line::styled(msg.text, style));
     }
 
     fn clear_lines(&mut self) {
@@ -443,9 +449,13 @@ impl<'a> TerminalInterface<'a> {
             SettingsScreen::SCREEN_NAME
         ];
 
-        // self.add_line("Testing", Color::Red, true, Some(Color::Cyan));
+        let (transmitter, mut receiver) = channel::<OutputMsg>(10);
 
         loop {
+
+            while let Ok(msg) = receiver.try_recv() {
+                self.add_line(msg);
+            }
 
             match &mut self.screen {
 
@@ -585,7 +595,8 @@ impl<'a> TerminalInterface<'a> {
                                 self.screen = match i {
                                     0 => Screen::DatabaseManager(
                                         DatabaseScreen::new(
-                                            self.engine.database.get_pool() 
+                                            self.engine.database.get_pool(),
+                                            transmitter.clone()
                                         )
                                     ),
                                     1 => Screen::CandleBuilder(
@@ -615,7 +626,7 @@ impl<'a> TerminalInterface<'a> {
                                     focus = Focus::Operations;
                                 };
                             };
-                            screen.handle_key(key);
+                            screen.handle_key(key).await;
 
                         },
 
