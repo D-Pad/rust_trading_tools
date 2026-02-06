@@ -57,7 +57,26 @@ pub async fn drop_pair(
 
     sqlx::query(&query)
         .execute(&db_pool)
-        .await.map_err(|_| DbError::QueryFailed(query.to_string()))?;
+        .await
+        .map_err(|e| DbError::QueryFailed(
+            format!("{}: {}", e, query.to_string())
+        ))?;
+
+    if exchange == "kraken" {
+        
+        let drop_query = format!(r#"
+            DELETE FROM _last_tick_history WHERE asset = '{}'"#,
+            ticker.to_uppercase()
+        );
+        
+        sqlx::query(&drop_query)
+            .execute(&db_pool)
+            .await.map_err(|e| 
+                DbError::QueryFailed(
+                    format!("{}: {}", e, drop_query.to_string())
+                ))?;
+
+    };
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, VecDeque}, io::{self}};
+use std::{collections::{HashMap, VecDeque}, io::{self}, time::Duration};
 
 use sqlx::PgPool;
 use ratatui::{
@@ -50,7 +50,10 @@ use app_core::{
     }, engine::Engine
 };
 
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::{
+    sync::mpsc::{unbounded_channel, UnboundedSender},
+    task::{JoinHandle}
+};
 
 
 fn move_up(state: &mut ListState, len: usize) {
@@ -76,9 +79,11 @@ fn move_down(state: &mut ListState, len: usize) {
 }
 
 
+#[derive(Clone)]
 enum Focus {
     Operations,
-    Main, 
+    Main,
+    Quit,
 }
 
 // ------------ SCREENS ------------- //
@@ -164,6 +169,8 @@ struct DatabaseScreen<'a> {
     token_pairs: HashMap<String, Vec<String>>,
     db_pool: PgPool,
     transmitter: UnboundedSender<OutputMsg>,
+    is_busy: bool,
+    task_handle: Option<JoinHandle<()>>,
 }
 
 impl<'a> DatabaseScreen<'a> {
@@ -172,7 +179,9 @@ impl<'a> DatabaseScreen<'a> {
     
         let mut top_state = ListState::default();
         top_state.select(Some(0));
- 
+        let is_busy: bool = false;
+        let task_handle: Option<JoinHandle<()>> = None;
+
         DatabaseScreen {
             focus: DbFocus::Top,
             top_state,
@@ -181,7 +190,9 @@ impl<'a> DatabaseScreen<'a> {
             selected_action: None,
             token_pairs: HashMap::new(),
             db_pool,
-            transmitter
+            transmitter,
+            is_busy,
+            task_handle,
         }
 
     }
@@ -236,7 +247,7 @@ impl<'a> DatabaseScreen<'a> {
                 };
                 items
             },
-            Some(DbAction::AddPairs) | None => Vec::new(),
+            Some(DbAction::AddPairs | DbAction::None) | None => Vec::new(),
         };
 
         let btm_items: Vec<ListItem> = self.btm_item_data.iter()
@@ -304,40 +315,73 @@ impl<'a> DatabaseScreen<'a> {
 
                 DbFocus::Bottom => {
 
+                    let ACTION = match self.selected_action {
+                        Some(a) => a,
+                        None => &Self::SCREEN_OPTIONS[3]
+                    };
+
+                    if let Some(handle) = &self.task_handle {
+                        if handle.is_finished() { 
+                            self.task_handle = None;
+                            self.is_busy = false;
+                        }
+                        else {
+                            self.transmitter.send(OutputMsg { 
+                                text: "ERROR: Database is busy".to_string(), 
+                                color: Color::Red, 
+                                bold: true, 
+                                bg_color: None 
+                            });
+                            return 
+                        };
+                    };
+                    
                     if let Some(i) = self.btm_state.selected() {
 
-                        let (prog_tx, mut prog_rx) = 
-                            unbounded_channel::<DataDownloadStatus>();
+                        // Update option
+                        if let DbAction::UpdateData = ACTION { 
+                           
+                            if self.is_busy { return };
 
-                        let ui_tx = self.transmitter.clone();
+                            let (prog_tx, mut prog_rx) = 
+                                unbounded_channel::<DataDownloadStatus>();
 
-                        tokio::spawn(async move {
-                            while let Some(status) = prog_rx.recv().await {
-                                let msg: OutputMsg = status.into();
-                                let _ = ui_tx.send(msg); 
-                            }
-                        });
+                            let ui_tx = self.transmitter.clone();
+
+                            tokio::spawn(async move {
+                                while let Some(stat) = prog_rx.recv().await {
+                                    let msg: OutputMsg = stat.into();
+                                    let _ = ui_tx.send(msg); 
+                                }
+                            });
                   
-                        let time_offset = engine.state.time_offset();
-                        let client = &engine.request_client;
-                        let db_pool = self.db_pool.clone();
-                        
-                        let tokens: Vec<&str> = self.btm_item_data[i]
-                            .split(" - ")
-                            .collect();
+                            let time_offset = engine.state.time_offset();
+                            let client = engine.request_client.clone();
+                            let db_pool = self.db_pool.clone();
+                            
+                            let tokens: Vec<&str> = self.btm_item_data[i]
+                                .split(" - ")
+                                .collect();
 
-                        let exchange: String = tokens[0].to_lowercase();
-                        let ticker: String = tokens[1].to_uppercase();
+                            let exchange: String = tokens[0].to_lowercase();
+                            let ticker: String = tokens[1].to_uppercase();
 
-                        update_database_tables(
-                            &engine.state.get_active_exchanges(),
-                            time_offset, 
-                            client, 
-                            db_pool, 
-                            prog_tx, 
-                            Some(&exchange), 
-                            Some(&ticker)
-                        ).await;
+                            self.is_busy = true;
+                            let active_exchanges = engine.state
+                                .get_active_exchanges();
+
+                            self.task_handle = Some(tokio::spawn(async move {
+                                update_database_tables(
+                                    &active_exchanges,
+                                    time_offset, 
+                                    &client, 
+                                    db_pool, 
+                                    prog_tx, 
+                                    Some(&exchange), 
+                                    Some(&ticker)
+                                ).await;
+                            }));
+                        }
                     }
                 }
             },
@@ -358,10 +402,11 @@ impl<'a> DatabaseScreen<'a> {
 
     const SCREEN_NAME: &'static str = "Database Management";
 
-    const SCREEN_OPTIONS: [DbAction; 3] = [
+    const SCREEN_OPTIONS: [DbAction; 4] = [
         DbAction::AddPairs, 
         DbAction::RemovePairs, 
-        DbAction::UpdateData
+        DbAction::UpdateData,
+        DbAction::None
     ];
 
 }
@@ -374,7 +419,8 @@ enum DbFocus {
 enum DbAction {
     AddPairs,
     RemovePairs,
-    UpdateData
+    UpdateData,
+    None
 }
 
 impl DbAction {
@@ -383,6 +429,7 @@ impl DbAction {
             DbAction::AddPairs => "Add new pairs",
             DbAction::RemovePairs => "Delete pairs",
             DbAction::UpdateData => "Update data",
+            _ => ""
         }
     }
 }
@@ -638,80 +685,22 @@ impl<'a> TerminalInterface<'a> {
             })?;
 
             // Handle events
-            if let Event::Key(key) = event::read()? {
-            
-                if let KeyCode::Char('q') = key.code {
-                    break;
-                }
-                else if let Focus::Operations = focus {
-                   
-                    match key.code {
+            if event::poll(Duration::from_millis(50))? {
+                
+                if let Event::Key(key) = event::read()? {
+                
+                    focus = self.handle_key(
+                        key, 
+                        &operations, 
+                        focus,
+                        transmitter.clone()
+                    ).await;
                     
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            move_up(
-                                &mut self.operation_state, 
-                                operations.len()
-                            );
-                        }, 
-                        
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            move_down(
-                                &mut self.operation_state, 
-                                operations.len()
-                            );
-                        },
-                        
-                        KeyCode::Enter => {
-                            if let Some(i) = self.operation_state.selected() {
-                                self.screen = match i {
-                                    0 => Screen::DatabaseManager(
-                                        
-                                        DatabaseScreen::new(
-                                            self.engine
-                                                .database
-                                                .get_pool(),
-                                            
-                                            transmitter.clone()
-                                        )
-                                    
-                                    ),
-                                    1 => Screen::CandleBuilder(
-                                        CandleScreen::new()
-                                    ),
-                                    2 => Screen::SystemSettings(
-                                        SettingsScreen::new()
-                                    ),
-                                    _ => Screen::Placeholder 
-                                };
-                                focus = Focus::Main;
-                            }
-                        },
+                    if let Focus::Quit = focus {
+                        break;
+                    };
 
-                        _ => {}
-                    }
                 }
-                else {
-
-                    match &mut self.screen {
-
-
-                        Screen::DatabaseManager(screen) => {
-
-                            if let KeyCode::Esc = key.code {
-                                if let DbFocus::Top = screen.focus {
-                                    focus = Focus::Operations;
-                                };
-                            };
-                            screen.handle_key(key, &self.engine).await;
-
-                        },
-
-                        _ => {} 
-
-                    } 
-
-                };
-
             }
         }
 
@@ -722,13 +711,94 @@ impl<'a> TerminalInterface<'a> {
 
         Ok(())
 
-        // loop {
-        //     transmitter.send(AppEvent::Tick).await; 
-        //     sleep(Duration::new(1, 0)).await; 
-        // }
-
     }
 
+    async fn handle_key(
+        &mut self,
+        key: KeyEvent, 
+        operations: &[&'static str; 3],
+        focus: Focus,
+        transmitter: UnboundedSender<OutputMsg>,
+    ) -> Focus {
+       
+        let mut new_focus = focus.clone();
+
+        if let KeyCode::Char('q') = key.code {
+            return Focus::Quit;
+        }
+        
+        else if let Focus::Operations = focus {
+           
+            match key.code {
+            
+                KeyCode::Up | KeyCode::Char('k') => {
+                    move_up(
+                        &mut self.operation_state, 
+                        operations.len()
+                    );
+                }, 
+                
+                KeyCode::Down | KeyCode::Char('j') => {
+                    move_down(
+                        &mut self.operation_state, 
+                        operations.len()
+                    );
+                },
+                
+                KeyCode::Enter => {
+                    if let Some(i) = self.operation_state.selected() {
+                        self.screen = match i {
+                            0 => Screen::DatabaseManager(
+                                
+                                DatabaseScreen::new(
+                                    self.engine
+                                        .database
+                                        .get_pool(),
+                                    
+                                    transmitter
+                                )
+                            
+                            ),
+                            1 => Screen::CandleBuilder(
+                                CandleScreen::new()
+                            ),
+                            2 => Screen::SystemSettings(
+                                SettingsScreen::new()
+                            ),
+                            _ => Screen::Placeholder 
+                        };
+                        new_focus = Focus::Main;
+                    }
+                },
+
+                _ => {}
+            }
+        }
+        else {
+
+            match &mut self.screen {
+
+
+                Screen::DatabaseManager(screen) => {
+
+                    if let KeyCode::Esc = key.code {
+                        if let DbFocus::Top = screen.focus {
+                            new_focus = Focus::Operations;
+                        };
+                    };
+                    screen.handle_key(key, &self.engine).await;
+
+                },
+
+                _ => {} 
+
+            } 
+
+        };
+
+        new_focus 
+    
+    }
 }
 
 
