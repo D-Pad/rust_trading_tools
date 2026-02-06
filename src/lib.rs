@@ -49,16 +49,12 @@ pub async fn app_start() -> i32 {
 
     // Start the server if tried
     if let Server::CLI = engine.op_mode {
-       
         let mut tui = TerminalInterface::new(engine).await;
         tui.run().await;
-
     }
 
     else if let Server::HTTP = engine.op_mode {
-        
         todo!();
-    
     };
 
     exit_code

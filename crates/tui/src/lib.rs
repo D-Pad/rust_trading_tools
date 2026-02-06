@@ -1,14 +1,18 @@
-use std::{collections::{HashMap, VecDeque}, io::{self}, time::Duration};
+use std::{
+    collections::{HashMap, BTreeMap, VecDeque}, 
+    io::{self}, 
+    time::Duration
+};
 
 use sqlx::PgPool;
 use ratatui::{
     Frame, 
     Terminal, 
-    backend::CrosstermBackend, 
+    backend::{CrosstermBackend}, 
     crossterm::{
         event::{
-            self, 
-            Event, 
+            self,
+            Event,
             KeyCode, 
             KeyEvent
         }, 
@@ -51,8 +55,8 @@ use app_core::{
 };
 
 use tokio::{
-    sync::mpsc::{unbounded_channel, UnboundedSender},
-    task::{JoinHandle}
+    sync::mpsc::{UnboundedSender, unbounded_channel},
+    task::JoinHandle, time::interval
 };
 
 
@@ -84,6 +88,12 @@ enum Focus {
     Operations,
     Main,
     Quit,
+}
+
+pub enum AppEvent {
+    Input(KeyEvent),
+    Output(OutputMsg),
+    Tick,
 }
 
 // ------------ SCREENS ------------- //
@@ -130,7 +140,7 @@ impl From<DataDownloadStatus> for OutputMsg {
                 percent,
             } => {
                 OutputMsg::new(
-                    format!("Downloading {exchange} / {ticker}: {percent}%"),
+                    format!("{exchange} / {ticker}: {percent}%"),
                     Color::Yellow,
                     false,
                     None,
@@ -139,7 +149,7 @@ impl From<DataDownloadStatus> for OutputMsg {
 
             DataDownloadStatus::Finished { exchange, ticker } => {
                 OutputMsg::new(
-                    format!("Finished download: {exchange} / {ticker}"),
+                    format!("{exchange} / {ticker}: Finished"),
                     Color::Green,
                     false,
                     None,
@@ -160,6 +170,16 @@ impl From<DataDownloadStatus> for OutputMsg {
 
 
 // ------------ DATABASE SCREEN -------------- //
+struct DatabaseUpdateMsgs {
+    updates: BTreeMap<String, OutputMsg>,
+}
+
+impl DatabaseUpdateMsgs {
+    fn new() -> Self {
+        DatabaseUpdateMsgs { updates: BTreeMap::new() } 
+    }
+}
+
 struct DatabaseScreen<'a> {
     focus: DbFocus,
     top_state: ListState,
@@ -168,14 +188,15 @@ struct DatabaseScreen<'a> {
     selected_action: Option<&'a DbAction>,
     token_pairs: HashMap<String, Vec<String>>,
     db_pool: PgPool,
-    transmitter: UnboundedSender<OutputMsg>,
+    transmitter: UnboundedSender<AppEvent>,
     is_busy: bool,
     task_handle: Option<JoinHandle<()>>,
+    db_update_msgs: DatabaseUpdateMsgs::new(), 
 }
 
 impl<'a> DatabaseScreen<'a> {
  
-    fn new(db_pool: PgPool, transmitter: UnboundedSender<OutputMsg>) -> Self {
+    fn new(db_pool: PgPool, transmitter: UnboundedSender<AppEvent>) -> Self {
     
         let mut top_state = ListState::default();
         top_state.select(Some(0));
@@ -193,6 +214,7 @@ impl<'a> DatabaseScreen<'a> {
             transmitter,
             is_busy,
             task_handle,
+            db_update_msgs: DatabaseUpdateMsgs::new(),
         }
 
     }
@@ -286,24 +308,29 @@ impl<'a> DatabaseScreen<'a> {
         match key.code {
             
             KeyCode::Up | KeyCode::Char('k') => match self.focus {
+                
                 DbFocus::Top => {
                     move_up(&mut self.top_state, top_len);
                 }
+                
                 DbFocus::Bottom => {
                     move_up(&mut self.btm_state, top_len);
                 }
             },
 
             KeyCode::Down | KeyCode::Char('j') => match self.focus {
+                
                 DbFocus::Top => {
                     move_down(&mut self.top_state, top_len);
                 }
+                
                 DbFocus::Bottom => {
                     move_down(&mut self.btm_state, top_len);
                 }
             },
 
             KeyCode::Enter => match self.focus {
+                
                 DbFocus::Top => {
                     if let Some(i) = self.top_state.selected() {
                         self.selected_action = Some(&Self::SCREEN_OPTIONS[i]);
@@ -326,12 +353,12 @@ impl<'a> DatabaseScreen<'a> {
                             self.is_busy = false;
                         }
                         else {
-                            self.transmitter.send(OutputMsg { 
+                            self.transmitter.send(AppEvent::Output(OutputMsg { 
                                 text: "ERROR: Database is busy".to_string(), 
                                 color: Color::Red, 
                                 bold: true, 
                                 bg_color: None 
-                            });
+                            }));
                             return 
                         };
                     };
@@ -351,7 +378,7 @@ impl<'a> DatabaseScreen<'a> {
                             tokio::spawn(async move {
                                 while let Some(stat) = prog_rx.recv().await {
                                     let msg: OutputMsg = stat.into();
-                                    let _ = ui_tx.send(msg); 
+                                    let _ = ui_tx.send(AppEvent::Output(msg)); 
                                 }
                             });
                   
@@ -387,10 +414,12 @@ impl<'a> DatabaseScreen<'a> {
             },
 
             KeyCode::Esc => match self.focus {
+                
                 DbFocus::Bottom => {
                     self.focus = DbFocus::Top;
                     self.selected_action = None;
                 }
+                
                 DbFocus::Top => {
                     self.top_state.select(None);
                 }
@@ -550,6 +579,100 @@ impl<'a> TerminalInterface<'a> {
         self.output_buffer.clear();
     }
 
+    fn draw(
+        &mut self, 
+        frame: &mut Frame,
+        operations: &[&'static str; 3],
+        focus: &Focus
+    ) {
+ 
+        let size = frame.area();
+
+        let vertical_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(5),   
+                Constraint::Length(10),
+            ])
+            .split(size);
+
+        // --------------------- OUTPUT WINDOW --------------------- //
+        let text = Text::from(
+            self.output_buffer
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+        );
+        
+        let output = Paragraph::new(text)
+            .block(
+                Block::default()
+                .title("Output")
+                .borders(Borders::ALL))
+            .wrap(Wrap { trim: false });
+
+        frame.render_widget(output, vertical_chunks[1]);
+
+        // --------------------- MAIN PANE ------------------------- //
+        let main_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(21),
+                Constraint::Percentage(100),
+            ].as_ref())
+            .split(vertical_chunks[0]);
+
+        let main_area = main_chunks[1];                
+
+        let main_block = Block::default()
+            .borders(Borders::ALL);
+
+        frame.render_widget(main_block, main_area);
+
+        // ---------------------- Operation Panes ------------------ // 
+        let operations_block = Block::default()
+            .title("Operations")
+            .borders(Borders::ALL);
+
+        let ops: Vec<ListItem> = operations 
+            .iter()
+            .map(|table| ListItem::new(*table))
+            .collect();
+        
+        let op_list = List::new(ops)
+            .block(operations_block)
+            .highlight_style(
+                if let Focus::Operations = focus {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                }
+            );
+
+        frame.render_stateful_widget(
+            op_list, 
+            main_chunks[0],
+            &mut self.operation_state
+        );
+
+        match &mut self.screen {
+
+            Screen::DatabaseManager(screen) => {
+                screen.draw(frame, main_area);
+            },
+
+            Screen::CandleBuilder(screen) => {
+                // screen.draw();
+            },
+
+            Screen::SystemSettings(screen) => {
+                // screen.draw();
+            },
+
+            Screen::Placeholder => {}
+        }
+    }
+
     pub async fn run(&mut self) 
         -> io::Result<()> {
 
@@ -568,12 +691,64 @@ impl<'a> TerminalInterface<'a> {
             SettingsScreen::SCREEN_NAME
         ];
 
-        let (transmitter, mut receiver) = unbounded_channel::<OutputMsg>();
+        let (transmitter, mut receiver) = unbounded_channel::<AppEvent>();
+        let listener_tx = transmitter.clone();
+        let input_tx = transmitter.clone();
 
+        let tick_listener = tokio::spawn(async move {
+            let mut ticker = interval(Duration::from_millis(100)); // 10 FPS
+            loop {
+                ticker.tick().await;
+                let _ = listener_tx.send(AppEvent::Tick); 
+            }
+        });
+
+        let key_reader = tokio::spawn(async move {
+            loop {
+                if let Ok(_) = event::poll(Duration::from_millis(50)) {
+                    if let Ok(e) = event::read() {
+                        if let Event::Key(key) = e {
+                            let _ = input_tx.send(AppEvent::Input(key));
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }
+                else {
+                    break;
+                }
+            }
+        });
+ 
         loop {
 
             while let Ok(msg) = receiver.try_recv() {
-                self.add_line(msg);
+                match msg {
+                    AppEvent::Input(key) => {
+                        focus = self.handle_key(
+                            key, 
+                            &operations, 
+                            focus, 
+                            transmitter.clone()
+                        ).await
+                    },
+                    AppEvent::Tick => {}, // Nothing to do
+                    AppEvent::Output(msg) => {
+
+                        match &self.screen {
+                            
+                            Screen::DatabaseManager(screen) => {
+                            
+                                // Handle database update messages here
+
+                            },
+
+                            _ => {}
+                        
+                        }
+                    }
+                }
             }
 
             match &mut self.screen {
@@ -594,120 +769,19 @@ impl<'a> TerminalInterface<'a> {
             };
 
             terminal.draw(|frame| {
-                
-                let size = frame.area();
-
-
-                let vertical_chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Min(5),   
-                        Constraint::Length(7),
-                    ])
-                    .split(size);
-
-                // --------------------- OUTPUT WINDOW --------------------- //
-                let text = Text::from(
-                    self.output_buffer
-                        .iter()
-                        .cloned()
-                        .collect::<Vec<_>>()
-                );
-                
-                let output = Paragraph::new(text)
-                    .block(
-                        Block::default()
-                        .title("Output")
-                        .borders(Borders::ALL))
-                    .wrap(Wrap { trim: false });
-
-                frame.render_widget(output, vertical_chunks[1]);
-
-                // --------------------- MAIN PANE ------------------------- //
-                let main_chunks = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([
-                        Constraint::Length(21),
-                        Constraint::Percentage(100),
-                    ].as_ref())
-                    .split(vertical_chunks[0]);
-
-                let main_area = main_chunks[1];                
-
-                let main_block = Block::default()
-                    .borders(Borders::ALL);
-
-                frame.render_widget(main_block, main_area);
-
-                // ---------------------- Operation Panes ------------------ // 
-                let operations_block = Block::default()
-                    .title("Operations")
-                    .borders(Borders::ALL);
-
-                let ops: Vec<ListItem> = operations 
-                    .iter()
-                    .map(|table| ListItem::new(*table))
-                    .collect();
-                
-                let op_list = List::new(ops)
-                    .block(operations_block)
-                    .highlight_style(
-                        if let Focus::Operations = focus {
-                            Style::default().add_modifier(Modifier::REVERSED)
-                        } else {
-                            Style::default()
-                        }
-                    );
-
-                frame.render_stateful_widget(
-                    op_list, 
-                    main_chunks[0],
-                    &mut self.operation_state
-                );
-
-                match &mut self.screen {
-
-                    Screen::DatabaseManager(screen) => {
-                        screen.draw(frame, main_area);
-                    },
-
-                    Screen::CandleBuilder(screen) => {
-                        // screen.draw();
-                    },
-
-                    Screen::SystemSettings(screen) => {
-                        // screen.draw();
-                    },
-
-                    Screen::Placeholder => {}
-                }
-
+                self.draw(frame, &operations, &focus);
             })?;
 
-            // Handle events
-            if event::poll(Duration::from_millis(50))? {
-                
-                if let Event::Key(key) = event::read()? {
-                
-                    focus = self.handle_key(
-                        key, 
-                        &operations, 
-                        focus,
-                        transmitter.clone()
-                    ).await;
-                    
-                    if let Focus::Quit = focus {
-                        break;
-                    };
+            if let Focus::Quit = focus { break };
 
-                }
-            }
         }
 
         // Cleanup
         disable_raw_mode()?;
         execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
         terminal.show_cursor()?;
+        tick_listener.abort();
+        key_reader.abort();
 
         Ok(())
 
@@ -718,7 +792,7 @@ impl<'a> TerminalInterface<'a> {
         key: KeyEvent, 
         operations: &[&'static str; 3],
         focus: Focus,
-        transmitter: UnboundedSender<OutputMsg>,
+        transmitter: UnboundedSender<AppEvent>,
     ) -> Focus {
        
         let mut new_focus = focus.clone();
