@@ -25,6 +25,8 @@ pub async fn app_start() -> i32 {
         }
     };
 
+    println!("ARGS: {:?}", engine.args.commands);
+
     let response = match engine.execute_commands().await {
         Ok(d) => d,
         Err(e) => {

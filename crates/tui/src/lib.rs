@@ -326,26 +326,18 @@ impl<'a> DatabaseScreen<'a> {
                             .split(" - ")
                             .collect();
 
-                        let exchange: &str = tokens[0];
-                        let ticker: &str = tokens[1];
+                        let exchange: String = tokens[0].to_lowercase();
+                        let ticker: String = tokens[1].to_uppercase();
 
-                        self.transmitter.send(
-                            OutputMsg::new(
-                                "Testing".to_string(), 
-                                Color::Red, 
-                                true, 
-                                Some(Color::Cyan)
-                            )
-                        );
-                        // update_database_tables(
-                        //     &engine.state.get_active_exchanges(),
-                        //     time_offset, 
-                        //     client, 
-                        //     db_pool, 
-                        //     prog_tx, 
-                        //     Some(&exchange), 
-                        //     Some(&ticker)
-                        // ).await;
+                        update_database_tables(
+                            &engine.state.get_active_exchanges(),
+                            time_offset, 
+                            client, 
+                            db_pool, 
+                            prog_tx, 
+                            Some(&exchange), 
+                            Some(&ticker)
+                        ).await;
                     }
                 }
             },
@@ -593,6 +585,13 @@ impl<'a> TerminalInterface<'a> {
                     ].as_ref())
                     .split(vertical_chunks[0]);
 
+                let main_area = main_chunks[1];                
+
+                let main_block = Block::default()
+                    .borders(Borders::ALL);
+
+                frame.render_widget(main_block, main_area);
+
                 // ---------------------- Operation Panes ------------------ // 
                 let operations_block = Block::default()
                     .title("Operations")
@@ -618,14 +617,6 @@ impl<'a> TerminalInterface<'a> {
                     main_chunks[0],
                     &mut self.operation_state
                 );
-
-                // ----------------------- Main Pane ----------------------- //
-                let main_area = main_chunks[1];                
-
-                let main_block = Block::default()
-                    .borders(Borders::ALL);
- 
-                frame.render_widget(main_block, main_area);
 
                 match &mut self.screen {
 

@@ -400,9 +400,9 @@ pub async fn update_database_tables(
     let existing_tables = fetch_tables(db_pool.clone()).await?;
 
     let mut tasks: JoinSet<Result<(), DbError>> = JoinSet::new();
-    
+
     for exchange_name in active_exchanges {
-  
+ 
         if let Some(e) = exchange && e != exchange_name { continue };
 
         let exchange_tables: Vec<&String> = existing_tables
@@ -413,14 +413,14 @@ pub async fn update_database_tables(
         if exchange_name == "kraken" {
 
             for table in &exchange_tables {
-                
+
                 let ticker: String = match table.split('_').last() {
                     Some(a) => a.to_uppercase(),
                     None => continue 
                 };
         
                 if let Some(e) = ticker_sym && e != ticker { continue };
-
+               
                 let task_db_pool = db_pool.clone();
                 let task_tx = progress_tx.clone();
                 let task_client = client.clone();

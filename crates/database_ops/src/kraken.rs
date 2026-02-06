@@ -138,8 +138,8 @@ pub struct AssetPairInfo {
 
     pub fee_volume_currency: String,
 
-    pub margin_call: u32,
-    pub margin_stop: u32,
+    pub margin_call: Option<u32>,
+    pub margin_stop: Option<u32>,
 
     pub ordermin: String,
     pub costmin: String,
@@ -147,8 +147,8 @@ pub struct AssetPairInfo {
 
     pub status: String,
 
-    pub long_position_limit: u32,
-    pub short_position_limit: u32,
+    pub long_position_limit: Option<u32>,
+    pub short_position_limit: Option<u32>,
 }
 
 
@@ -272,7 +272,10 @@ pub async fn download_new_data_to_db_table(
     client: &reqwest::Client,
     progress_tx: UnboundedSender<DataDownloadStatus>,
 ) -> Result<(), DbError> {
- 
+
+    const EXCHANGE: &'static str = "Kraken";
+    let ex_name: String = EXCHANGE.to_string();
+
     let current_time: u64 = get_current_unix_timestamp();
 
     let mut conn = match db_pool
@@ -363,18 +366,6 @@ pub async fn download_new_data_to_db_table(
 
     fn get_percent_complete(curr: u64, target: u64) -> u8 {
         100 - ((curr * 100) / target) as u8
-    }
-
-    fn send_progress_update(
-        progress_tx: UnboundedSender<DataDownloadStatus>,
-        sym: &str, 
-        percent: &u8
-    ) {
-        let _ = progress_tx.send(DataDownloadStatus::Progress { 
-            exchange: "Kraken".to_string(), 
-            ticker: sym.to_string(), 
-            percent: *percent 
-        });
     }
 
     fn send_failure_message(
@@ -471,17 +462,28 @@ pub async fn download_new_data_to_db_table(
             num_seconds_left, total_expected_seconds
         );
 
-        send_progress_update(progress_tx.clone(), ticker, &percent_complete);
+        let _ = progress_tx.send(DataDownloadStatus::Progress { 
+            exchange: ex_name.clone(), 
+            ticker: ticker.to_string(), 
+            percent: percent_complete 
+        });
 
         if num_ticks < 1000 {
-            send_progress_update(progress_tx.clone(), ticker, &100);
+
+            let _ = progress_tx.send(DataDownloadStatus::Progress { 
+                exchange: ex_name.clone(), 
+                ticker: ticker.to_string(), 
+                percent: 100 
+            });
+
             let _ = progress_tx.send(DataDownloadStatus::Finished { 
-                exchange: "Kraken".to_string(), 
+                exchange: ex_name.clone(), 
                 ticker: ticker.to_string(), 
             });
+            
             break
         };
-    
+  
         // Wait 1 sec to prevent rate limits
         sleep(Duration::from_secs(1)).await;
 
