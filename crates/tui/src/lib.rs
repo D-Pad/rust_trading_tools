@@ -106,17 +106,27 @@ enum Screen<'a> {
 
 
 // -------------- MESSAGING ------------------ //
+#[derive(Clone)]
 struct OutputMsg {
     text: String,
     color: Color,
     bold: bool,
     bg_color: Option<Color>,
+    exchange: Option<String>,
+    ticker: Option<String>,
 }
 
 impl OutputMsg {
-    fn new(text: String, color: Color, bold: bool, bg_color: Option<Color>) 
+    fn new(
+        text: String, 
+        color: Color, 
+        bold: bool, 
+        bg_color: Option<Color>,
+        exchange: Option<String>,
+        ticker: Option<String>
+    ) 
         -> Self {
-        OutputMsg { text, color, bold, bg_color }
+        OutputMsg { text, color, bold, bg_color, exchange, ticker }
     }
 }
 
@@ -127,10 +137,12 @@ impl From<DataDownloadStatus> for OutputMsg {
         match status {
             DataDownloadStatus::Started { exchange, ticker } => {
                 OutputMsg::new(
-                    format!("Starting download: {exchange} / {ticker}"),
-                    Color::Green,
+                    format!("  {ticker}: 0%"),
+                    Color::Yellow,
                     true,
                     None,
+                    Some(exchange),
+                    Some(ticker),
                 )
             }
 
@@ -140,28 +152,34 @@ impl From<DataDownloadStatus> for OutputMsg {
                 percent,
             } => {
                 OutputMsg::new(
-                    format!("{exchange} / {ticker}: {percent}%"),
+                    format!("  {ticker}: {percent}%"),
                     Color::Yellow,
                     false,
                     None,
+                    Some(exchange),
+                    Some(ticker),
                 )
             }
 
             DataDownloadStatus::Finished { exchange, ticker } => {
                 OutputMsg::new(
-                    format!("{exchange} / {ticker}: Finished"),
+                    format!("  {ticker}: Finished"),
                     Color::Green,
                     false,
                     None,
+                    Some(exchange),
+                    Some(ticker),
                 )
             }
 
             DataDownloadStatus::Error { exchange, ticker } => {
                 OutputMsg::new(
-                    format!("ERROR downloading {exchange} / {ticker}"),
+                    format!("  {ticker}: ERROR"),
                     Color::Red,
                     true,
                     None,
+                    Some(exchange),
+                    Some(ticker),
                 )
             }
         }
@@ -171,12 +189,12 @@ impl From<DataDownloadStatus> for OutputMsg {
 
 // ------------ DATABASE SCREEN -------------- //
 struct DatabaseUpdateMsgs {
-    updates: BTreeMap<String, OutputMsg>,
+    msgs: BTreeMap<String, BTreeMap<String, OutputMsg>>,
 }
 
 impl DatabaseUpdateMsgs {
     fn new() -> Self {
-        DatabaseUpdateMsgs { updates: BTreeMap::new() } 
+        DatabaseUpdateMsgs { msgs: BTreeMap::new() } 
     }
 }
 
@@ -191,7 +209,7 @@ struct DatabaseScreen<'a> {
     transmitter: UnboundedSender<AppEvent>,
     is_busy: bool,
     task_handle: Option<JoinHandle<()>>,
-    db_update_msgs: DatabaseUpdateMsgs::new(), 
+    db_update_msgs: DatabaseUpdateMsgs, 
 }
 
 impl<'a> DatabaseScreen<'a> {
@@ -357,7 +375,9 @@ impl<'a> DatabaseScreen<'a> {
                                 text: "ERROR: Database is busy".to_string(), 
                                 color: Color::Red, 
                                 bold: true, 
-                                bg_color: None 
+                                bg_color: None,
+                                exchange: None,
+                                ticker: None
                             }));
                             return 
                         };
@@ -561,7 +581,7 @@ impl<'a> TerminalInterface<'a> {
         }
     }
 
-    fn add_line(&mut self, msg: OutputMsg) {
+    fn add_line(&mut self, msg: &OutputMsg) {
         
         let mut style = Style::default().fg(msg.color);
         if msg.bold {
@@ -572,7 +592,7 @@ impl<'a> TerminalInterface<'a> {
             style = style.bg(col)
         };
 
-        self.output_buffer.push_back(Line::styled(msg.text, style));
+        self.output_buffer.push_back(Line::styled(msg.text.clone(), style));
     }
 
     fn clear_lines(&mut self) {
@@ -733,20 +753,60 @@ impl<'a> TerminalInterface<'a> {
                             transmitter.clone()
                         ).await
                     },
+                    
                     AppEvent::Tick => {}, // Nothing to do
+                    
                     AppEvent::Output(msg) => {
 
-                        match &self.screen {
+                        let mut msgs_to_render: Vec<OutputMsg> = Vec::new();
+
+                        match &mut self.screen {
                             
                             Screen::DatabaseManager(screen) => {
                             
                                 // Handle database update messages here
+                                let exchange = match msg.exchange {
+                                    Some(ref e) => e,
+                                    None => continue
+                                };
+                                
+                                let ticker = match msg.ticker {
+                                    Some(ref t) => t,
+                                    None => continue
+                                };
+                                
+                                &screen.db_update_msgs.msgs
+                                    .entry(exchange.to_string())
+                                    .or_insert_with(|| BTreeMap::new())
+                                    .insert(ticker.to_string(), msg);
+
+                                for (ex, pairs) in &screen.db_update_msgs.msgs {
+                                    msgs_to_render.push(
+                                        OutputMsg::new(
+                                            ex.to_string(),
+                                            Color::Cyan,
+                                            true,
+                                            None,
+                                            None,
+                                            None
+                                        )
+                                    );
+                                    for (_, message) in pairs {
+                                        msgs_to_render.push(message.clone());
+                                    };
+                                }; 
 
                             },
 
                             _ => {}
                         
                         }
+                                
+                        self.clear_lines();
+                        for msg in msgs_to_render {
+                            self.add_line(&msg);
+                        }; 
+
                     }
                 }
             }
