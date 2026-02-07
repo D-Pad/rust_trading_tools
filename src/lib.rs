@@ -1,4 +1,3 @@
-use app_core::database_ops::fetch_exchanges_and_pairs_from_db;
 pub use app_core::*;
 pub use app_core::{
     errors::error_handler, 
@@ -10,8 +9,12 @@ pub use app_core::{
 };
 use tui::TerminalInterface;
 
-
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
+fn dev_testing() {
+    println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
+}
+
+
 pub async fn app_start() -> i32 {
 
     let mut exit_code: i32 = 0;
@@ -25,36 +28,41 @@ pub async fn app_start() -> i32 {
         }
     };
 
-    let response = match engine.execute_commands().await {
-        Ok(d) => d,
-        Err(e) => {
-            exit_code = match e {
-                RunTimeError::Init(_) => 2,
-                RunTimeError::Arguments(_) => 3,
-                RunTimeError::DataBase(_) => 4,
-                RunTimeError::Bar(_) => 5,
-            };
-            error_handler(e);
-            return exit_code;
-        }
-    };
-
-    if let Response::Data(data) = response {
-        match data {
-            DataResponse::Bars(_) => {
-                    
-            }
-        }
-    };
-
-    // Start the server if tried
-    if let Server::CLI = engine.op_mode {
-        let mut tui = TerminalInterface::new(engine).await;
-        tui.run().await;
+    if engine.args.dev_mode {
+        dev_testing(); 
     }
+    else {
+        let response = match engine.execute_commands().await {
+            Ok(d) => d,
+            Err(e) => {
+                exit_code = match e {
+                    RunTimeError::Init(_) => 2,
+                    RunTimeError::Arguments(_) => 3,
+                    RunTimeError::DataBase(_) => 4,
+                    RunTimeError::Bar(_) => 5,
+                };
+                error_handler(e);
+                return exit_code;
+            }
+        };
 
-    else if let Server::HTTP = engine.op_mode {
-        todo!();
+        if let Response::Data(data) = response {
+            match data {
+                DataResponse::Bars(_) => {
+                        
+                }
+            }
+        };
+
+        // Start the server if 'start' was passed as the first argument 
+        if let Server::CLI = engine.op_mode {
+            let mut tui = TerminalInterface::new(engine).await;
+            tui.run().await;
+        }
+
+        else if let Server::HTTP = engine.op_mode {
+            todo!();
+        };
     };
 
     exit_code

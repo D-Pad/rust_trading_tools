@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap, 
+    collections::{HashMap, BTreeMap},
     time::{SystemTime, UNIX_EPOCH},
     cmp::{min, max}
 };
@@ -528,6 +528,27 @@ pub async fn request_tick_data_from_kraken(
 
     Ok(kraken_resp)
 
+}
+
+
+pub async fn request_all_asset_info_from_kraken(
+    client: &reqwest::Client,
+) -> Result<BTreeMap<String, AssetPairInfo>, reqwest::Error> {
+    let url = "https://api.kraken.com/0/public/AssetPairs";
+
+    let response = client
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<AssetPairsResponse>()
+        .await?;
+
+    // Convert HashMap → BTreeMap for deterministic ordering
+    let pairs: BTreeMap<String, AssetPairInfo> =
+        response.result.into_iter().collect();
+
+    Ok(pairs)
 }
 
 

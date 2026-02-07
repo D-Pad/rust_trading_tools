@@ -90,7 +90,7 @@ enum Focus {
     Quit,
 }
 
-pub enum AppEvent {
+enum AppEvent {
     Input(KeyEvent),
     Output(OutputMsg),
     Tick,

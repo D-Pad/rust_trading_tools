@@ -88,7 +88,8 @@ pub enum Response {
 pub struct ParsedArgs {
     pub executable_name: String,
     pub commands: Vec<Command>,
-    pub parser_error: Option<ParserError>
+    pub parser_error: Option<ParserError>,
+    pub dev_mode: bool,
 }
 
 impl ParsedArgs {
@@ -98,7 +99,8 @@ impl ParsedArgs {
         ParsedArgs {
             executable_name: String::new(),
             commands: Vec::new(),
-            parser_error: None
+            parser_error: None,
+            dev_mode: false,
         }     
     
     }
@@ -162,6 +164,10 @@ impl std::fmt::Display for ParserError {
     }
 }
 
+const ARG_ERROR: &'static str = { 
+    "\x1b[1;31mInvalid command: try --help for all options\x1b[0m"
+};
+
 pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
 
     // Initialization
@@ -208,6 +214,10 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
     let mut db_int_check_ticker: String = "all".to_string(); 
     let mut db_int_check: bool = false;
     let mut server_start_http_mode: bool = false;
+
+    if arguments.len() == 0 {
+        println!("{ARG_ERROR}");
+    };
 
     for (i, arg) in arguments.iter().enumerate() {
      
@@ -317,14 +327,25 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
                     };
 
                 },
-                
+
                 _ => {}
             }
 
         }
 
+        else if is_flag(&arg) {
+            
+            if arg.len() < 2 { continue };
+            
+            match &arg[2..] {
+                "help" => parsed_args.commands.push(Command::Help),
+                "dev" => parsed_args.dev_mode = true,
+                _ => { println!("{ARG_ERROR}") }
+            }        
+        }
+
         else {
-            parsed_args.commands.push(Command::Help);
+            println!("{ARG_ERROR}");
         };
 
     }; 

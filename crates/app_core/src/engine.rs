@@ -33,10 +33,11 @@ SYNOPSIS
     dtrade --version
 
 DESCRIPTION
-    dtrade is a command-line tool for managing cryptocurrency pair data in a database
-    and building OHLCV candles from exchange data.
+    dtrade is a command-line tool for managing cryptocurrency pair data in a 
+    database and building OHLCV candles from exchange data.
 
-    It supports multiple sub-commands for database maintenance and candle generation.
+    It supports multiple sub-commands for database maintenance and candle 
+    generation.
 
 COMMANDS
     candles EXCHANGE TICKER PERIOD [--integrity | -i]
@@ -62,7 +63,8 @@ COMMANDS
             dtrade database --add-pairs kraken SOLUSD ETHUSD XRPUSD
 
     database --rm-pairs EXCHANGE TICKER [TICKER...]
-        Remove one or more trading pairs from the database for the given exchange.
+        Remove one or more trading pairs from the database for the given 
+        exchange.
 
         Example:
             dtrade database --rm-pairs kraken SOLUSD
@@ -94,6 +96,10 @@ OPTIONS (global)
 
     --version
         Show version information and exit.
+
+    --dev 
+        Runs the dev_testing() function in src/lib.rs. Intended only for 
+        developing new features
 
 EXAMPLES
     Fetch and add new pairs from Kraken:
@@ -128,7 +134,8 @@ SEE ALSO
     Rust crates: sqlx, reqwest, clap (for future refactors), tokio
     Related projects: ccxt (exchange library inspiration)
 
-Report bugs or suggestions at: <https://github.com/D-Pad/rust_trading_tools/issues>
+Report bugs or suggestions at: 
+    <https://github.com/D-Pad/rust_trading_tools/issues>
 "#;
 
 
