@@ -50,8 +50,10 @@ use app_core::{
     database_ops::{
         DataDownloadStatus, 
         fetch_exchanges_and_pairs_from_db,
-        update_database_tables
-    }, engine::Engine
+        update_database_tables,
+        kraken::{request_all_asset_info_from_kraken}
+    }, 
+    engine::Engine
 };
 
 use tokio::{

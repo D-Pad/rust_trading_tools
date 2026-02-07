@@ -147,8 +147,8 @@ pub struct AssetPairInfo {
 
     pub status: String,
 
-    pub long_position_limit: Option<u32>,
-    pub short_position_limit: Option<u32>,
+    pub long_position_limit: Option<u64>,
+    pub short_position_limit: Option<u64>,
 }
 
 

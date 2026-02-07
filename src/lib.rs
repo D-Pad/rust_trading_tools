@@ -10,8 +10,20 @@ pub use app_core::{
 use tui::TerminalInterface;
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
-fn dev_testing() {
+async fn dev_testing(engine: Engine) {
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
+   
+    use database_ops::kraken::request_all_asset_info_from_kraken;
+    
+    let pairs = match request_all_asset_info_from_kraken(
+        &engine.request_client).await {
+        Ok(d) => d,
+        Err(_) => { return }
+    };
+
+    for (pair, _) in pairs {
+        println!("{pair}");
+    }
 }
 
 
@@ -29,7 +41,7 @@ pub async fn app_start() -> i32 {
     };
 
     if engine.args.dev_mode {
-        dev_testing(); 
+        dev_testing(engine).await; 
     }
     else {
         let response = match engine.execute_commands().await {
