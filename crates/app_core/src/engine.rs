@@ -94,9 +94,6 @@ OPTIONS (global)
     --help, -h
         Show this help message and exit.
 
-    --version
-        Show version information and exit.
-
     --dev 
         Runs the dev_testing() function in src/lib.rs. Intended only for 
         developing new features

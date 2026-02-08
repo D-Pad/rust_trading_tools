@@ -17,15 +17,31 @@ DB_PASSWORD=db_password
 ```
 The following samples assume that the compiled executable is named `dtrade`
 
-## Adding Pairs to the Database
-To add a new pair to the database, you can pass the `--add-pairs` flag on 
-launch, followed by the desired asset pair names.  
-```bash
-dtrade --add-pairs SOLUSD ETHUSD
+## TUI Mode
+A terminal user interface is available, and can be launched with the `start`
+command.
+```bash 
+dtrade start
 ```
-This will create new database tables, and download some initial seed data, 
-meaning there will only be 1000 trades stored in the database for each pair 
-that's added via this command.  
+## Command Line Arguments
+Otherwise, command line arguments can be passed in to do everything that the 
+interface can do. To see a full list of options, pass the global `--help` flag
+```bash
+dtrade --help
+```
+
+### Adding and Removing Pairs
+To add a new pair to the database, you can pass the `--add-pairs` flag on 
+launch, followed by the exchange name, then any number of desired asset pair 
+names. Do the same, but with the `--rm-pairs` flag to remove pairs from the 
+database. 
+```bash
+dtrade database --add-pairs kraken SOLUSD ETHUSD
+dtrade database --rm-pairs kraken SOLUSD ETHUSD
+```
+Adding pairs will create new database tables, and download some initial seed 
+data, meaning there will only be 1000 trades stored in the database for each 
+pair that's added via this command.  
 
 The seed data of each pair will be offset back in time by a set amount 
 according to user settings. The initial tick date offset value can be 
@@ -41,15 +57,15 @@ The example values equate to 6 months, which means that the seed data for each
 newly added pair will be set back in time by 6 months. An update will need to 
 be performed to fully populate the database.
 
-## Updating Trade Data in the Database
-Pass the `--update-data` flag on launch to update all database tables.  
+### Updating Trade Data in the Database
+Pass the `--update` flag on launch to update all database tables.  
 ```bash
-dtrade --update-data
+dtrade database --update
 ```
 This will download all missing trade data between the last known tick, and 
 the current unix timestamp.
 
-## Exporting Candle Data
+### Exporting Candle Data
 Candles can be built via the `candles` command. Three arguments must be passed
 with it to build the data (`[EXCHANGE] [TICKER] [PERIOD]`).  
 ```bash
