@@ -112,7 +112,7 @@ pub struct AssetPairsResponse {
     pub result: HashMap<String, AssetPairInfo>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct AssetPairInfo {
     pub altname: String,
     pub wsname: String,
@@ -156,7 +156,8 @@ pub async fn add_new_db_table(
     ticker: &str,
     start_date_unix_timestamp_offset: u64,
     client: &reqwest::Client,
-    db_pool: PgPool 
+    db_pool: PgPool,
+    asset_info: Option<&BTreeMap<String, BTreeMap<String, AssetPairInfo>>>
 ) -> Result<(), DbError> {
 
     let table_name: String = get_table_name("kraken", ticker);
@@ -190,16 +191,38 @@ pub async fn add_new_db_table(
 
     sleep(Duration::from_millis(500)).await;
     
-    let tick_info = request_asset_info_from_kraken(&ticker, client)
-        .await 
-        .map_err(|e|  
-            connection::DbError::Fetch(
-                FetchError::Api(
-                    RequestError::Http(e)
-                )
-            )
-        )?;
-    
+    let tick_info: AssetPairInfo = match asset_info {
+        Some(assets) => {
+
+            let err_string = "Could not find asset info".to_string();
+
+            if let Some(pairs) = assets.get("kraken") {
+                
+                if let Some(info) = pairs.get(ticker) {
+                    info.clone()
+                }
+                else {
+                    return Err(DbError::TableCreationFailed(err_string))
+                }
+
+            }
+            else {
+                return Err(DbError::TableCreationFailed(err_string))
+            }
+        },
+        None => {
+            request_asset_info_from_kraken(&ticker, client)
+                .await 
+                .map_err(|e|  
+                    connection::DbError::Fetch(
+                        FetchError::Api(
+                            RequestError::Http(e)
+                        )
+                    )
+                )?
+        }
+    };
+
     let create_table: String = format!(r#"
         CREATE TABLE IF NOT EXISTS {} (
             id BIGINT PRIMARY KEY,
@@ -304,7 +327,8 @@ pub async fn download_new_data_to_db_table(
             &ticker, 
             initial_unix_timestamp_offset, 
             &client,
-            db_pool.clone()
+            db_pool.clone(),
+            None
         ).await?;
     };
 

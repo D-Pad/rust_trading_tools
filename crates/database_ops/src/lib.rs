@@ -1,4 +1,4 @@
-use std::{cmp::{min, max}, fmt, collections::HashMap};
+use std::{cmp::{max, min}, collections::{BTreeMap, HashMap}, fmt};
 
 use reqwest;
 use sqlx::{PgPool, pool::{PoolConnection}, types::BigDecimal};
@@ -17,6 +17,7 @@ pub use connection::{
     get_table_name
 };
 pub mod kraken;
+use kraken::AssetPairInfo;
 
 
 pub async fn add_new_pair(
@@ -24,7 +25,8 @@ pub async fn add_new_pair(
     ticker: &str,
     time_offset: u64,
     db_pool: PgPool,
-    client: &reqwest::Client
+    client: &reqwest::Client,
+    asset_info: Option<&BTreeMap<String, BTreeMap<String, AssetPairInfo>>>
 ) -> Result<(), DbError> {
     
     match exchange {
@@ -33,7 +35,8 @@ pub async fn add_new_pair(
                 ticker, 
                 time_offset, 
                 client, 
-                db_pool.clone()
+                db_pool.clone(),
+                asset_info
             ).await?;
         },
         _ => {
@@ -626,5 +629,6 @@ pub async fn integrity_check(
     dbi
 
 }
+
 
 

@@ -416,7 +416,8 @@ impl<'a> DatabaseScreen<'a> {
                         &ticker, 
                         engine.state.time_offset(), 
                         engine.database.get_pool(), 
-                        &engine.request_client
+                        &engine.request_client,
+                        Some(&*self.asset_pairs)
                     ).await;
 
                     self.transmitter.send(AppEvent::Output(OutputMsg::new(
