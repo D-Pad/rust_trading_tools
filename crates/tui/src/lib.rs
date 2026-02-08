@@ -1,7 +1,8 @@
 use std::{
     collections::{HashMap, BTreeMap, VecDeque}, 
     io::{self}, 
-    time::Duration
+    time::Duration,
+    sync::Arc,
 };
 
 use sqlx::PgPool;
@@ -51,7 +52,10 @@ use app_core::{
         DataDownloadStatus, 
         fetch_exchanges_and_pairs_from_db,
         update_database_tables,
-        kraken::{request_all_asset_info_from_kraken}
+        kraken::{
+            request_all_assets_from_kraken,
+            AssetPairInfo
+        }
     }, 
     engine::Engine
 };
@@ -207,6 +211,7 @@ struct DatabaseScreen<'a> {
     btm_item_data: Vec<String>,
     selected_action: Option<&'a DbAction>,
     token_pairs: HashMap<String, Vec<String>>,
+    asset_pairs: Arc<BTreeMap<String, BTreeMap<String, AssetPairInfo>>>,
     db_pool: PgPool,
     transmitter: UnboundedSender<AppEvent>,
     is_busy: bool,
@@ -216,7 +221,11 @@ struct DatabaseScreen<'a> {
 
 impl<'a> DatabaseScreen<'a> {
  
-    fn new(db_pool: PgPool, transmitter: UnboundedSender<AppEvent>) -> Self {
+    fn new(
+        db_pool: PgPool, 
+        transmitter: UnboundedSender<AppEvent>,
+        asset_pairs: Arc<BTreeMap<String, BTreeMap<String, AssetPairInfo>>>, 
+    ) -> Self {
     
         let mut top_state = ListState::default();
         top_state.select(Some(0));
@@ -230,6 +239,7 @@ impl<'a> DatabaseScreen<'a> {
             btm_item_data: Vec::new(),
             selected_action: None,
             token_pairs: HashMap::new(),
+            asset_pairs,
             db_pool,
             transmitter,
             is_busy,
@@ -289,7 +299,14 @@ impl<'a> DatabaseScreen<'a> {
                 };
                 items
             },
-            Some(DbAction::AddPairs | DbAction::None) | None => Vec::new(),
+            Some(DbAction::AddPairs) => {
+                let mut items = Vec::new();
+                for (key, _) in self.asset_pairs.iter() {
+                    items.push(key.to_string())
+                };
+                items
+            },
+            Some(DbAction::None) | None => Vec::new(),
         };
 
         let btm_items: Vec<ListItem> = self.btm_item_data.iter()
@@ -431,6 +448,17 @@ impl<'a> DatabaseScreen<'a> {
                                 ).await;
                             }));
                         }
+
+                        else if let DbAction::AddPairs = ACTION {
+
+                            if self.asset_pairs.len() > 0 {
+
+                                
+
+                            };
+
+                        };  
+
                     }
                 }
             },
@@ -562,6 +590,7 @@ pub struct TerminalInterface<'a> {
     operation_state: ListState,
     screen: Screen<'a>,
     output_buffer: VecDeque<Line<'static>>,
+    asset_pairs: Arc<BTreeMap<String, BTreeMap<String, AssetPairInfo>>>,
     engine: Engine,
 }
 
@@ -575,10 +604,23 @@ impl<'a> TerminalInterface<'a> {
         let screen: Screen = Screen::Placeholder;
         let output_buffer: VecDeque<Line<'static>> = VecDeque::new();
 
+        let asset_pairs = Arc::new(BTreeMap::from([
+            (
+                "kraken".to_string(), 
+                match request_all_assets_from_kraken(
+                    &engine.request_client
+                ).await {
+                    Ok(d) => d,
+                    Err(_) => BTreeMap::new()
+                } 
+            )
+        ]));
+
         TerminalInterface { 
             operation_state,
             screen,
             output_buffer,
+            asset_pairs,
             engine,
         }
     }
@@ -891,7 +933,9 @@ impl<'a> TerminalInterface<'a> {
                                         .database
                                         .get_pool(),
                                     
-                                    transmitter
+                                    transmitter,
+
+                                    Arc::clone(&self.asset_pairs)
                                 )
                             
                             ),
@@ -913,7 +957,6 @@ impl<'a> TerminalInterface<'a> {
         else {
 
             match &mut self.screen {
-
 
                 Screen::DatabaseManager(screen) => {
 

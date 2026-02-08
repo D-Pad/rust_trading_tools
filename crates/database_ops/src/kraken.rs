@@ -531,7 +531,7 @@ pub async fn request_tick_data_from_kraken(
 }
 
 
-pub async fn request_all_asset_info_from_kraken(
+pub async fn request_all_assets_from_kraken(
     client: &reqwest::Client,
 ) -> Result<BTreeMap<String, AssetPairInfo>, reqwest::Error> {
     let url = "https://api.kraken.com/0/public/AssetPairs";

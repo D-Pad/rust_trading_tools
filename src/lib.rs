@@ -11,11 +11,12 @@ use tui::TerminalInterface;
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: Engine) {
+    
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
    
-    use database_ops::kraken::request_all_asset_info_from_kraken;
+    use database_ops::kraken::request_all_assets_from_kraken;
     
-    let pairs = match request_all_asset_info_from_kraken(
+    let pairs = match request_all_assets_from_kraken(
         &engine.request_client).await {
         Ok(d) => d,
         Err(_) => { return }
