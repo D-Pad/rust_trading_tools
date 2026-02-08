@@ -36,19 +36,16 @@ use ratatui::{
 };
 use tokio::{
     sync::mpsc::{UnboundedSender, unbounded_channel},
-    task::JoinHandle, time::interval
+    task::JoinHandle, 
+    time::interval
 };
 
 
 use app_core::{
     database_ops::{
-        DataDownloadStatus, 
-        fetch_exchanges_and_pairs_from_db,
-        update_database_tables,
-        kraken::{
-            request_all_assets_from_kraken,
-            AssetPairInfo
-        }
+        self, DataDownloadStatus, fetch_exchanges_and_pairs_from_db, kraken::{
+            AssetPairInfo, request_all_assets_from_kraken
+        }, update_database_tables
     }, 
     engine::Engine
 };
@@ -332,7 +329,7 @@ impl<'a> DatabaseScreen<'a> {
     }
 
     async fn handle_btm_action(&mut self, engine: &Engine) {
-
+ 
         let ACTION = match self.selected_action {
             Some(a) => a,
             None => &Self::SCREEN_OPTIONS[3]
@@ -355,14 +352,14 @@ impl<'a> DatabaseScreen<'a> {
                 return 
             };
         };
-        
+
+        if self.is_busy { return };
+
         if let Some(i) = self.btm_state.selected() {
 
             // Update option
             if let DbAction::UpdateData = ACTION { 
                
-                if self.is_busy { return };
-
                 let (prog_tx, mut prog_rx) = 
                     unbounded_channel::<DataDownloadStatus>();
 
@@ -405,13 +402,35 @@ impl<'a> DatabaseScreen<'a> {
 
             else if let DbAction::AddPairs = ACTION {
 
-                if self.asset_pairs.len() > 0 {
+                if self.btm_item_data.len() > 0 { 
 
-                    
+                    let tokens: Vec<&str> = self.btm_item_data[i]
+                        .split(" - ")
+                        .collect();
+
+                    let exchange: String = tokens[0].to_lowercase();
+                    let ticker: String = tokens[1].to_uppercase();
+
+                    database_ops::add_new_pair(
+                        &exchange, 
+                        &ticker, 
+                        engine.state.time_offset(), 
+                        engine.database.get_pool(), 
+                        &engine.request_client
+                    ).await;
+
+                    self.transmitter.send(AppEvent::Output(OutputMsg::new(
+                        format!("Added {} {}", exchange, ticker),
+                        Color::Green,
+                        true,
+                        None,
+                        None,
+                        None
+                    )));
 
                 };
 
-            };  
+            }; 
         }
     }
 
@@ -882,39 +901,37 @@ impl<'a> TerminalInterface<'a> {
             Screen::DatabaseManager(screen) => {
             
                 // Handle database update messages here
-                let exchange = match msg.exchange {
-                    Some(ref e) => e,
-                    None => return
-                };
-                
-                let ticker = match msg.ticker {
-                    Some(ref t) => t,
-                    None => return 
-                };
-                
-                &screen.db_update_msgs.msgs
-                    .entry(exchange.to_string())
-                    .or_insert_with(|| BTreeMap::new())
-                    .insert(ticker.to_string(), msg);
+                match (&msg.exchange, &msg.ticker) {
+                    (Some(exchange), Some(ticker)) => {
+                        
+                        &screen.db_update_msgs.msgs
+                            .entry(exchange.to_string())
+                            .or_insert_with(|| BTreeMap::new())
+                            .insert(ticker.to_string(), msg);
 
-                for (ex, pairs) in &screen.db_update_msgs.msgs {
-                    msgs_to_render.push(
-                        OutputMsg::new(
-                            ex.to_string(),
-                            Color::Cyan,
-                            true,
-                            None,
-                            None,
-                            None
-                        )
-                    );
-                    for (_, message) in pairs {
-                        msgs_to_render.push(message.clone());
-                    };
-                }; 
+                        for (ex, pairs) in &screen.db_update_msgs.msgs {
+                            msgs_to_render.push(
+                                OutputMsg::new(
+                                    ex.to_string(),
+                                    Color::Cyan,
+                                    true,
+                                    None,
+                                    None,
+                                    None
+                                )
+                            );
+                            for (_, message) in pairs {
+                                msgs_to_render.push(message.clone());
+                            };
+                        };
+                    },
+                    _ => {
+                        msgs_to_render.push(msg)  
+                    }
+
+                }
 
             },
-
             _ => {}
         
         }
