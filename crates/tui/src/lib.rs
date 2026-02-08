@@ -3,8 +3,9 @@ use std::{
     io::{self}, 
     time::Duration,
     sync::Arc,
-    cmp::{min, max}
+    cmp::min
 };
+
 
 use sqlx::PgPool;
 use ratatui::{
@@ -33,6 +34,12 @@ use ratatui::{
         Block, Borders, List, ListItem, ListState, Paragraph, Wrap 
     }
 };
+use tokio::{
+    sync::mpsc::{UnboundedSender, unbounded_channel},
+    task::JoinHandle, time::interval
+};
+
+
 use app_core::{
     database_ops::{
         DataDownloadStatus, 
@@ -45,11 +52,7 @@ use app_core::{
     }, 
     engine::Engine
 };
-
-use tokio::{
-    sync::mpsc::{UnboundedSender, unbounded_channel},
-    task::JoinHandle, time::interval
-};
+use string_helpers::capitlize_first_letter;
 
 
 fn move_up(state: &mut ListState, len: usize, step: usize) {
@@ -289,10 +292,9 @@ impl<'a> DatabaseScreen<'a> {
             Some(DbAction::AddPairs) => {
                 let mut items = Vec::new();
                 for (key, pairs) in self.asset_pairs.iter() {
+                    let exchange_title: String = capitlize_first_letter(key); 
                     for (asset, _) in pairs.iter() {
-                        items.push(
-                            format!("{} - {}", key.to_uppercase(), asset)
-                        )
+                        items.push(format!("{} - {}", exchange_title, asset))
                     }
                 };
                 items
@@ -328,7 +330,91 @@ impl<'a> DatabaseScreen<'a> {
         );
 
     }
-    
+
+    async fn handle_btm_action(&mut self, engine: &Engine) {
+
+        let ACTION = match self.selected_action {
+            Some(a) => a,
+            None => &Self::SCREEN_OPTIONS[3]
+        };
+
+        if let Some(handle) = &self.task_handle {
+            if handle.is_finished() { 
+                self.task_handle = None;
+                self.is_busy = false;
+            }
+            else {
+                self.transmitter.send(AppEvent::Output(OutputMsg { 
+                    text: "ERROR: Database is busy".to_string(), 
+                    color: Color::Red, 
+                    bold: true, 
+                    bg_color: None,
+                    exchange: None,
+                    ticker: None
+                }));
+                return 
+            };
+        };
+        
+        if let Some(i) = self.btm_state.selected() {
+
+            // Update option
+            if let DbAction::UpdateData = ACTION { 
+               
+                if self.is_busy { return };
+
+                let (prog_tx, mut prog_rx) = 
+                    unbounded_channel::<DataDownloadStatus>();
+
+                let ui_tx = self.transmitter.clone();
+
+                tokio::spawn(async move {
+                    while let Some(stat) = prog_rx.recv().await {
+                        let msg: OutputMsg = stat.into();
+                        let _ = ui_tx.send(AppEvent::Output(msg)); 
+                    }
+                });
+        
+                let time_offset = engine.state.time_offset();
+                let client = engine.request_client.clone();
+                let db_pool = self.db_pool.clone();
+                
+                let tokens: Vec<&str> = self.btm_item_data[i]
+                    .split(" - ")
+                    .collect();
+
+                let exchange: String = tokens[0].to_lowercase();
+                let ticker: String = tokens[1].to_uppercase();
+
+                self.is_busy = true;
+                let active_exchanges = engine.state
+                    .get_active_exchanges();
+
+                self.task_handle = Some(tokio::spawn(async move {
+                    update_database_tables(
+                        &active_exchanges,
+                        time_offset, 
+                        &client, 
+                        db_pool, 
+                        prog_tx, 
+                        Some(&exchange), 
+                        Some(&ticker)
+                    ).await;
+                }));
+            }
+
+            else if let DbAction::AddPairs = ACTION {
+
+                if self.asset_pairs.len() > 0 {
+
+                    
+
+                };
+
+            };  
+        }
+    }
+
     async fn handle_key(&mut self, key: KeyEvent, engine: &Engine) {
 
         let top_len = Self::SCREEN_OPTIONS.len();
@@ -399,87 +485,8 @@ impl<'a> DatabaseScreen<'a> {
 
                 DbFocus::Bottom => {
 
-                    let ACTION = match self.selected_action {
-                        Some(a) => a,
-                        None => &Self::SCREEN_OPTIONS[3]
-                    };
+                    self.handle_btm_action(engine).await
 
-                    if let Some(handle) = &self.task_handle {
-                        if handle.is_finished() { 
-                            self.task_handle = None;
-                            self.is_busy = false;
-                        }
-                        else {
-                            self.transmitter.send(AppEvent::Output(OutputMsg { 
-                                text: "ERROR: Database is busy".to_string(), 
-                                color: Color::Red, 
-                                bold: true, 
-                                bg_color: None,
-                                exchange: None,
-                                ticker: None
-                            }));
-                            return 
-                        };
-                    };
-                    
-                    if let Some(i) = self.btm_state.selected() {
-
-                        // Update option
-                        if let DbAction::UpdateData = ACTION { 
-                           
-                            if self.is_busy { return };
-
-                            let (prog_tx, mut prog_rx) = 
-                                unbounded_channel::<DataDownloadStatus>();
-
-                            let ui_tx = self.transmitter.clone();
-
-                            tokio::spawn(async move {
-                                while let Some(stat) = prog_rx.recv().await {
-                                    let msg: OutputMsg = stat.into();
-                                    let _ = ui_tx.send(AppEvent::Output(msg)); 
-                                }
-                            });
-                  
-                            let time_offset = engine.state.time_offset();
-                            let client = engine.request_client.clone();
-                            let db_pool = self.db_pool.clone();
-                            
-                            let tokens: Vec<&str> = self.btm_item_data[i]
-                                .split(" - ")
-                                .collect();
-
-                            let exchange: String = tokens[0].to_lowercase();
-                            let ticker: String = tokens[1].to_uppercase();
-
-                            self.is_busy = true;
-                            let active_exchanges = engine.state
-                                .get_active_exchanges();
-
-                            self.task_handle = Some(tokio::spawn(async move {
-                                update_database_tables(
-                                    &active_exchanges,
-                                    time_offset, 
-                                    &client, 
-                                    db_pool, 
-                                    prog_tx, 
-                                    Some(&exchange), 
-                                    Some(&ticker)
-                                ).await;
-                            }));
-                        }
-
-                        else if let DbAction::AddPairs = ACTION {
-
-                            if self.asset_pairs.len() > 0 {
-
-                                
-
-                            };
-
-                        };  
-
-                    }
                 }
             },
 
@@ -808,7 +815,9 @@ impl<'a> TerminalInterface<'a> {
         loop {
 
             while let Ok(msg) = receiver.try_recv() {
+                
                 match msg {
+                    
                     AppEvent::Input(key) => {
                         focus = self.handle_key(
                             key, 
@@ -822,54 +831,7 @@ impl<'a> TerminalInterface<'a> {
                     
                     AppEvent::Output(msg) => {
 
-                        let mut msgs_to_render: Vec<OutputMsg> = Vec::new();
-
-                        match &mut self.screen {
-                            
-                            Screen::DatabaseManager(screen) => {
-                            
-                                // Handle database update messages here
-                                let exchange = match msg.exchange {
-                                    Some(ref e) => e,
-                                    None => continue
-                                };
-                                
-                                let ticker = match msg.ticker {
-                                    Some(ref t) => t,
-                                    None => continue
-                                };
-                                
-                                &screen.db_update_msgs.msgs
-                                    .entry(exchange.to_string())
-                                    .or_insert_with(|| BTreeMap::new())
-                                    .insert(ticker.to_string(), msg);
-
-                                for (ex, pairs) in &screen.db_update_msgs.msgs {
-                                    msgs_to_render.push(
-                                        OutputMsg::new(
-                                            ex.to_string(),
-                                            Color::Cyan,
-                                            true,
-                                            None,
-                                            None,
-                                            None
-                                        )
-                                    );
-                                    for (_, message) in pairs {
-                                        msgs_to_render.push(message.clone());
-                                    };
-                                }; 
-
-                            },
-
-                            _ => {}
-                        
-                        }
-                                
-                        self.clear_lines();
-                        for msg in msgs_to_render {
-                            self.add_line(&msg);
-                        }; 
+                        self.render_messages(msg);
 
                     }
                 }
@@ -908,6 +870,59 @@ impl<'a> TerminalInterface<'a> {
         key_reader.abort();
 
         Ok(())
+
+    }
+
+    fn render_messages(&mut self, msg: OutputMsg) {
+
+        let mut msgs_to_render: Vec<OutputMsg> = Vec::new();
+
+        match &mut self.screen {
+            
+            Screen::DatabaseManager(screen) => {
+            
+                // Handle database update messages here
+                let exchange = match msg.exchange {
+                    Some(ref e) => e,
+                    None => return
+                };
+                
+                let ticker = match msg.ticker {
+                    Some(ref t) => t,
+                    None => return 
+                };
+                
+                &screen.db_update_msgs.msgs
+                    .entry(exchange.to_string())
+                    .or_insert_with(|| BTreeMap::new())
+                    .insert(ticker.to_string(), msg);
+
+                for (ex, pairs) in &screen.db_update_msgs.msgs {
+                    msgs_to_render.push(
+                        OutputMsg::new(
+                            ex.to_string(),
+                            Color::Cyan,
+                            true,
+                            None,
+                            None,
+                            None
+                        )
+                    );
+                    for (_, message) in pairs {
+                        msgs_to_render.push(message.clone());
+                    };
+                }; 
+
+            },
+
+            _ => {}
+        
+        }
+                
+        self.clear_lines();
+        for msg in msgs_to_render {
+            self.add_line(&msg);
+        };
 
     }
 

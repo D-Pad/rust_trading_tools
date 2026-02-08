@@ -4,6 +4,7 @@ use reqwest;
 use sqlx::{PgPool, pool::{PoolConnection}, types::BigDecimal};
 use tokio::{sync::mpsc::UnboundedSender, task::JoinSet};
 
+use string_helpers::capitlize_first_letter;
 use timestamp_tools::db_timestamp_to_date_string;
 
 pub mod connection;
@@ -187,20 +188,11 @@ pub async fn fetch_exchanges_and_pairs_from_db(db_pool: PgPool)
                 continue;
             };
             
-            let mut ex_title: String = String::new();
-            let first_char: String = match exchange
-                .to_uppercase()
-                .chars()
-                .next() 
-            {
-                Some(c) => c.to_string(),
-                None => return exchanges_and_pairs 
-            };
+            let title: String = capitlize_first_letter(
+                &exchange.to_string()
+            );
 
-            ex_title.push_str(&first_char);
-            ex_title.push_str(&exchange[1..]);
-            
-            exchanges_and_pairs.entry(ex_title)
+            exchanges_and_pairs.entry(title)
                 .or_insert(Vec::new())
                 .push(asset.to_uppercase());
 

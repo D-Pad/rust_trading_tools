@@ -19,3 +19,4 @@ sqlx = { version = "0.8.6", features = [
 
 # My local modules
 timestamp_tools = { path = "../timestamp_tools" }
+string_helpers = { path = "../string_helpers" }

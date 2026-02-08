@@ -6,8 +6,9 @@ edition = "2024"
 [dependencies]
 tokio = { version = "1.48.0", features = ["full"] }
 sqlx = { version = "0.8.6", features = ["postgres"] }
+ratatui = "0.30.0"
 
 # My modules 
 app_core = { path = "../app_core" }   
-ratatui = "0.30.0"
+string_helpers = { path = "../string_helpers" }   
 
