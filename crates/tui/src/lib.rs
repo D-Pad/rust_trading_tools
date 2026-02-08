@@ -3,19 +3,17 @@ use std::{
     io::{self}, 
     time::Duration,
     sync::Arc,
+    cmp::{min, max}
 };
 
 use sqlx::PgPool;
 use ratatui::{
-    Frame, 
-    Terminal, 
-    backend::{CrosstermBackend}, 
-    crossterm::{
+    Frame, Terminal, backend::CrosstermBackend, crossterm::{
         event::{
             self,
             Event,
             KeyCode, 
-            KeyEvent
+            KeyEvent, KeyModifiers
         }, 
         execute,
         terminal::{
@@ -24,28 +22,16 @@ use ratatui::{
             disable_raw_mode, 
             enable_raw_mode
         }
-    }, 
-    layout::{
+    }, layout::{
         Constraint,
         Direction,
         Layout,
         Rect
-    }, 
-    style::{
-        Modifier,
-        Style,
-        Color
-    }, 
-    widgets::{
-        Block,
-        Borders,
-        List,
-        ListItem,
-        ListState,
-        Wrap,
-        Paragraph 
-    },
-    text::{Text, Line}
+    }, style::{
+        Color, Modifier, Style
+    }, text::{Line, Text}, widgets::{
+        Block, Borders, List, ListItem, ListState, Paragraph, Wrap 
+    }
 };
 use app_core::{
     database_ops::{
@@ -66,23 +52,24 @@ use tokio::{
 };
 
 
-fn move_up(state: &mut ListState, len: usize) {
+fn move_up(state: &mut ListState, len: usize, step: usize) {
     if len == 0 {
         return;
     }
     let i = match state.selected() {
-        Some(i) if i > 0 => i - 1,
+        Some(i) if i > 0 => i - min(i, step),
         _ => 0,
     };
     state.select(Some(i));
 }
 
-fn move_down(state: &mut ListState, len: usize) {
+fn move_down(state: &mut ListState, len: usize, step: usize) {
     if len == 0 {
         return;
     }
     let i = match state.selected() {
-        Some(i) if i + 1 < len => i + 1,
+        Some(i) if i + step < len => i + step,
+        Some(i) if i + step >= len => len,
         _ => 0,
     };
     state.select(Some(i));
@@ -301,8 +288,12 @@ impl<'a> DatabaseScreen<'a> {
             },
             Some(DbAction::AddPairs) => {
                 let mut items = Vec::new();
-                for (key, _) in self.asset_pairs.iter() {
-                    items.push(key.to_string())
+                for (key, pairs) in self.asset_pairs.iter() {
+                    for (asset, _) in pairs.iter() {
+                        items.push(
+                            format!("{} - {}", key.to_uppercase(), asset)
+                        )
+                    }
                 };
                 items
             },
@@ -341,32 +332,61 @@ impl<'a> DatabaseScreen<'a> {
     async fn handle_key(&mut self, key: KeyEvent, engine: &Engine) {
 
         let top_len = Self::SCREEN_OPTIONS.len();
+        let btm_len = self.btm_item_data.len();
+        const PAGE_STEP: usize = 10;
 
-        match key.code {
-            
-            KeyCode::Up | KeyCode::Char('k') => match self.focus {
+        match (key.code, key.modifiers) {
+           
+            // -------------------- SINGLE STEP MOVEMENTS ------------------ //
+            (KeyCode::Up, _) | (KeyCode::Char('k'), _) => match self.focus {
                 
                 DbFocus::Top => {
-                    move_up(&mut self.top_state, top_len);
+                    move_up(&mut self.top_state, top_len, 1);
                 }
                 
                 DbFocus::Bottom => {
-                    move_up(&mut self.btm_state, top_len);
+                    move_up(&mut self.btm_state, btm_len, 1);
                 }
             },
 
-            KeyCode::Down | KeyCode::Char('j') => match self.focus {
+            (KeyCode::Down, _) | (KeyCode::Char('j'), _) => match self.focus {
                 
                 DbFocus::Top => {
-                    move_down(&mut self.top_state, top_len);
+                    move_down(&mut self.top_state, top_len, 1);
                 }
                 
                 DbFocus::Bottom => {
-                    move_down(&mut self.btm_state, top_len);
+                    move_down(&mut self.btm_state, btm_len, 1);
                 }
             },
 
-            KeyCode::Enter => match self.focus {
+            // --------------------- FULL PAGE MOVEMENTS ------------------- //
+            (KeyCode::Char('d'), mods) 
+                if mods.contains(KeyModifiers::CONTROL) => match self.focus {
+                
+                    DbFocus::Top => {
+                        move_down(&mut self.top_state, top_len, PAGE_STEP);
+                    }
+                    
+                    DbFocus::Bottom => {
+                        move_down(&mut self.btm_state, btm_len, PAGE_STEP);
+                    }
+            },
+ 
+            (KeyCode::Char('u'), mods) 
+                if mods.contains(KeyModifiers::CONTROL) => match self.focus {
+                
+                    DbFocus::Top => {
+                        move_up(&mut self.top_state, top_len, PAGE_STEP);
+                    }
+                    
+                    DbFocus::Bottom => {
+                        move_up(&mut self.btm_state, btm_len, PAGE_STEP);
+                    }
+            },
+
+            // ------------------------- ENTER & ESC ----------------------- //
+            (KeyCode::Enter, _) => match self.focus {
                 
                 DbFocus::Top => {
                     if let Some(i) = self.top_state.selected() {
@@ -463,7 +483,7 @@ impl<'a> DatabaseScreen<'a> {
                 }
             },
 
-            KeyCode::Esc => match self.focus {
+            (KeyCode::Esc, _) => match self.focus {
                 
                 DbFocus::Bottom => {
                     self.focus = DbFocus::Top;
@@ -912,14 +932,16 @@ impl<'a> TerminalInterface<'a> {
                 KeyCode::Up | KeyCode::Char('k') => {
                     move_up(
                         &mut self.operation_state, 
-                        operations.len()
+                        operations.len(),
+                        1
                     );
                 }, 
                 
                 KeyCode::Down | KeyCode::Char('j') => {
                     move_down(
                         &mut self.operation_state, 
-                        operations.len()
+                        operations.len(),
+                        1
                     );
                 },
                 
