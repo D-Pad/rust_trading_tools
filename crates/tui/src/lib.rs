@@ -414,6 +414,15 @@ impl<'a> DatabaseScreen<'a> {
 
                     self.task_handle = Some(tokio::spawn(async move {
                         
+                        tx.send(AppEvent::Output(OutputMsg::new(
+                            format!("Downloading seed data..."),
+                            Color::Yellow,
+                            false,
+                            None,
+                            None,
+                            None
+                        )));
+
                         database_ops::add_new_pair(
                             &exchange, 
                             &ticker, 
@@ -449,7 +458,7 @@ impl<'a> DatabaseScreen<'a> {
                     let db_pool = engine.database.get_pool();
 
                     self.task_handle = Some(tokio::spawn(async move {
-                        
+
                         database_ops::drop_pair(
                             &exchange, 
                             &ticker, 
@@ -564,7 +573,10 @@ impl<'a> DatabaseScreen<'a> {
         }
     }
 
-    fn set_task_state_if_free(&mut self) {
+    fn set_task_state_if_free(&mut self) -> bool {
+        /// Returns true if task is busy, and false if free 
+      
+        let mut is_busy = false;
         
         if let Some(handle) = &self.task_handle {
             
@@ -574,17 +586,11 @@ impl<'a> DatabaseScreen<'a> {
             }
             
             else {
+                is_busy = true;
                 self.is_busy = true;
-                self.transmitter.send(AppEvent::Output(OutputMsg { 
-                    text: "ERROR: Database is busy".to_string(), 
-                    color: Color::Red, 
-                    bold: true, 
-                    bg_color: None,
-                    exchange: None,
-                    ticker: None
-                }));
             };
         };
+        is_busy
     }
 
     const SCREEN_NAME: &'static str = "Database Management";
@@ -698,6 +704,8 @@ pub struct TerminalInterface<'a> {
     operation_state: ListState,
     screen: Screen<'a>,
     output_buffer: VecDeque<Line<'static>>,
+    output_scroll: u16,
+    output_area: Rect,
     asset_pairs: Arc<BTreeMap<String, BTreeMap<String, AssetPairInfo>>>,
     engine: Engine,
 }
@@ -728,6 +736,8 @@ impl<'a> TerminalInterface<'a> {
             operation_state,
             screen,
             output_buffer,
+            output_scroll: 0,
+            output_area: Rect::new(0, 0, 0, 0),
             asset_pairs,
             engine,
         }
@@ -744,11 +754,19 @@ impl<'a> TerminalInterface<'a> {
             style = style.bg(col)
         };
 
+        let visible_height = self.output_area.height.saturating_sub(2);
         self.output_buffer.push_back(Line::styled(msg.text.clone(), style));
+        self.output_scroll = self
+            .output_buffer
+            .len()
+            .saturating_sub(visible_height as usize) 
+            as u16;
+    
     }
 
     fn clear_lines(&mut self) {
         self.output_buffer.clear();
+        self.output_scroll = 0;
     }
 
     fn draw(
@@ -781,9 +799,12 @@ impl<'a> TerminalInterface<'a> {
                 Block::default()
                 .title("Output")
                 .borders(Borders::ALL))
-            .wrap(Wrap { trim: false });
+            .wrap(Wrap { trim: false })
+            .scroll((self.output_scroll, 0));
 
-        frame.render_widget(output, vertical_chunks[1]);
+        self.output_area = vertical_chunks[1];
+
+        frame.render_widget(output, self.output_area);
 
         // --------------------- MAIN PANE ------------------------- //
         let main_chunks = Layout::default()
@@ -957,6 +978,7 @@ impl<'a> TerminalInterface<'a> {
     fn render_messages(&mut self, msg: OutputMsg) {
 
         let mut msgs_to_render: Vec<OutputMsg> = Vec::new();
+        let mut clear_lines: bool = false;
 
         match &mut self.screen {
             
@@ -965,7 +987,8 @@ impl<'a> TerminalInterface<'a> {
                 // Handle database update messages here
                 match (&msg.exchange, &msg.ticker) {
                     (Some(exchange), Some(ticker)) => {
-                        
+                       
+                        clear_lines = true;
                         &screen.db_update_msgs.msgs
                             .entry(exchange.to_string())
                             .or_insert_with(|| BTreeMap::new())
@@ -997,8 +1020,10 @@ impl<'a> TerminalInterface<'a> {
             _ => {}
         
         }
-                
-        self.clear_lines();
+               
+        if clear_lines {
+            self.clear_lines();
+        } 
         for msg in msgs_to_render {
             self.add_line(&msg);
         };
