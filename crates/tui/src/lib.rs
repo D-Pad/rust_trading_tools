@@ -66,6 +66,11 @@ use app_core::{
 };
 use string_helpers::capitlize_first_letter;
 
+mod system_settings;
+use system_settings::{
+    ConfigForm
+};
+
 
 fn move_up(state: &mut ListState, len: usize, step: usize) {
     if len == 0 {
