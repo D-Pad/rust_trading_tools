@@ -23,9 +23,12 @@ command.
 ```bash 
 dtrade start
 ```
+
 ## Command Line Arguments
 Otherwise, command line arguments can be passed in to do everything that the 
-interface can do. To see a full list of options, pass the global `--help` flag
+interface can do. There are currently 3 main commands that can be used: 
+`candles`, `database`, and `start`. Commands have their own flags and options.
+To see a full list of options, pass the global `--help` flag
 ```bash
 dtrade --help
 ```

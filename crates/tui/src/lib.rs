@@ -9,7 +9,10 @@ use std::{
 
 use sqlx::PgPool;
 use ratatui::{
-    Frame, Terminal, backend::CrosstermBackend, crossterm::{
+    Frame, 
+    Terminal, 
+    backend::CrosstermBackend, 
+    crossterm::{
         event::{
             self,
             Event,
@@ -29,9 +32,17 @@ use ratatui::{
         Layout,
         Rect
     }, style::{
-        Color, Modifier, Style
+        Color, 
+        Modifier, 
+        Style
     }, text::{Line, Text}, widgets::{
-        Block, Borders, List, ListItem, ListState, Paragraph, Wrap 
+        Block, 
+        Borders, 
+        List, 
+        ListItem, 
+        ListState, 
+        Paragraph, 
+        Wrap 
     }
 };
 use tokio::{
@@ -43,9 +54,13 @@ use tokio::{
 
 use app_core::{
     database_ops::{
-        self, DataDownloadStatus, fetch_exchanges_and_pairs_from_db, kraken::{
+        self, 
+        DataDownloadStatus, 
+        fetch_exchanges_and_pairs_from_db, 
+        kraken::{
             AssetPairInfo, request_all_assets_from_kraken
-        }, update_database_tables
+        }, 
+        update_database_tables
     }, 
     engine::Engine
 };
@@ -335,26 +350,6 @@ impl<'a> DatabaseScreen<'a> {
             None => &Self::SCREEN_OPTIONS[3]
         };
 
-        if let Some(handle) = &self.task_handle {
-            if handle.is_finished() { 
-                self.task_handle = None;
-                self.is_busy = false;
-            }
-            else {
-                self.transmitter.send(AppEvent::Output(OutputMsg { 
-                    text: "ERROR: Database is busy".to_string(), 
-                    color: Color::Red, 
-                    bold: true, 
-                    bg_color: None,
-                    exchange: None,
-                    ticker: None
-                }));
-                return 
-            };
-        };
-
-        if self.is_busy { return };
-
         if let Some(i) = self.btm_state.selected() {
 
             // Update option
@@ -383,7 +378,6 @@ impl<'a> DatabaseScreen<'a> {
                 let exchange: String = tokens[0].to_lowercase();
                 let ticker: String = tokens[1].to_uppercase();
 
-                self.is_busy = true;
                 let active_exchanges = engine.state
                     .get_active_exchanges();
 
@@ -411,31 +405,75 @@ impl<'a> DatabaseScreen<'a> {
                     let exchange: String = tokens[0].to_lowercase();
                     let ticker: String = tokens[1].to_uppercase();
 
-                    database_ops::add_new_pair(
-                        &exchange, 
-                        &ticker, 
-                        engine.state.time_offset(), 
-                        engine.database.get_pool(), 
-                        &engine.request_client,
-                        Some(&*self.asset_pairs)
-                    ).await;
+                    let tx = self.transmitter.clone();
 
-                    self.transmitter.send(AppEvent::Output(OutputMsg::new(
-                        format!("Added {} {}", exchange, ticker),
-                        Color::Green,
-                        true,
-                        None,
-                        None,
-                        None
-                    )));
+                    let time_offset = engine.state.time_offset();
+                    let db_pool = engine.database.get_pool();
+                    let client = engine.request_client.clone();
+                    let asset_pairs = self.asset_pairs.clone();
 
+                    self.task_handle = Some(tokio::spawn(async move {
+                        
+                        database_ops::add_new_pair(
+                            &exchange, 
+                            &ticker, 
+                            time_offset, 
+                            db_pool, 
+                            &client,
+                            Some(&*asset_pairs)
+                        ).await;
+                        
+                        tx.send(AppEvent::Output(OutputMsg::new(
+                            format!("Added {} {}", exchange, ticker),
+                            Color::Green,
+                            true,
+                            None,
+                            None,
+                            None
+                        )));
+                    }));
                 };
+            }
 
-            }; 
+            else if let DbAction::RemovePairs = ACTION {
+
+                if self.btm_item_data.len() > 0 { 
+
+                    let tokens: Vec<&str> = self.btm_item_data[i]
+                        .split(" - ")
+                        .collect();
+
+                    let exchange: String = tokens[0].to_lowercase();
+                    let ticker: String = tokens[1].to_uppercase();
+                    let tx = self.transmitter.clone();
+                    let db_pool = engine.database.get_pool();
+
+                    self.task_handle = Some(tokio::spawn(async move {
+                        
+                        database_ops::drop_pair(
+                            &exchange, 
+                            &ticker, 
+                            db_pool, 
+                        ).await;
+                        
+                        tx.send(AppEvent::Output(OutputMsg::new(
+                            format!("Deleted {} {}", exchange, ticker),
+                            Color::Magenta,
+                            true,
+                            None,
+                            None,
+                            None
+                        )));
+                    }));
+                };
+            };
         }
     }
 
     async fn handle_key(&mut self, key: KeyEvent, engine: &Engine) {
+
+        self.set_task_state_if_free();
+        if self.is_busy { return };
 
         let top_len = Self::SCREEN_OPTIONS.len();
         let btm_len = self.btm_item_data.len();
@@ -524,6 +562,29 @@ impl<'a> DatabaseScreen<'a> {
 
             _ => {}
         }
+    }
+
+    fn set_task_state_if_free(&mut self) {
+        
+        if let Some(handle) = &self.task_handle {
+            
+            if handle.is_finished() { 
+                self.is_busy = false;
+                self.task_handle = None;
+            }
+            
+            else {
+                self.is_busy = true;
+                self.transmitter.send(AppEvent::Output(OutputMsg { 
+                    text: "ERROR: Database is busy".to_string(), 
+                    color: Color::Red, 
+                    bold: true, 
+                    bg_color: None,
+                    exchange: None,
+                    ticker: None
+                }));
+            };
+        };
     }
 
     const SCREEN_NAME: &'static str = "Database Management";
