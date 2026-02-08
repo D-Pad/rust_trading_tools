@@ -66,8 +66,8 @@ use app_core::{
 };
 use string_helpers::capitlize_first_letter;
 
-mod system_settings;
-use system_settings::{
+pub mod system_settings;
+pub use system_settings::{
     ConfigForm
 };
 

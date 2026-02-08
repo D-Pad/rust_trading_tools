@@ -7,24 +7,15 @@ pub use app_core::{
     DataResponse,
     initialize_app_engine,
 };
-use tui::TerminalInterface;
+use tui::{TerminalInterface, ConfigForm};
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: Engine) {
     
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
-   
-    use database_ops::kraken::request_all_assets_from_kraken;
-    
-    let pairs = match request_all_assets_from_kraken(
-        &engine.request_client).await {
-        Ok(d) => d,
-        Err(_) => { return }
-    };
+    let form: ConfigForm = ConfigForm::from_config(&engine.state.config); 
+    println!("{:?}", form);
 
-    for (pair, _) in pairs {
-        println!("{pair}");
-    }
 }
 
 

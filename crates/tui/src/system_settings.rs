@@ -49,6 +49,7 @@ pub enum FieldKind {
     Text
 }
 
+#[derive(Debug)]
 pub struct ConfigField<'a> {
     pub label: &'a str,
     pub kind: FieldKind,
@@ -56,6 +57,7 @@ pub struct ConfigField<'a> {
     pub cursor: usize,
 }
 
+#[derive(Debug)]
 pub struct ConfigForm<'a> {
     pub focused: usize,
     pub fields: BTreeMap<&'a str, Vec<ConfigField<'a>>>,
@@ -96,7 +98,7 @@ impl<'a> ConfigForm<'a> {
 
                 // Chart params 
                 (
-                    "Chart parameters",
+                    "Chart Parameters",
                     Vec::from([
                         ConfigField {
                             label: "Max number of bars on chart",
@@ -111,6 +113,22 @@ impl<'a> ConfigForm<'a> {
                     "Supported Exchanges",
                     supported_exchanges_vec
                 ),
+
+                (
+                    "Data Download Parameters",
+                    Vec::from([
+                        ConfigField {
+                            label: "Initial download cache size",
+                            kind: FieldKind::Text,
+                            value: format!(
+                                "{}{}",
+                                cfg.data_download.cache_size_units,
+                                cfg.data_download.cache_size_period,
+                            ),
+                            cursor: 0,
+                        }
+                    ])
+                )
 
             ])
         }
