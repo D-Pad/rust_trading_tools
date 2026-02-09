@@ -14,7 +14,10 @@ async fn dev_testing(engine: Engine) {
     
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
     let form: ConfigForm = ConfigForm::from_config(&engine.state.config); 
-    println!("{:?}", form);
+    for (key, vals) in form.fields {
+        println!("{}", key);
+        println!("  {:?}", vals);
+    };
 
 }
 

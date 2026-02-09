@@ -74,6 +74,26 @@ pub struct AppConfig {
     pub chart_parameters: ChartParams,
 }
 
+impl AppConfig {
+    fn default() -> Self {
+        Self {
+            backtesting: BackTestSettings { 
+                inside_bar: true 
+            },
+            supported_exchanges: SupportedExchanges { 
+                active: HashMap::from([
+                    ("kraken".to_string(), true)
+                ]) 
+            },
+            data_download: DataDownload {
+                cache_size: "6M".to_string() 
+            },
+            chart_parameters: ChartParams {
+                num_bars: 1000
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackTestSettings {
@@ -145,22 +165,8 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
     println!(
         "\x1b[1;33mNo save state detected. Loading initial config\x1b[0m"
     );
-    
-    // Fallback to default .toml file if not .json file is present
-    let toml_file_name: &'static str = "config.toml";
-    let toml_config_path: PathBuf = cache_path.join(toml_file_name);
-    
-    let contents = match fs::read_to_string(toml_config_path) {
-        Ok(d) => d,
-        Err(_) => {
-            return Err(ConfigError::FileNotFound(toml_file_name))
-        }
-    };
 
-    let config: AppConfig = match toml::from_str(&contents) {
-        Ok(d) => d,
-        Err(_) => return Err(ConfigError::ParseFailure)
-    };
+    let config = AppConfig::default();
 
     if let Ok(_) = save_config(&config) {
         Ok(config)
