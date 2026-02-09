@@ -11,8 +11,7 @@ active = { kraken = true }
 
 
 [data_download]
-cache_size_units = 6 
-cache_size_period = "M" 
+cache_size = "6M" 
 
 
 [chart_parameters]

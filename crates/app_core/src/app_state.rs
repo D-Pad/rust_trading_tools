@@ -1,9 +1,22 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::path::{PathBuf};
-use timestamp_tools;
-use crate::errors::{InitializationError, ConfigError};
+use serde::{
+    Deserialize, 
+    Serialize
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{
+        PathBuf
+    }
+};
+use timestamp_tools::{
+    calculate_seconds_in_period,
+    get_period_portions_from_string
+};
+use crate::errors::{
+    InitializationError, 
+    ConfigError
+};
 
 
 // ------------------------- APP STATE MANAGEMENT -------------------------- //
@@ -82,8 +95,7 @@ pub struct SupportedExchanges {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataDownload {
-    pub cache_size_units: u64,
-    pub cache_size_period: char,
+    pub cache_size: String,
 }
 
 /// Configuration for data downloads. 
@@ -93,18 +105,18 @@ pub struct DataDownload {
 /// data from 6 months ago will be downloaded and put in the database.
 impl DataDownload {
     
-    pub fn get_time_period(&self) -> String {
-        format!("{}{}", self.cache_size_units, self.cache_size_period)
-    }
-
     pub fn cache_size_settings_to_seconds(&self) -> u64 {
       
         const DEFAULT_RETURN_VAL: u64 = 60 * 60 * 24 * 30;  // ~1 Month
 
-        let size = self.cache_size_units as u64;
-        let period = self.cache_size_period;
+        let (symbol, size) = match get_period_portions_from_string(
+            &self.cache_size) 
+        {
+            Ok(d) => d,
+            Err(_) => return DEFAULT_RETURN_VAL
+        };
         
-        match timestamp_tools::calculate_seconds_in_period(size, period) {
+        match calculate_seconds_in_period(size, symbol) {
             Ok(v) => v,
             Err(_) => DEFAULT_RETURN_VAL
         } 

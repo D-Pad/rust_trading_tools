@@ -127,11 +127,7 @@ impl<'a> ConfigForm<'a> {
                         ConfigField {
                             label: "Initial download cache size",
                             kind: FieldKind::Text,
-                            value: format!(
-                                "{}{}",
-                                cfg.data_download.cache_size_units,
-                                cfg.data_download.cache_size_period,
-                            ),
+                            value: cfg.data_download.cache_size.clone(),
                             cursor: 0,
                         }
                     ])

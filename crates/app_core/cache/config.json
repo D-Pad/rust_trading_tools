@@ -8,8 +8,7 @@
     }
   },
   "data_download": {
-    "cache_size_units": 3,
-    "cache_size_period": "d"
+    "cache_size": "6M"
   },
   "chart_parameters": {
     "num_bars": 1000
