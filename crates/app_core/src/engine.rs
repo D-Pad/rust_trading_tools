@@ -153,6 +153,10 @@ impl std::fmt::Display for Server {
 }
 
 
+/// # Main App Engine
+///
+/// Responsible for loading app state, communicating with the database, 
+/// parsing arguments, and processing commands.
 pub struct Engine {
     pub state: AppState,
     pub database: Db,
@@ -182,6 +186,10 @@ impl Engine {
 
     }
 
+    /// Executes the commands that were parsed from ArgParser.
+    ///
+    /// When a command is run, it is removed from the vector of commands. This
+    /// is to prevent running the same command twice.
     pub async fn execute_commands(&mut self) -> Result<Response, RunTimeError> {
         
         let mut response: Option<Response> = None;
@@ -204,6 +212,9 @@ impl Engine {
         })
     }
 
+    /// # Command Handler. 
+    ///
+    /// Used by the `execute_commands` method.
     pub async fn handle(&mut self, cmd: Command) 
         -> Result<Response, RunTimeError> {
         
@@ -298,6 +309,8 @@ impl Engine {
 }
 
 
+/// Updates all database tables. Emits progress messages to the terminal
+/// in real time.
 pub async fn run_database_table_updates(
     state: &AppState,
     client: &reqwest::Client,
@@ -354,6 +367,7 @@ pub async fn run_database_table_updates(
 
 }
 
+/// Checks the integrity of database tables, to see if any tick data is missing
 async fn db_integrity_check(
     exchange: &str, 
     ticker: &str, 

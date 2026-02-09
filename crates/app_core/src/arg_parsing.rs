@@ -85,6 +85,10 @@ pub enum Response {
 
 
 // ----------------------------- STRUCTS ----------------------------------- //
+/// Argument Parser
+///
+/// Takes command line arguments and parses them into Command types, to be 
+/// executed by the Engine.
 pub struct ParsedArgs {
     pub executable_name: String,
     pub commands: Vec<Command>,
@@ -168,6 +172,14 @@ const ARG_ERROR: &'static str = {
     "\x1b[1;31mInvalid command: try --help for all options\x1b[0m"
 };
 
+/// Parses command line arguments into a ParsedArgs struct 
+///
+/// If 'None' is passed in as the argument, then commands are taken from 
+/// std::env::args(). Otherwise, pass Some(a) where a is a vector of string 
+/// values. A ParsedArgs struct is always returned no matter what. If any 
+/// arguments were invalid, then `ParsedArgs.parser_error` will contain 
+/// a specific error showing what went wrong. If `parser_error` is None,
+/// then the argument parsing was successful.
 pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
 
     // Initialization

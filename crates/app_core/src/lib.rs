@@ -134,6 +134,7 @@ impl std::fmt::Display for DownloadStatusViewer {
 }
 
 // ----------------------------- FUNCTIONS --------------------------------- //
+/// Initializes the app engine and returns it. Used on app startup.
 pub async fn initialize_app_engine() -> Result<Engine, RunTimeError> {
 
     let database = Db::new()
@@ -151,6 +152,7 @@ pub async fn initialize_app_engine() -> Result<Engine, RunTimeError> {
 }
 
 
+/// Builds a set of candles from database data.
 pub async fn build_candles(
     exchange: &str, 
     ticker: &str, 

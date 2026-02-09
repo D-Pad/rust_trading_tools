@@ -47,6 +47,12 @@ impl AppState {
 
 
 // --------------------------- APP CONFIGURATION --------------------------- //
+/// Global app configuration
+///
+/// The config.json file that's read on startup gets parsed into an AppConfig
+/// struct. An Engine gets an instance of the AppConfig. There really only 
+/// ever needs to be one AppConfig value and it will be the one that's owned
+/// by the Engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub backtesting: BackTestSettings,
@@ -80,6 +86,11 @@ pub struct DataDownload {
     pub cache_size_period: char,
 }
 
+/// Configuration for data downloads. 
+///
+/// Used to set the initial data cache size when adding new pairs. For example,
+/// if a new pair is added and the cache size is set to 6 months, then tick 
+/// data from 6 months ago will be downloaded and put in the database.
 impl DataDownload {
     
     pub fn get_time_period(&self) -> String {
@@ -105,7 +116,7 @@ fn get_path_state() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("cache") 
 }
 
-
+/// Loads the config.json file into an AppConfig struct
 pub fn load_config() -> Result<AppConfig, ConfigError> {
   
     let cache_path: PathBuf = get_path_state();
@@ -147,6 +158,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
     }
 }
 
+/// Exports the AppConfig state into the config.json file.
 pub fn save_config(config: &AppConfig) -> Result<(), ConfigError> {
 
     let path = get_path_state().join("config.json");

@@ -1,11 +1,7 @@
 use std::collections::{BTreeMap};
 
 use app_core::app_state::{
-    AppConfig,
-    BackTestSettings,
-    ChartParams,
-    SupportedExchanges,
-    DataDownload,
+    AppConfig
 };
 
 
@@ -49,6 +45,10 @@ pub enum FieldKind {
     Text
 }
 
+pub enum ConfigFormError {
+    InvalidKey
+}
+
 #[derive(Debug)]
 pub struct ConfigField<'a> {
     pub label: &'a str,
@@ -57,6 +57,8 @@ pub struct ConfigField<'a> {
     pub cursor: usize,
 }
 
+/// A ConfigForm is intended to be used as a way for the user to interface
+/// with the system settings, and make changes to it. Used in the TUI crate
 #[derive(Debug)]
 pub struct ConfigForm<'a> {
     pub focused: usize,
@@ -65,6 +67,11 @@ pub struct ConfigForm<'a> {
 
 impl<'a> ConfigForm<'a> {
 
+    /// Takes an AppConfig reference and returns a ConfigForm
+    ///
+    /// Use this to build a  ConfigForm, to be used in a terminal user 
+    /// interface. Intended to be used as a way for the user to edit system 
+    /// settings from an interface.
     pub fn from_config(cfg: &'a AppConfig) -> Self {
 
         let mut supported_exchanges_vec: Vec<ConfigField> = Vec::new();
@@ -85,7 +92,7 @@ impl<'a> ConfigForm<'a> {
             fields: BTreeMap::from([
                
                 (
-                    "Backtest Settings", 
+                    "backtest", 
                     Vec::from([
                         ConfigField {
                             label: "Inside Bar Testing",
@@ -98,7 +105,7 @@ impl<'a> ConfigForm<'a> {
 
                 // Chart params 
                 (
-                    "Chart Parameters",
+                    "charts",
                     Vec::from([
                         ConfigField {
                             label: "Max number of bars on chart",
@@ -110,12 +117,12 @@ impl<'a> ConfigForm<'a> {
                 ), 
 
                 (
-                    "Supported Exchanges",
+                    "exchanges",
                     supported_exchanges_vec
                 ),
 
                 (
-                    "Data Download Parameters",
+                    "downloads",
                     Vec::from([
                         ConfigField {
                             label: "Initial download cache size",
@@ -134,6 +141,22 @@ impl<'a> ConfigForm<'a> {
         }
 
     }
+
+    /// Converts a key into a human readable string 
+    ///
+    /// Takes a ConfigForm field BTreeMap key and turns it into a 
+    /// human readable title
+    pub fn key_to_title(key: &str) -> Result<&'a str, ConfigFormError> {
+ 
+        match key {
+            "backtest" => Ok("Backtest Settings"),
+            "charts" => Ok("Chart Parameters"),
+            "exchanges" => Ok("Supported Exchanges"),
+            "downloads" => Ok("Data Download Parameters"),
+            _ => Err(ConfigFormError::InvalidKey) 
+        }
+
+    } 
 
 }
 

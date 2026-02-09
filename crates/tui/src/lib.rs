@@ -486,7 +486,7 @@ impl<'a> DatabaseScreen<'a> {
 
     async fn handle_key(&mut self, key: KeyEvent, engine: &Engine) {
 
-        self.set_task_state_if_free();
+        self.check_and_modify_task_state();
         if self.is_busy { return };
 
         let top_len = Self::SCREEN_OPTIONS.len();
@@ -578,11 +578,9 @@ impl<'a> DatabaseScreen<'a> {
         }
     }
 
-    fn set_task_state_if_free(&mut self) -> bool {
-        /// Returns true if task is busy, and false if free 
+    /// Sets the 'is_busy' task state
+    fn check_and_modify_task_state(&mut self) {
       
-        let mut is_busy = false;
-        
         if let Some(handle) = &self.task_handle {
             
             if handle.is_finished() { 
@@ -591,11 +589,9 @@ impl<'a> DatabaseScreen<'a> {
             }
             
             else {
-                is_busy = true;
                 self.is_busy = true;
             };
         };
-        is_busy
     }
 
     const SCREEN_NAME: &'static str = "Database Management";
@@ -705,6 +701,17 @@ impl SettingsScreen {
 
 
 // ---------------------------- TERMINAL INTERFACE ------------------------- //
+/// # Terminal User Interface (TUI)
+///
+/// When running, allows the user to add new token pairs to the database (or 
+/// delete pairs from it), build and export candle data as CSV files, and
+/// adjust global system settings. Create a TUI instance with the `new` 
+/// method, then start it with `run().await`
+/// ```
+/// let engine = app_core::Engine::new(db_pool: PgPool);
+/// let tui = TerminalUserInterface::new(engine);
+/// tui.run().await;
+/// ```
 pub struct TerminalInterface<'a> {
     operation_state: ListState,
     screen: Screen<'a>,
@@ -748,6 +755,7 @@ impl<'a> TerminalInterface<'a> {
         }
     }
 
+    /// Adds lines of text to the output window
     fn add_line(&mut self, msg: &OutputMsg) {
         
         let mut style = Style::default().fg(msg.color);
@@ -769,11 +777,13 @@ impl<'a> TerminalInterface<'a> {
     
     }
 
+    /// Removes all lines from the output window
     fn clear_lines(&mut self) {
         self.output_buffer.clear();
         self.output_scroll = 0;
     }
 
+    /// Draws the TUI.
     fn draw(
         &mut self, 
         frame: &mut Frame,
@@ -871,6 +881,7 @@ impl<'a> TerminalInterface<'a> {
         }
     }
 
+    /// Runs the TUI
     pub async fn run(&mut self) 
         -> io::Result<()> {
 
@@ -980,6 +991,8 @@ impl<'a> TerminalInterface<'a> {
 
     }
 
+    /// Renders messages and stores then adds them to the output window
+    /// with `self.add_line(msg)`
     fn render_messages(&mut self, msg: OutputMsg) {
 
         let mut msgs_to_render: Vec<OutputMsg> = Vec::new();
@@ -1035,6 +1048,10 @@ impl<'a> TerminalInterface<'a> {
 
     }
 
+    /// Handles key inputs.
+    ///
+    /// After handling the key at the global level, passes the KeyEvent down 
+    /// to the active screen for further KeyEvent handling.
     async fn handle_key(
         &mut self,
         key: KeyEvent, 
