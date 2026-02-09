@@ -5,7 +5,7 @@ use sqlx::types::BigDecimal;
 
 #[derive(Debug)]
 pub enum TimePeriodError {
-    InvalidPeriod,
+    InvalidPeriod(&'static str),
     DateConversion,
     NotEnoughData
 }
@@ -13,8 +13,8 @@ pub enum TimePeriodError {
 impl std::fmt::Display for TimePeriodError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            TimePeriodError::InvalidPeriod => write!(
-                f, "TimePeriodError::InvalidPeriod"),
+            TimePeriodError::InvalidPeriod(s) => write!(
+                f, "TimePeriodError::InvalidPeriod: {}", s),
             TimePeriodError::DateConversion => write!(
                 f, "TimePeriodError::DateConversion"),
             TimePeriodError::NotEnoughData => write!(
@@ -39,7 +39,9 @@ pub fn calculate_seconds_in_period(
         'd' => 86400,
         'M' => 2592000,
         'Y' => 31536000, 
-        _ => return Err(TimePeriodError::InvalidPeriod)
+        _ => return Err(TimePeriodError::InvalidPeriod(
+            "Invalid period symbol character"
+        ))
     };
     
     Ok(num_seconds * periods) 
@@ -56,19 +58,26 @@ pub fn get_period_portions_from_string(period: &str)
     
     let period_key = match period.chars().last() {
         Some(c) => c, 
-        None => { return Err(
-                TimePeriodError::InvalidPeriod
+        None => { 
+            return Err(
+                TimePeriodError::InvalidPeriod(
+                    "Invalid period symbol character"
+                )
             ) 
         } 
     };
     
     if !VALID_PERIODS.contains(&period_key) {
-        return Err(TimePeriodError::InvalidPeriod) 
+        return Err(TimePeriodError::InvalidPeriod(
+            "Invalid period symbol character"
+        )) 
     };
     
     let period_n: u64 = match period[0..period.len() - 1].parse::<u64>() {
         Ok(v) => v,
-        Err(_) => return Err(TimePeriodError::InvalidPeriod) 
+        Err(_) => return Err(TimePeriodError::InvalidPeriod(
+            "Couldn't parse number portion into u64 value"
+        )) 
     };
 
     Ok((period_key, period_n))
@@ -87,11 +96,20 @@ pub fn period_is_time_based(period_symbol: char)
         Ok(true) 
     }
     else {
-        Err(TimePeriodError::InvalidPeriod) 
+        Err(TimePeriodError::InvalidPeriod(
+            "Invalid period symbol character"
+        )) 
     }
 
 }
 
+
+pub fn period_is_valid(period: &str) -> bool {
+    match get_period_portions_from_string(period) {
+        Ok(_) => true,
+        Err(_) => false
+    }
+}
 
 // -------------------------- DATE CONVERSION ------------------------------ //
 fn micros_u64_to_datetime(

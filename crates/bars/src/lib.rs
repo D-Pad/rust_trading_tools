@@ -144,8 +144,8 @@ impl BarInfo {
         -> Result<Self, BarBuildError> 
     {
         let (sym, n) = get_period_portions_from_string(&period)
-            .map_err(|_| 
-                BarBuildError::Period(TimePeriodError::InvalidPeriod)
+            .map_err(|e| 
+                BarBuildError::Period(e)
             )?;
 
         let time_based = period_is_time_based(sym)
@@ -206,7 +206,11 @@ impl BarSeries {
         };
 
         if info.period.len() < 2 {
-            return Err(BarBuildError::Period(TimePeriodError::InvalidPeriod))
+            return Err(BarBuildError::Period(
+                TimePeriodError::InvalidPeriod(
+                    "Length of period string is less than 2"
+                )
+            ))
         };
            
         let mut bars: Vec<Bar> = Vec::new();
@@ -354,7 +358,7 @@ pub async fn calculate_first_tick_id(
 ) -> Result<u64, BarBuildError> {
 
     let (symbol, n_periods) = get_period_portions_from_string(period)
-        .map_err(|_| BarBuildError::Period(TimePeriodError::InvalidPeriod))?;
+        .map_err(|e| BarBuildError::Period(e))?;
 
     let last_tick = fetch_first_or_last_row(
         exchange, ticker, db_pool.clone(), true
