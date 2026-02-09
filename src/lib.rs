@@ -7,17 +7,12 @@ pub use app_core::{
     DataResponse,
     initialize_app_engine,
 };
-use tui::{TerminalInterface, ConfigForm};
+use tui::{TerminalInterface};
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: Engine) {
     
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
-    let form: ConfigForm = ConfigForm::from_config(&engine.state.config); 
-    for (key, vals) in form.fields {
-        println!("{}", key);
-        println!("  {:?}", vals);
-    };
 
 }
 
