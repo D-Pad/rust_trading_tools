@@ -5,9 +5,15 @@ use string_helpers::capitlize_first_letter;
 
 use ratatui::{
     Frame,
-    crossterm::event::KeyEvent,
+    crossterm::{
+        event::{
+            KeyEvent,
+            KeyCode
+        },
+    },
     style::{
-        Style
+        Modifier,
+        Style,
     },
     layout::{
         Constraint,
@@ -23,7 +29,6 @@ use ratatui::{
 };
 
 
-#[derive(Debug, Clone)]
 pub enum FieldKind {
     Bool,
     Number,
@@ -34,7 +39,6 @@ pub enum ConfigFormError {
     InvalidKey
 }
 
-#[derive(Debug)]
 pub struct ConfigField {
     pub label: String,
     pub kind: FieldKind,
@@ -42,18 +46,23 @@ pub struct ConfigField {
     pub cursor: usize,
 }
 
-#[derive(Debug)]
 pub enum FormRow {
     SectionDivider(String),
     InputRow(ConfigField),
 }
 
+
+pub enum FormMode {
+    Movement,
+    Input
+}
+
 /// A ConfigForm is intended to be used as a way for the user to interface
 /// with the system settings, and make changes to it. Used in the TUI crate
-#[derive(Debug)]
 pub struct ConfigForm {
     pub focused: usize,
     pub rows: Vec<FormRow>,
+    pub mode: FormMode,
 }
 
 impl ConfigForm {
@@ -66,7 +75,8 @@ impl ConfigForm {
     pub fn from_config(cfg: &AppConfig) -> Self {
 
         let mut rows: Vec<FormRow> = Vec::new();
-            
+        let mode: FormMode = FormMode::Movement;           
+
         rows.push(FormRow::SectionDivider(
             "Backtest Settings".to_string()
         ));
@@ -120,26 +130,12 @@ impl ConfigForm {
         );
 
         ConfigForm {
-            focused: 0,
-            rows 
+            focused: 1,
+            rows,
+            mode,
         }
 
     }
-
-    /// Converts a key into a human readable string 
-    ///
-    /// Takes a ConfigForm field BTreeMap key and turns it into a 
-    /// human readable title
-    pub fn key_to_title(key: &String) -> Result<&'static str, ConfigFormError> {
- 
-        match &key[..] {
-            "charts" => Ok("Chart Parameters"),
-            "exchanges" => Ok("Supported Exchanges"),
-            "downloads" => Ok("Data Download Parameters"),
-            _ => Err(ConfigFormError::InvalidKey) 
-        }
-
-    } 
 
 }
 
@@ -163,7 +159,7 @@ impl SettingsScreen {
           
             let sym = "—";
 
-            let num_dashes: usize = (row_width - name.len());
+            let num_dashes: usize = row_width - name.len();
             let dashes = sym.repeat((num_dashes / 2) - 1);
             
             let mut div = format!("{} {} {}", dashes, name, dashes);
@@ -198,6 +194,7 @@ impl SettingsScreen {
         for (i, row) in self.config_form.rows.iter().enumerate() {
         
             match row {
+                
                 FormRow::SectionDivider(s) => {
                     
                     let section_name = divider_text(s, width); 
@@ -208,6 +205,7 @@ impl SettingsScreen {
                     );
                 
                 },
+                
                 FormRow::InputRow(input_row) => {
                 
                     let cols = Layout::default()
@@ -217,14 +215,32 @@ impl SettingsScreen {
                             Constraint::Min(10)
                         ])
                         .split(form_rows[i]);
-                    
+                   
+                    let label = Paragraph::new(
+                        format!(" {}:", input_row.label.as_str())
+                    );
                     frame.render_widget(
-                        Paragraph::new(input_row.label.as_str()),
+                        if self.config_form.focused == i {
+                            label.style(Style::default().yellow())
+                        }
+                        else {
+                            label
+                        },
                         cols[0]
                     );
 
+                    let input = Paragraph::new(input_row.value.as_str());
                     frame.render_widget(
-                        Paragraph::new(input_row.value.as_str()),
+                        if self.config_form.focused == i {
+                            input.style(
+                                Style::default()
+                                    .add_modifier(Modifier::REVERSED)
+                                    .green()
+                            )
+                        }
+                        else {
+                            input 
+                        },
                         cols[1]
                     );
 
@@ -236,6 +252,23 @@ impl SettingsScreen {
     }
 
     pub fn handle_key(&self, key: KeyEvent) {
+
+        match key.code {
+        
+            KeyCode::Up | KeyCode::Char('k') => {
+                
+            }, 
+            
+            KeyCode::Down | KeyCode::Char('j') => {
+                
+            },
+            
+            KeyCode::Enter => { 
+            
+            },
+
+            _ => {}
+        }
 
     }
 
