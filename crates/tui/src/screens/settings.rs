@@ -45,7 +45,6 @@ pub struct ConfigField {
     pub label: String,
     pub kind: FieldKind,
     pub value: String,
-    pub cursor: usize,
 }
 
 pub enum FormRow {
@@ -86,7 +85,6 @@ impl ConfigForm {
                 label: "Inside Bar Testing".to_string(),
                 kind: FieldKind::Bool,
                 value: cfg.backtesting.inside_bar.to_string(),
-                cursor: 0,
             })
         );
 
@@ -98,7 +96,6 @@ impl ConfigForm {
                 label: "Max number of bars on chart".to_string(),
                 kind: FieldKind::Number,
                 value: cfg.chart_parameters.num_bars.to_string(),
-                cursor: 0,
             })
         );
         rows.push(FormRow::InputRow(
@@ -106,7 +103,6 @@ impl ConfigForm {
                 label: "Logarithmic scale".to_string(),
                 kind: FieldKind::Bool,
                 value: cfg.chart_parameters.log_scale.to_string(),
-                cursor: 0,
             })
         );
 
@@ -120,7 +116,6 @@ impl ConfigForm {
                         label: capitlize_first_letter(exchange),
                         kind: FieldKind::Bool,
                         value: enabled.to_string(),
-                        cursor: 0,
                     }
                 )
             ); 
@@ -134,7 +129,6 @@ impl ConfigForm {
                 label: "Initial download cache size".to_string(),
                 kind: FieldKind::Text,
                 value: cfg.data_download.cache_size.clone(),
-                cursor: 0,
             })
         );
 
@@ -346,18 +340,25 @@ impl SettingsScreen {
                             _ => { 
                                
                                 let mode = &self.config_form.mode;
+                                
                                 self.config_form.mode = match mode {
+                                    
                                     FormMode::Movement => {
+                                        
                                         self.previous_value = Some(
                                             r.value.clone()
                                         );
+                                        
                                         new_row.value = "".to_string();
+                                        
                                         self.config_form
                                             .rows[i] = FormRow::InputRow(
                                                 new_row
                                             );
+                                        
                                         FormMode::Input
-                                    }, 
+                                    },
+
                                     FormMode::Input => {
                                         FormMode::Movement
                                     }, 
@@ -411,7 +412,19 @@ impl SettingsScreen {
                     self.config_form.mode = FormMode::Movement;
                     self.previous_value = None;
                 },
-                
+               
+                KeyCode::Backspace => {
+                    if let FormRow::InputRow(r) = &self.config_form.rows[i] {
+                        let mut new_row = r.clone();
+                        let existing = new_row.value.clone();
+                        let next_string: String = new_row
+                            .value[..existing.len().saturating_sub(1)]
+                            .to_string();
+                        new_row.value = next_string;
+                        self.config_form.rows[i] = FormRow::InputRow(new_row);
+                    };                    
+                },
+
                 _ => {}
             }
 
