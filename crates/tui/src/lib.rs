@@ -73,7 +73,10 @@ use screens::{
         DatabaseScreen, 
         DbFocus
     },
-    settings::SettingsScreen,
+    settings::{
+        SettingsScreen,
+        FormMode, 
+    },
     candles::CandleScreen,
     AppEvent,
     Focus,
@@ -516,6 +519,16 @@ impl TerminalInterface {
 
                 },
 
+                Screen::SystemSettings(screen) => {
+                    
+                    if let KeyCode::Esc = key.code {
+                        if let FormMode::Movement = screen.config_form.mode {
+                            screen.active = false;
+                            new_focus = Focus::Operations;
+                        };
+                    };
+                    screen.handle_key(key);
+                },
                 _ => {} 
 
             } 

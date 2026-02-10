@@ -29,6 +29,7 @@ use ratatui::{
 };
 
 
+#[derive(Clone)]
 pub enum FieldKind {
     Bool,
     Number,
@@ -39,6 +40,7 @@ pub enum ConfigFormError {
     InvalidKey
 }
 
+#[derive(Clone)]
 pub struct ConfigField {
     pub label: String,
     pub kind: FieldKind,
@@ -100,6 +102,14 @@ impl ConfigForm {
                 cursor: 0,
             })
         );
+        rows.push(FormRow::InputRow(
+            ConfigField {
+                label: "Logarithmic scale".to_string(),
+                kind: FieldKind::Bool,
+                value: cfg.chart_parameters.log_scale.to_string(),
+                cursor: 0,
+            })
+        );
 
         rows.push(FormRow::SectionDivider(
             "Active Exchanges".to_string() 
@@ -142,7 +152,8 @@ impl ConfigForm {
 
 // ------------- SYSTEM SETTINGS -------------- //
 pub struct SettingsScreen {
-    config_form: ConfigForm, 
+    pub config_form: ConfigForm,
+    pub active: bool
 }
 
 impl SettingsScreen {
@@ -150,28 +161,31 @@ impl SettingsScreen {
     pub fn new(app_config: &AppConfig) -> Self {
         SettingsScreen {
             config_form: ConfigForm::from_config(app_config),
+            active: true,
         } 
     }
 
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
 
-        fn divider_text(name: &String, row_width: usize) -> String {
-          
-            let sym = "—";
+        // fn divider_text(name: &String, row_width: usize) -> String {
+        //   
+        //     let sym = "—";
 
-            let num_dashes: usize = row_width - name.len();
-            let dashes = sym.repeat((num_dashes / 2) - 1);
-            
-            let mut div = format!("{} {} {}", dashes, name, dashes);
-            
-            let width_diff: usize = row_width.saturating_sub(div.len());
-            if width_diff > 0 {
-                div.push_str(&sym.repeat(width_diff).as_str())
-            };
+        //     let num_dashes: usize = row_width - name.len();
+        //     let dashes = sym.repeat((num_dashes / 2) - 1);
+        //     
+        //     let mut div = format!("{} {} {}", dashes, name, dashes);
+        //     
+        //     let width_diff: usize = row_width.saturating_sub(div.len());
+        //     if width_diff > 0 {
+        //         div.push_str(&sym.repeat(width_diff).as_str())
+        //     };
 
-            div
-        }
+        //     div
+        // }
 
+        // let width: usize = area.width.saturating_sub(2) as usize;
+        
         let block = Block::default()
             .title("System Settings")
             .borders(Borders::ALL);
@@ -179,8 +193,6 @@ impl SettingsScreen {
         frame.render_widget(block.clone(), area);
 
         let inner = block.inner(area);
-
-        let width: usize = area.width.saturating_sub(2) as usize;
 
         let form_rows = Layout::default()
             .direction(Direction::Vertical)
@@ -197,9 +209,9 @@ impl SettingsScreen {
                 
                 FormRow::SectionDivider(s) => {
                     
-                    let section_name = divider_text(s, width); 
+                    // let section_name = divider_text(s, width); 
                     frame.render_widget(
-                        Paragraph::new(section_name)
+                        Paragraph::new(format!("[{}]", s))
                             .style(Style::new().red()),
                         form_rows[i] 
                     );
@@ -220,8 +232,12 @@ impl SettingsScreen {
                         format!(" {}:", input_row.label.as_str())
                     );
                     frame.render_widget(
-                        if self.config_form.focused == i {
-                            label.style(Style::default().yellow())
+                        if self.config_form.focused == i && self.active {
+                            label.style(
+                                Style::default()
+                                    .yellow()
+                                    .underlined()
+                            )
                         }
                         else {
                             label
@@ -229,43 +245,125 @@ impl SettingsScreen {
                         cols[0]
                     );
 
-                    let input = Paragraph::new(input_row.value.as_str());
+                    let input = Paragraph::new(
+                        format!(":{}", input_row.value.as_str())
+                    );
                     frame.render_widget(
-                        if self.config_form.focused == i {
-                            input.style(
-                                Style::default()
-                                    .add_modifier(Modifier::REVERSED)
-                                    .green()
-                            )
+                        if self.config_form.focused == i && self.active {
+                            let mut input_style = Style::default()
+                                .green()
+                                .underlined();
+                            if let FormMode::Input = self.config_form.mode {
+                                input_style = input_style.add_modifier(
+                                    Modifier::REVERSED
+                                );
+                            };
+                            input.style(input_style)
                         }
                         else {
                             input 
                         },
                         cols[1]
                     );
-
                 }
             };
-
         };
-
     }
 
-    pub fn handle_key(&self, key: KeyEvent) {
+    pub fn handle_key(&mut self, key: KeyEvent) {
 
         match key.code {
         
             KeyCode::Up | KeyCode::Char('k') => {
-                
+               
+                if let FormMode::Movement = self.config_form.mode {
+
+                    let step: usize = {
+                        
+                        let min_i = 1;
+                        let target = self.config_form.focused - 1;
+                        let next_row = &self.config_form.rows[target];
+
+                        match next_row {
+                            FormRow::SectionDivider(_) => {
+                                if target > min_i { 2 }
+                                else { 0 }  // We're at the top
+                            },
+                            FormRow::InputRow(_) => 1
+                        }
+                    };
+
+                    self.config_form.focused -= step;
+                };            
             }, 
             
             KeyCode::Down | KeyCode::Char('j') => {
                 
+                if let FormMode::Movement = self.config_form.mode {
+                    
+                    let max_i = self.config_form.rows.len() - 1;
+                    let target = self.config_form.focused + 1;
+                    
+                    if target < max_i {
+                    
+                        let next_row = &self.config_form.rows[target];
+
+                        let step = match next_row {
+                            FormRow::SectionDivider(_) => {
+                                2 
+                            },
+                            FormRow::InputRow(_) => {
+                                1
+                            }
+                        };
+                        self.config_form.focused += step;
+                    };
+                };
             },
             
-            KeyCode::Enter => { 
-            
+            KeyCode::Enter => {
+
+                let i = self.config_form.focused;
+                let selected = &self.config_form.rows[i];
+
+                if let FormRow::InputRow(r) = selected {
+
+                    match r.kind {
+                        FieldKind::Bool => { 
+                            
+                            let mut new_row = r.clone();
+                            
+                            if r.value == "true" {
+                                new_row.value = "false".to_string();
+                            }  
+                            else if r.value == "false" {
+                                new_row.value = "true".to_string();
+                            };
+                            
+                            self.config_form.rows[i] = FormRow::InputRow(
+                                new_row
+                            );
+                        },
+                        _ => {
+                            let mode = &self.config_form.mode;
+                            self.config_form.mode = match mode {
+                                FormMode::Movement => FormMode::Input, 
+                                FormMode::Input => FormMode::Movement, 
+                            }
+                        }
+                    }
+
+                };
+
             },
+
+            KeyCode::Esc => {
+                
+                if matches!(self.config_form.mode, FormMode::Input) {
+                    self.config_form.mode = FormMode::Movement; 
+                };
+            
+            } 
 
             _ => {}
         }

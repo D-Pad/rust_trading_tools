@@ -89,7 +89,8 @@ impl AppConfig {
                 cache_size: "6M".to_string() 
             },
             chart_parameters: ChartParams {
-                num_bars: 1000
+                num_bars: 1000,
+                log_scale: true,
             }
         }
     }
@@ -104,6 +105,7 @@ pub struct BackTestSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChartParams {
     pub num_bars: u16,
+    pub log_scale: bool,
 }
 
 
