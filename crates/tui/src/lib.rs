@@ -258,7 +258,7 @@ impl TerminalInterface {
             },
 
             Screen::SystemSettings(screen) => {
-                // screen.draw();
+                screen.draw(frame, main_area);
             },
 
             Screen::Placeholder => {}

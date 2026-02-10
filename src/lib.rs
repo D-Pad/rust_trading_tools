@@ -10,7 +10,7 @@ pub use app_core::{
 use tui::{TerminalInterface};
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
-async fn dev_testing(engine: Engine) {
+async fn dev_testing() {
     
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
 
@@ -31,9 +31,10 @@ pub async fn app_start() -> i32 {
     };
 
     if engine.args.dev_mode {
-        dev_testing(engine).await; 
+        dev_testing().await; 
     }
     else {
+        
         let response = match engine.execute_commands().await {
             Ok(d) => d,
             Err(e) => {

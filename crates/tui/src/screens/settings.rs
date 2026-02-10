@@ -1,14 +1,26 @@
-use std::collections::{BTreeMap};
+use std::collections::{
+    BTreeMap
+};
 
 use app_core::app_state::{
     AppConfig
 };
 
 use ratatui::{
-    crossterm::{
-        event::{
-            KeyEvent,
-        }
+    Frame,
+    crossterm::event::KeyEvent,
+    layout::{
+        Constraint, Direction, Layout, Rect
+    },
+    style::{
+        Modifier, Style
+    },
+    widgets::{
+        Block, 
+        Borders, 
+        List,
+        ListItem, 
+        ListState,
     },
 };
 
@@ -167,18 +179,49 @@ impl ConfigForm {
 
 // ------------- SYSTEM SETTINGS -------------- //
 pub struct SettingsScreen {
-    config_form: ConfigForm 
+    config_form: ConfigForm, 
+    state: ListState
 }
 
 impl SettingsScreen {
 
     pub fn new(app_config: &AppConfig) -> Self {
+        
+        let mut state = ListState::default();
+        state.select(Some(0));
+ 
         SettingsScreen {
-            config_form: ConfigForm::from_config(app_config) 
+            config_form: ConfigForm::from_config(app_config),
+            state,
         } 
     }
 
-    pub fn draw(&mut self) {
+    pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
+
+        let settings_chunk = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(100)])
+            .split(area);
+
+        let settings_items: Vec<ListItem> = Vec::from([
+            ListItem::new("Testing")
+        ]);
+
+        let settings_list = List::new(settings_items)
+            .block(
+                Block::default()
+                    .title(Self::SCREEN_NAME)
+                    .borders(Borders::ALL)
+            )
+            .highlight_style(
+                Style::default().add_modifier(Modifier::REVERSED)
+            );
+ 
+        frame.render_stateful_widget(
+            settings_list,
+            settings_chunk[0],
+            &mut self.state
+        );
 
     }
 
