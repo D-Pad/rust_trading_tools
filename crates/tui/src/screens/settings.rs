@@ -53,7 +53,6 @@ pub enum FormRow {
     InputRow(ConfigField),
 }
 
-
 pub enum FormMode {
     Movement,
     Input
@@ -153,7 +152,8 @@ impl ConfigForm {
 // ------------- SYSTEM SETTINGS -------------- //
 pub struct SettingsScreen {
     pub config_form: ConfigForm,
-    pub active: bool
+    pub active: bool,
+    pub previous_value: Option<String>
 }
 
 impl SettingsScreen {
@@ -162,6 +162,7 @@ impl SettingsScreen {
         SettingsScreen {
             config_form: ConfigForm::from_config(app_config),
             active: true,
+            previous_value: None
         } 
     }
 
@@ -272,12 +273,12 @@ impl SettingsScreen {
 
     pub fn handle_key(&mut self, key: KeyEvent) {
 
-        match key.code {
-        
-            KeyCode::Up | KeyCode::Char('k') => {
-               
-                if let FormMode::Movement = self.config_form.mode {
+        if let FormMode::Movement = self.config_form.mode {
 
+            match key.code {
+            
+                KeyCode::Up | KeyCode::Char('k') => {
+                   
                     let step: usize = {
                         
                         let min_i = 1;
@@ -294,12 +295,9 @@ impl SettingsScreen {
                     };
 
                     self.config_form.focused -= step;
-                };            
-            }, 
-            
-            KeyCode::Down | KeyCode::Char('j') => {
+                }, 
                 
-                if let FormMode::Movement = self.config_form.mode {
+                KeyCode::Down | KeyCode::Char('j') => {
                     
                     let max_i = self.config_form.rows.len() - 1;
                     let target = self.config_form.focused + 1;
@@ -318,56 +316,106 @@ impl SettingsScreen {
                         };
                         self.config_form.focused += step;
                     };
-                };
-            },
-            
-            KeyCode::Enter => {
+                },
+                
+                KeyCode::Enter => {
 
-                let i = self.config_form.focused;
-                let selected = &self.config_form.rows[i];
+                    let i = self.config_form.focused;
+                    let selected = &self.config_form.rows[i];
 
-                if let FormRow::InputRow(r) = selected {
+                    if let FormRow::InputRow(r) = selected {
 
-                    match r.kind {
-                        FieldKind::Bool => { 
+                        let mut new_row = r.clone();
+                        
+                        match r.kind {
+
+                            FieldKind::Bool => { 
+                                
+                                if r.value == "true" {
+                                    new_row.value = "false".to_string();
+                                }  
+                                else if r.value == "false" {
+                                    new_row.value = "true".to_string();
+                                };
+                                
+                                self.config_form.rows[i] = FormRow::InputRow(
+                                    new_row
+                                );
+                            },
                             
-                            let mut new_row = r.clone();
-                            
-                            if r.value == "true" {
-                                new_row.value = "false".to_string();
-                            }  
-                            else if r.value == "false" {
-                                new_row.value = "true".to_string();
-                            };
-                            
-                            self.config_form.rows[i] = FormRow::InputRow(
-                                new_row
-                            );
-                        },
-                        _ => {
-                            let mode = &self.config_form.mode;
-                            self.config_form.mode = match mode {
-                                FormMode::Movement => FormMode::Input, 
-                                FormMode::Input => FormMode::Movement, 
+                            _ => { 
+                               
+                                let mode = &self.config_form.mode;
+                                self.config_form.mode = match mode {
+                                    FormMode::Movement => {
+                                        self.previous_value = Some(
+                                            r.value.clone()
+                                        );
+                                        new_row.value = "".to_string();
+                                        self.config_form
+                                            .rows[i] = FormRow::InputRow(
+                                                new_row
+                                            );
+                                        FormMode::Input
+                                    }, 
+                                    FormMode::Input => {
+                                        FormMode::Movement
+                                    }, 
+                                }
                             }
                         }
-                    }
 
-                };
+                    };
 
-            },
+                },
 
-            KeyCode::Esc => {
+                KeyCode::Esc => {
+                    
+                    if matches!(self.config_form.mode, FormMode::Input) {
+                        self.config_form.mode = FormMode::Movement; 
+                    };
                 
-                if matches!(self.config_form.mode, FormMode::Input) {
-                    self.config_form.mode = FormMode::Movement; 
-                };
-            
-            } 
+                } 
 
-            _ => {}
+                _ => {}
+            }
+
         }
+        else if let FormMode::Input = &self.config_form.mode {
 
+            let i = self.config_form.focused;
+            
+            match key.code {
+                
+                KeyCode::Char(c) => {
+                    if let FormRow::InputRow(r) = &self.config_form.rows[i] {
+                        let mut new_row = r.clone();
+                        new_row.value.push(c);
+                        self.config_form.rows[i] = FormRow::InputRow(new_row);
+                    };
+                },
+                
+                KeyCode::Enter => {
+                    self.config_form.mode = FormMode::Movement;
+                    self.previous_value = None;
+                },
+                
+                KeyCode::Esc => {
+                    if let FormRow::InputRow(r) = &self.config_form.rows[i] {
+                        let mut new_row = r.clone();
+                        if let Some(s) = &self.previous_value {
+                            new_row.value = s.clone(); 
+                        };
+                        self.config_form.rows[i] = FormRow::InputRow(new_row);
+                    };
+                    self.config_form.mode = FormMode::Movement;
+                    self.previous_value = None;
+                },
+                
+                _ => {}
+            }
+
+        }
     }
 
     pub const SCREEN_NAME: &'static str = "System Settings";
