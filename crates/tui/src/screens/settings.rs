@@ -6,6 +6,9 @@ use string_helpers::capitlize_first_letter;
 use ratatui::{
     Frame,
     crossterm::event::KeyEvent,
+    style::{
+        Style
+    },
     layout::{
         Constraint,
         Direction, 
@@ -156,8 +159,21 @@ impl SettingsScreen {
 
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
 
-        fn divider_text(name: &String, row_width: u16) -> String {
-            "".to_string() 
+        fn divider_text(name: &String, row_width: usize) -> String {
+          
+            let sym = "—";
+
+            let num_dashes: usize = (row_width - name.len());
+            let dashes = sym.repeat((num_dashes / 2) - 1);
+            
+            let mut div = format!("{} {} {}", dashes, name, dashes);
+            
+            let width_diff: usize = row_width.saturating_sub(div.len());
+            if width_diff > 0 {
+                div.push_str(&sym.repeat(width_diff).as_str())
+            };
+
+            div
         }
 
         let block = Block::default()
@@ -168,7 +184,7 @@ impl SettingsScreen {
 
         let inner = block.inner(area);
 
-        let width: u16 = area.width.saturating_sub(2);
+        let width: usize = area.width.saturating_sub(2) as usize;
 
         let form_rows = Layout::default()
             .direction(Direction::Vertical)
@@ -186,7 +202,8 @@ impl SettingsScreen {
                     
                     let section_name = divider_text(s, width); 
                     frame.render_widget(
-                        Paragraph::new(s.clone()),
+                        Paragraph::new(section_name)
+                            .style(Style::new().red()),
                         form_rows[i] 
                     );
                 

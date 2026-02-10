@@ -153,7 +153,7 @@ impl DatabaseScreen {
             )
             .highlight_style(
                 if let DbFocus::Top = self.focus {
-                    Style::default().add_modifier(Modifier::REVERSED)
+                    Style::default().add_modifier(Modifier::REVERSED).green()
                 } else {
                     Style::default()
                 }
@@ -203,7 +203,7 @@ impl DatabaseScreen {
             )
             .highlight_style(
                 if let DbFocus::Bottom = self.focus {
-                    Style::default().add_modifier(Modifier::REVERSED)
+                    Style::default().add_modifier(Modifier::REVERSED).green()
                 } else {
                     Style::default()
                 }

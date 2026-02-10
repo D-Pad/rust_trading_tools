@@ -235,7 +235,7 @@ impl TerminalInterface {
             .block(operations_block)
             .highlight_style(
                 if let Focus::Operations = focus {
-                    Style::default().add_modifier(Modifier::REVERSED)
+                    Style::default().add_modifier(Modifier::REVERSED).green()
                 } else {
                     Style::default()
                 }
