@@ -1,61 +1,23 @@
-use std::collections::{
-    BTreeMap
-};
-
 use app_core::app_state::{
     AppConfig
 };
+use string_helpers::capitlize_first_letter;
 
 use ratatui::{
     Frame,
     crossterm::event::KeyEvent,
     layout::{
-        Constraint, Direction, Layout, Rect
-    },
-    style::{
-        Modifier, Style
+        Constraint,
+        Direction, 
+        Layout,
+        Rect,
     },
     widgets::{
-        Block, 
-        Borders, 
-        List,
-        ListItem, 
-        ListState,
-    },
+        Paragraph,
+        Block,
+        Borders,
+    }
 };
-
-
-// pub struct AppConfig {
-//     pub backtesting: BackTestSettings,
-//     pub supported_exchanges: SupportedExchanges,
-//     pub data_download: DataDownload, 
-//     pub chart_parameters: ChartParams,
-// }
-// 
-// 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct BackTestSettings {
-//     pub inside_bar: bool,
-// } 
-// 
-// 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct ChartParams {
-//     pub num_bars: u16,
-// }
-// 
-// 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct SupportedExchanges {
-//     pub active: HashMap<String, bool>,
-// }
-// 
-// 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct DataDownload {
-//     pub cache_size_units: u64,
-//     pub cache_size_period: char,
-// }
 
 
 #[derive(Debug, Clone)]
@@ -77,12 +39,18 @@ pub struct ConfigField {
     pub cursor: usize,
 }
 
+#[derive(Debug)]
+pub enum FormRow {
+    SectionDivider(String),
+    InputRow(ConfigField),
+}
+
 /// A ConfigForm is intended to be used as a way for the user to interface
 /// with the system settings, and make changes to it. Used in the TUI crate
 #[derive(Debug)]
 pub struct ConfigForm {
     pub focused: usize,
-    pub fields: BTreeMap<String, Vec<ConfigField>>,
+    pub rows: Vec<FormRow>,
 }
 
 impl ConfigForm {
@@ -94,66 +62,63 @@ impl ConfigForm {
     /// settings from an interface.
     pub fn from_config(cfg: &AppConfig) -> Self {
 
-        let mut supported_exchanges_vec: Vec<ConfigField> = Vec::new();
+        let mut rows: Vec<FormRow> = Vec::new();
+            
+        rows.push(FormRow::SectionDivider(
+            "Backtest Settings".to_string()
+        ));
+        rows.push(FormRow::InputRow(
+            ConfigField {
+                label: "Inside Bar Testing".to_string(),
+                kind: FieldKind::Bool,
+                value: cfg.backtesting.inside_bar.to_string(),
+                cursor: 0,
+            })
+        );
 
+        rows.push(FormRow::SectionDivider(
+            "Chart Parameters".to_string()
+        ));
+        rows.push(FormRow::InputRow(
+            ConfigField {
+                label: "Max number of bars on chart".to_string(),
+                kind: FieldKind::Number,
+                value: cfg.chart_parameters.num_bars.to_string(),
+                cursor: 0,
+            })
+        );
+
+        rows.push(FormRow::SectionDivider(
+            "Active Exchanges".to_string() 
+        )); 
         for (exchange, enabled) in &cfg.supported_exchanges.active {
-            supported_exchanges_vec.push(
-                ConfigField {
-                    label: exchange.clone(),
-                    kind: FieldKind::Bool,
-                    value: enabled.to_string(),
-                    cursor: 0,
-                }
+            rows.push(
+                FormRow::InputRow(
+                    ConfigField {
+                        label: capitlize_first_letter(exchange),
+                        kind: FieldKind::Bool,
+                        value: enabled.to_string(),
+                        cursor: 0,
+                    }
+                )
             ); 
         };
 
+        rows.push(FormRow::SectionDivider(
+            "Data Download Settings".to_string()
+        ));
+        rows.push(FormRow::InputRow(
+            ConfigField {
+                label: "Initial download cache size".to_string(),
+                kind: FieldKind::Text,
+                value: cfg.data_download.cache_size.clone(),
+                cursor: 0,
+            })
+        );
+
         ConfigForm {
             focused: 0,
-            fields: BTreeMap::from([
-               
-                (
-                    "backtest".to_string(), 
-                    Vec::from([
-                        ConfigField {
-                            label: "Inside Bar Testing".to_string(),
-                            kind: FieldKind::Bool,
-                            value: cfg.backtesting.inside_bar.to_string(),
-                            cursor: 0,
-                        },
-                    ])
-                ),
-
-                // Chart params 
-                (
-                    "charts".to_string(),
-                    Vec::from([
-                        ConfigField {
-                            label: "Max number of bars on chart".to_string(),
-                            kind: FieldKind::Number,
-                            value: cfg.chart_parameters.num_bars.to_string(),
-                            cursor: 0,
-                        }
-                    ])
-                ), 
-
-                (
-                    "exchanges".to_string(),
-                    supported_exchanges_vec
-                ),
-
-                (
-                    "downloads".to_string(),
-                    Vec::from([
-                        ConfigField {
-                            label: "Initial download cache size".to_string(),
-                            kind: FieldKind::Text,
-                            value: cfg.data_download.cache_size.clone(),
-                            cursor: 0,
-                        }
-                    ])
-                )
-
-            ])
+            rows 
         }
 
     }
@@ -165,7 +130,6 @@ impl ConfigForm {
     pub fn key_to_title(key: &String) -> Result<&'static str, ConfigFormError> {
  
         match &key[..] {
-            "backtest" => Ok("Backtest Settings"),
             "charts" => Ok("Chart Parameters"),
             "exchanges" => Ok("Supported Exchanges"),
             "downloads" => Ok("Data Download Parameters"),
@@ -180,48 +144,77 @@ impl ConfigForm {
 // ------------- SYSTEM SETTINGS -------------- //
 pub struct SettingsScreen {
     config_form: ConfigForm, 
-    state: ListState
 }
 
 impl SettingsScreen {
 
     pub fn new(app_config: &AppConfig) -> Self {
-        
-        let mut state = ListState::default();
-        state.select(Some(0));
- 
         SettingsScreen {
             config_form: ConfigForm::from_config(app_config),
-            state,
         } 
     }
 
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
 
-        let settings_chunk = Layout::default()
+        fn divider_text(name: &String, row_width: u16) -> String {
+            "".to_string() 
+        }
+
+        let block = Block::default()
+            .title("System Settings")
+            .borders(Borders::ALL);
+
+        frame.render_widget(block.clone(), area);
+
+        let inner = block.inner(area);
+
+        let width: u16 = area.width.saturating_sub(2);
+
+        let form_rows = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(100)])
-            .split(area);
-
-        let settings_items: Vec<ListItem> = Vec::from([
-            ListItem::new("Testing")
-        ]);
-
-        let settings_list = List::new(settings_items)
-            .block(
-                Block::default()
-                    .title(Self::SCREEN_NAME)
-                    .borders(Borders::ALL)
+            .constraints(self.config_form.rows
+                .iter()
+                .map(|_| Constraint::Length(1))
+                .collect::<Vec<Constraint>>()
             )
-            .highlight_style(
-                Style::default().add_modifier(Modifier::REVERSED)
-            );
- 
-        frame.render_stateful_widget(
-            settings_list,
-            settings_chunk[0],
-            &mut self.state
-        );
+            .split(inner);
+
+        for (i, row) in self.config_form.rows.iter().enumerate() {
+        
+            match row {
+                FormRow::SectionDivider(s) => {
+                    
+                    let section_name = divider_text(s, width); 
+                    frame.render_widget(
+                        Paragraph::new(s.clone()),
+                        form_rows[i] 
+                    );
+                
+                },
+                FormRow::InputRow(input_row) => {
+                
+                    let cols = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([
+                            Constraint::Length(30),
+                            Constraint::Min(10)
+                        ])
+                        .split(form_rows[i]);
+                    
+                    frame.render_widget(
+                        Paragraph::new(input_row.label.as_str()),
+                        cols[0]
+                    );
+
+                    frame.render_widget(
+                        Paragraph::new(input_row.value.as_str()),
+                        cols[1]
+                    );
+
+                }
+            };
+
+        };
 
     }
 
