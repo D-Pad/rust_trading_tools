@@ -64,6 +64,7 @@ pub enum Focus {
 pub enum AppEvent {
     Input(KeyEvent),
     Output(OutputMsg),
+    Clear,
     Tick,
 }
 

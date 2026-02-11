@@ -11,4 +11,5 @@ ratatui = "0.30.0"
 # My modules 
 app_core = { path = "../app_core" }   
 string_helpers = { path = "../string_helpers" }   
+timestamp_tools = { path = "../timestamp_tools" }   
 

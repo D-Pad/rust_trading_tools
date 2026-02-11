@@ -300,7 +300,9 @@ impl TerminalInterface {
         });
 
         let key_reader = tokio::spawn(async move {
+            
             loop {
+                
                 if let Ok(_) = event::poll(Duration::from_millis(50)) {
                     if let Ok(e) = event::read() {
                         if let Event::Key(key) = e {
@@ -335,10 +337,9 @@ impl TerminalInterface {
                     AppEvent::Tick => {}, // Nothing to do
                     
                     AppEvent::Output(msg) => {
-
                         self.render_messages(msg);
-
-                    }
+                    },
+                    AppEvent::Clear => self.clear_lines()
                 }
             }
 
@@ -422,6 +423,10 @@ impl TerminalInterface {
                 }
 
             },
+
+            Screen::SystemSettings(_) => {
+                msgs_to_render.push(msg);
+            }
             _ => {}
         
         }
@@ -493,7 +498,10 @@ impl TerminalInterface {
                                 CandleScreen::new()
                             ),
                             2 => Screen::SystemSettings(
-                                SettingsScreen::new(&self.engine.state.config)
+                                SettingsScreen::new(
+                                    &self.engine.state.config,
+                                    transmitter 
+                                )
                             ),
                             _ => Screen::Placeholder 
                         };
@@ -527,7 +535,7 @@ impl TerminalInterface {
                             new_focus = Focus::Operations;
                         };
                     };
-                    screen.handle_key(key);
+                    screen.handle_key(key).await;
                 },
                 _ => {} 
 

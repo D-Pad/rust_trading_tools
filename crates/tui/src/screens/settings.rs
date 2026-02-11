@@ -1,7 +1,18 @@
+use std::fmt::{
+    Display,
+    Formatter,
+    self,
+};
+
 use app_core::app_state::{
     AppConfig
 };
 use string_helpers::capitlize_first_letter;
+use timestamp_tools::{
+    VALID_PERIODS, 
+    period_is_valid
+};
+use crate::{AppEvent, OutputMsg};
 
 use ratatui::{
     Frame,
@@ -14,6 +25,7 @@ use ratatui::{
     style::{
         Modifier,
         Style,
+        Color,
     },
     layout::{
         Constraint,
@@ -27,13 +39,28 @@ use ratatui::{
         Borders,
     }
 };
+use tokio::sync::mpsc::UnboundedSender;
 
 
 #[derive(Clone)]
 pub enum FieldKind {
     Bool,
-    Number,
-    Text
+    Integer,
+    Float,
+    Text,
+    TimeFrame,
+}
+
+impl Display for FieldKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            FieldKind::Bool => write!(f, "Bool"),
+            FieldKind::Integer => write!(f, "Integer"),
+            FieldKind::Float => write!(f, "Float"),
+            FieldKind::Text => write!(f, "Text"),
+            FieldKind::TimeFrame => write!(f, "TimeFrame"),
+        } 
+    }
 }
 
 pub enum ConfigFormError {
@@ -45,6 +72,18 @@ pub struct ConfigField {
     pub label: String,
     pub kind: FieldKind,
     pub value: String,
+}
+
+impl ConfigField {
+    fn value_is_acceptable(&self) -> bool {
+        match &self.kind {
+            FieldKind::Bool => true, // Isn't modifiable by user anyway
+            FieldKind::Integer => self.value.parse::<u64>().is_ok(),
+            FieldKind::Float => self.value.parse::<f64>().is_ok(), 
+            FieldKind::Text => true,
+            FieldKind::TimeFrame => period_is_valid(&self.value),
+        } 
+    }
 }
 
 pub enum FormRow {
@@ -94,7 +133,7 @@ impl ConfigForm {
         rows.push(FormRow::InputRow(
             ConfigField {
                 label: "Max number of bars on chart".to_string(),
-                kind: FieldKind::Number,
+                kind: FieldKind::Integer,
                 value: cfg.chart_parameters.num_bars.to_string(),
             })
         );
@@ -127,7 +166,7 @@ impl ConfigForm {
         rows.push(FormRow::InputRow(
             ConfigField {
                 label: "Initial download cache size".to_string(),
-                kind: FieldKind::Text,
+                kind: FieldKind::TimeFrame,
                 value: cfg.data_download.cache_size.clone(),
             })
         );
@@ -147,40 +186,26 @@ impl ConfigForm {
 pub struct SettingsScreen {
     pub config_form: ConfigForm,
     pub active: bool,
-    pub previous_value: Option<String>
+    pub previous_value: Option<String>,
+    pub msg_sender: UnboundedSender<AppEvent>, 
 }
 
 impl SettingsScreen {
 
-    pub fn new(app_config: &AppConfig) -> Self {
+    pub fn new(
+        app_config: &AppConfig, 
+        msg_sender: UnboundedSender<AppEvent>
+    ) -> Self {
         SettingsScreen {
             config_form: ConfigForm::from_config(app_config),
             active: true,
-            previous_value: None
+            previous_value: None,
+            msg_sender
         } 
     }
 
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
 
-        // fn divider_text(name: &String, row_width: usize) -> String {
-        //   
-        //     let sym = "—";
-
-        //     let num_dashes: usize = row_width - name.len();
-        //     let dashes = sym.repeat((num_dashes / 2) - 1);
-        //     
-        //     let mut div = format!("{} {} {}", dashes, name, dashes);
-        //     
-        //     let width_diff: usize = row_width.saturating_sub(div.len());
-        //     if width_diff > 0 {
-        //         div.push_str(&sym.repeat(width_diff).as_str())
-        //     };
-
-        //     div
-        // }
-
-        // let width: usize = area.width.saturating_sub(2) as usize;
-        
         let block = Block::default()
             .title("System Settings")
             .borders(Borders::ALL);
@@ -227,6 +252,7 @@ impl SettingsScreen {
                         format!(" {}:", input_row.label.as_str())
                     );
                     frame.render_widget(
+                        
                         if self.config_form.focused == i && self.active {
                             label.style(
                                 Style::default()
@@ -237,6 +263,7 @@ impl SettingsScreen {
                         else {
                             label
                         },
+                        
                         cols[0]
                     );
 
@@ -244,15 +271,19 @@ impl SettingsScreen {
                         format!(":{}", input_row.value.as_str())
                     );
                     frame.render_widget(
+                        
                         if self.config_form.focused == i && self.active {
+                            
                             let mut input_style = Style::default()
                                 .green()
                                 .underlined();
+                            
                             if let FormMode::Input = self.config_form.mode {
                                 input_style = input_style.add_modifier(
                                     Modifier::REVERSED
                                 );
                             };
+                            
                             input.style(input_style)
                         }
                         else {
@@ -265,7 +296,7 @@ impl SettingsScreen {
         };
     }
 
-    pub fn handle_key(&mut self, key: KeyEvent) {
+    pub async fn handle_key(&mut self, key: KeyEvent) {
 
         if let FormMode::Movement = self.config_form.mode {
 
@@ -397,11 +428,64 @@ impl SettingsScreen {
                 },
                 
                 KeyCode::Enter => {
-                    self.config_form.mode = FormMode::Movement;
-                    self.previous_value = None;
+                    
+                    
+                    if let FormRow::InputRow(r) = &self.config_form.rows[i] {
+                        
+                        let sender = self.msg_sender.clone();
+                        
+                        if !r.value_is_acceptable() {
+
+                            let mut msgs: Vec<String> = Vec::new();
+                            msgs.push(format!(
+                                "Invalid input: Expected {}", r.kind
+                            ));
+
+                            if let FieldKind::TimeFrame = r.kind {
+                                let mut temp_str = String::new(); 
+                                temp_str.push_str(
+                                    "Must pass an integer and valid symbol:"
+                                );
+                                temp_str.push_str(
+                                    "  (1000m, 20d, 5w, 6M, etc.)"
+                                );
+                                msgs.push(temp_str);
+                                msgs.push(
+                                    format!(
+                                        "Valid symbols: {:?}", 
+                                        VALID_PERIODS
+                                    ) 
+                                );
+                            };
+
+                            tokio::spawn(async move {
+                                
+                                sender.send(AppEvent::Clear);
+
+                                for msg in msgs {
+                                    sender.send(AppEvent::Output(
+                                        OutputMsg { 
+                                            text: msg, 
+                                            color: Color::Red, 
+                                            bold: true, 
+                                            bg_color: None, 
+                                            exchange: None, 
+                                            ticker: None 
+                                        })
+                                    );
+                                }
+                            }); 
+                        }
+                        else {
+                            sender.send(AppEvent::Clear);
+                            self.config_form.mode = FormMode::Movement;
+                            self.previous_value = None;
+                        };
+                    }
                 },
                 
                 KeyCode::Esc => {
+                    
                     if let FormRow::InputRow(r) = &self.config_form.rows[i] {
                         let mut new_row = r.clone();
                         if let Some(s) = &self.previous_value {
@@ -411,9 +495,11 @@ impl SettingsScreen {
                     };
                     self.config_form.mode = FormMode::Movement;
                     self.previous_value = None;
+                
                 },
                
                 KeyCode::Backspace => {
+                    
                     if let FormRow::InputRow(r) = &self.config_form.rows[i] {
                         let mut new_row = r.clone();
                         let existing = new_row.value.clone();
@@ -423,6 +509,7 @@ impl SettingsScreen {
                         new_row.value = next_string;
                         self.config_form.rows[i] = FormRow::InputRow(new_row);
                     };                    
+                
                 },
 
                 _ => {}

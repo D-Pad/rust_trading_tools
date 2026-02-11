@@ -3102,6 +3102,7 @@ dependencies = [
  "ratatui",
  "sqlx",
  "string_helpers",
+ "timestamp_tools",
  "tokio",
 ]
 
