@@ -179,6 +179,13 @@ impl ConfigForm {
 
     }
 
+    fn to_config(self) -> AppConfig {
+   
+        let config = AppConfig::default();
+        config
+    
+    }
+
 }
 
 

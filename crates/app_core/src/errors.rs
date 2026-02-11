@@ -57,6 +57,7 @@ pub enum ConfigError {
     FileNotFound(&'static str),
     ParseFailure,
     SaveStateFailed,
+    MissingDirectory(&'static str),
 }
 
 impl std::fmt::Display for ConfigError {
@@ -71,6 +72,10 @@ impl std::fmt::Display for ConfigError {
             ConfigError::SaveStateFailed => write!(
                 f, "ConfigError::SaveStateFailed" 
             ),
+            ConfigError::MissingDirectory(e) => write!(
+                f, "ConfigError::MissingDirectory: {}", e 
+            ),
+
         }
     }
 }

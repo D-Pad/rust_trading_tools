@@ -7,7 +7,8 @@ use std::{
     fs,
     path::{
         PathBuf
-    }
+    },
+    env
 };
 use timestamp_tools::{
     calculate_seconds_in_period,
@@ -75,7 +76,7 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    fn default() -> Self {
+    pub fn default() -> Self {
         Self {
             backtesting: BackTestSettings { 
                 inside_bar: true 
@@ -146,14 +147,52 @@ impl DataDownload {
 }
 
 
-fn get_path_state() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("cache") 
+fn get_path_state() -> Result<PathBuf, ConfigError> {
+
+    let mut base = if cfg!(target_os = "windows") {
+        // Windows: %APPDATA%
+        env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .ok_or(ConfigError::MissingDirectory("APPDATA not set"))?
+    
+    } else if cfg!(target_os = "macos") {
+        // macOS: ~/Library/Application Support
+        let home = env::var_os("HOME")
+            .map(PathBuf::from)
+            .ok_or(ConfigError::MissingDirectory("HOME not set"))?;
+        home.join("Library").join("Application Support")
+    
+    } else {
+        
+        // Linux / Unix: XDG spec
+        if let Some(xdg) = env::var_os("XDG_CONFIG_HOME") {
+            PathBuf::from(xdg)
+        } else {
+            let home = env::var_os("HOME")
+                .map(PathBuf::from)
+                .ok_or(ConfigError::MissingDirectory("HOME not set"))?;
+            home.join(".config")
+        }
+    };
+
+    base.push("dtrade");
+
+    if !base.exists() {
+        if let Err(_) = fs::create_dir_all(&base) {
+            return Err(ConfigError::MissingDirectory(
+                "Failed to create 'dtrade' directory"
+            ));
+        };
+    };
+    
+    Ok(base)
+
 }
 
 /// Loads the config.json file into an AppConfig struct
 pub fn load_config() -> Result<AppConfig, ConfigError> {
   
-    let cache_path: PathBuf = get_path_state();
+    let cache_path: PathBuf = get_path_state()?;
     let json_path: PathBuf = cache_path.join("config.json");
 
     if json_path.exists() {
@@ -181,7 +220,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
 /// Exports the AppConfig state into the config.json file.
 pub fn save_config(config: &AppConfig) -> Result<(), ConfigError> {
 
-    let path = get_path_state().join("config.json");
+    let path = get_path_state()?.join("config.json");
     
     let json = match serde_json::to_string_pretty(config) {
         Ok(d) => d,
