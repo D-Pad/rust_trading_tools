@@ -63,15 +63,38 @@ impl Display for FieldKind {
     }
 }
 
-pub enum ConfigFormError {
-    InvalidKey
+// ------------------------------ CONFIG KEYS ------------------------------ //
+#[derive(Clone)]
+enum ConfigFieldKey {
+    BackTest(BackTestKeys),
+    Downloads(DownloadKeys),
+    Exchanges,
+    Charts(ChartParams), 
 }
 
+#[derive(Clone)]
+enum BackTestKeys {
+    InsideBar,
+}
+
+#[derive(Clone)]
+enum ChartParams {
+    NumBarsOnChart,
+    LogScale,
+}
+
+#[derive(Clone)]
+enum DownloadKeys {
+    CacheSize
+}
+
+// ------------------------------------------------------------------------- //
 #[derive(Clone)]
 pub struct ConfigField {
     pub label: String,
     pub kind: FieldKind,
     pub value: String,
+    pub key: ConfigFieldKey
 }
 
 impl ConfigField {
@@ -124,6 +147,7 @@ impl ConfigForm {
                 label: "Inside Bar Testing".to_string(),
                 kind: FieldKind::Bool,
                 value: cfg.backtesting.inside_bar.to_string(),
+                key: ConfigFieldKey::BackTest(BackTestKeys::InsideBar),
             })
         );
 
@@ -135,6 +159,7 @@ impl ConfigForm {
                 label: "Max number of bars on chart".to_string(),
                 kind: FieldKind::Integer,
                 value: cfg.chart_parameters.num_bars.to_string(),
+                key: ConfigFieldKey::Charts(ChartParams::NumBarsOnChart),
             })
         );
         rows.push(FormRow::InputRow(
@@ -142,6 +167,7 @@ impl ConfigForm {
                 label: "Logarithmic scale".to_string(),
                 kind: FieldKind::Bool,
                 value: cfg.chart_parameters.log_scale.to_string(),
+                key: ConfigFieldKey::Charts(ChartParams::LogScale),
             })
         );
 
@@ -155,6 +181,7 @@ impl ConfigForm {
                         label: capitlize_first_letter(exchange),
                         kind: FieldKind::Bool,
                         value: enabled.to_string(),
+                        key: ConfigFieldKey::Exchanges
                     }
                 )
             ); 
@@ -168,6 +195,7 @@ impl ConfigForm {
                 label: "Initial download cache size".to_string(),
                 kind: FieldKind::TimeFrame,
                 value: cfg.data_download.cache_size.clone(),
+                key: ConfigFieldKey::Downloads(DownloadKeys::CacheSize)
             })
         );
 
@@ -181,7 +209,7 @@ impl ConfigForm {
 
     fn to_config(self) -> AppConfig {
    
-        let config = AppConfig::default();
+        let mut config = AppConfig::default();
         config
     
     }
