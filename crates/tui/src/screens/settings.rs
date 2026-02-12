@@ -4,8 +4,12 @@ use std::fmt::{
     self,
 };
 
-use app_core::app_state::{
-    AppConfig
+use app_core::{
+    app_state::{
+        AppConfig,
+        save_config,
+    },
+    errors::ConfigError
 };
 use string_helpers::capitlize_first_letter;
 use timestamp_tools::{
@@ -207,11 +211,83 @@ impl ConfigForm {
 
     }
 
-    fn to_config(self) -> AppConfig {
+    fn to_config(&self) -> AppConfig {
    
         let mut config = AppConfig::default();
+
+        for row in &self.rows {
+            
+            if let FormRow::InputRow(inp) = row {
+                
+                match &inp.key {
+                 
+                    ConfigFieldKey::Exchanges => {
+
+                        let key = inp.label.to_lowercase();
+                        let parsed = inp.value.parse::<bool>().unwrap_or(true);
+                        config.supported_exchanges.active.insert(key, parsed);
+
+                    },
+                    
+                    ConfigFieldKey::BackTest(bt) => {
+                        match bt {
+                            BackTestKeys::InsideBar => {
+                                let parsed = inp
+                                    .value
+                                    .parse::<bool>()
+                                    .unwrap_or(true);
+                                config.backtesting.inside_bar = parsed;
+                            }
+                        }
+                    },
+
+                    ConfigFieldKey::Charts(ch) => {
+                        match ch {
+                            ChartParams::LogScale => {
+                                let parsed = inp
+                                    .value
+                                    .parse::<bool>()
+                                    .unwrap_or(
+                                        config.chart_parameters.log_scale
+                                    );
+                                config.chart_parameters.log_scale = parsed;
+                            },
+                            ChartParams::NumBarsOnChart => {
+                                let parsed = inp
+                                    .value
+                                    .parse::<u16>()
+                                    .unwrap_or(
+                                        config.chart_parameters.num_bars
+                                    );
+                                config.chart_parameters.num_bars = parsed;
+                            }
+                        }
+                    },
+
+                    ConfigFieldKey::Downloads(dl) => {
+                        match dl {
+                            DownloadKeys::CacheSize => {
+                                let new_time: String = inp.value.clone();
+                                config.data_download.cache_size = new_time;
+                            }
+                        }
+                    }
+                };
+            }; 
+        };
+
+        // BackTest(BackTestKeys),
+        // Downloads(DownloadKeys),
+        // Exchanges,
+        // Charts(ChartParams), 
+
         config
     
+    }
+
+    pub fn save_input_values(&self) -> Result<(), ConfigError> {
+        let config: AppConfig = self.to_config();
+        save_config(&config)
     }
 
 }

@@ -534,6 +534,17 @@ impl TerminalInterface {
                             screen.active = false;
                             new_focus = Focus::Operations;
                         };
+                        screen.config_form.save_input_values();
+                        transmitter.send(AppEvent::Output(
+                            OutputMsg { 
+                                text: "Settings saved!".to_string(), 
+                                color: Color::Green, 
+                                bold: true, 
+                                bg_color: None, 
+                                exchange: None, 
+                                ticker: None 
+                            }
+                        ));
                     };
                     screen.handle_key(key).await;
                 },
