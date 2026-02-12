@@ -167,7 +167,7 @@ impl DatabaseScreen {
 
         self.btm_item_data = match self.selected_action {
             Some(DbAction::RemovePairs | DbAction::UpdateData) => {
-                let mut items = Vec::new();
+                let mut items = Vec::from(["All Tables".to_string()]);
                 for (key, vals) in &self.token_pairs {
                     for v in vals {
                         items.push(format!("{key} - {v}"))
@@ -244,16 +244,27 @@ impl DatabaseScreen {
                 let time_offset = engine.state.time_offset();
                 let client = engine.request_client.clone();
                 let db_pool = self.db_pool.clone();
-                
-                let tokens: Vec<&str> = self.btm_item_data[i]
-                    .split(" - ")
-                    .collect();
-
-                let exchange: String = tokens[0].to_lowercase();
-                let ticker: String = tokens[1].to_uppercase();
-
+              
                 let active_exchanges = engine.state
                     .get_active_exchanges();
+
+                let pair = if self.btm_item_data[i] != "All Tables" {
+                    
+                    let tokens: Vec<&str> = self.btm_item_data[i]
+                        .split(" - ")
+                        .collect();
+
+                    (
+                        Some(tokens[0].to_lowercase()),
+                        Some(tokens[1].to_uppercase())
+                    )
+                
+                }
+                else {
+                    (None, None)
+                };
+
+                let (exchange, ticker) = pair;
 
                 self.task_handle = Some(tokio::spawn(async move {
                     update_database_tables(
@@ -262,8 +273,8 @@ impl DatabaseScreen {
                         &client, 
                         db_pool, 
                         prog_tx, 
-                        Some(&exchange), 
-                        Some(&ticker)
+                        exchange.as_deref(), 
+                        ticker.as_deref()
                     ).await;
                 }));
             }

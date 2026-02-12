@@ -85,7 +85,7 @@ pub async fn drop_pair(
     Ok(())
 }
 
-
+/// Downloads missing data to database tables 
 pub async fn download_new_data_to_db_table(
     exchange: &str, 
     ticker: &str,
@@ -109,7 +109,7 @@ pub async fn download_new_data_to_db_table(
 
 }
 
-
+/// Fetches the first of a database table that matches the given timestamp
 pub async fn fetch_first_tick_by_time_column(
     exchange: &str,
     ticker: &str,
@@ -147,6 +147,7 @@ pub async fn fetch_first_tick_by_time_column(
 }
 
 
+/// Returns the name of all database tables in the database
 pub async fn fetch_tables(
     db_pool: PgPool 
 ) -> Result<Vec<String>, DbError> {
@@ -174,6 +175,7 @@ pub async fn fetch_tables(
 }
 
 
+/// Fetches all asset pair tables organized by exchange name 
 pub async fn fetch_exchanges_and_pairs_from_db(db_pool: PgPool) 
     -> HashMap<String, Vec<String>> {
    
@@ -207,6 +209,7 @@ pub async fn fetch_exchanges_and_pairs_from_db(db_pool: PgPool)
 }
 
 
+/// Fetches either the first or the last row in a database table
 pub async fn fetch_first_or_last_row(
     exchange: &str, 
     ticker: &str,
@@ -249,6 +252,10 @@ pub async fn fetch_first_or_last_row(
 }
 
 
+/// # Fetch All Rows of an Asset Table
+///
+/// If a limit value is provided, then the X most recent ticks are returned.
+/// Otherwise all rows are returned.
 pub async fn fetch_rows(
     exchange: &str, 
     ticker: &str,
@@ -333,6 +340,9 @@ pub async fn fetch_rows(
 }
 
 
+/// # First Time Setup for DB
+///
+/// Only runs if the database has just been setup
 pub async fn first_time_setup(
     active_exchanges: &Vec<String>, 
     db_pool: PgPool 
@@ -379,6 +389,7 @@ pub async fn first_time_setup(
 }
 
 
+/// Initializes a database connection
 pub async fn initialize(active_exchanges: &Vec<String>) -> Result<Db, DbError> {
 
     let db_login: DbLogin = DbLogin::new(); 
@@ -401,6 +412,13 @@ pub async fn initialize(active_exchanges: &Vec<String>) -> Result<Db, DbError> {
 }
 
 
+/// # Update Database Tables 
+///
+/// Updates all database tables by default. If an exchange is given, then only
+/// the tables of that exchange will be updated. If a ticker is given, then 
+/// only that ticker will be updated, even if it's for multiple exchanges.
+/// If an exchange AND ticker are given, then only that ticker for that 
+/// exchange will be updated.
 pub async fn update_database_tables(
     active_exchanges: &Vec<String>,
     time_offset: u64,
