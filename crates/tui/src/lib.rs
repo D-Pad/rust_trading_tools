@@ -59,10 +59,10 @@ use tokio::{
 
 use app_core::{
     database_ops::{
-        kraken::{
+        fetch_exchanges_and_pairs_from_db, kraken::{
             AssetPairInfo, 
             request_all_assets_from_kraken
-        }, 
+        } 
     }, 
     engine::Engine
 };
@@ -257,7 +257,7 @@ impl TerminalInterface {
             },
 
             Screen::CandleBuilder(screen) => {
-                // screen.draw();
+                screen.draw(frame, main_area);
             },
 
             Screen::SystemSettings(screen) => {
@@ -349,15 +349,7 @@ impl TerminalInterface {
                     screen.pre_draw().await;
                 },
 
-                Screen::CandleBuilder(screen) => {
-                    // screen.draw();
-                },
-
-                Screen::SystemSettings(screen) => {
-                    // screen.draw();
-                },
-
-                Screen::Placeholder => {}
+                _ => {}
             };
 
             terminal.draw(|frame| {
@@ -494,9 +486,14 @@ impl TerminalInterface {
                                 )
                             
                             ),
-                            1 => Screen::CandleBuilder(
-                                CandleScreen::new()
-                            ),
+                            1 => {
+                                let pairs = fetch_exchanges_and_pairs_from_db(
+                                    self.engine.database.get_pool()
+                                ).await; 
+                                Screen::CandleBuilder(
+                                    CandleScreen::new(pairs)
+                                )
+                            },
                             2 => Screen::SystemSettings(
                                 SettingsScreen::new(
                                     &self.engine.state.config,
