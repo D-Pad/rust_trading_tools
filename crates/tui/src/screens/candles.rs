@@ -26,9 +26,12 @@ use ratatui::{
     },
     Frame
 };
-use tokio::task::JoinHandle;
+use tokio::{
+    task::JoinHandle,
+    sync::mpsc::UnboundedSender,
+};
 
-use crate::{move_up, move_down};
+use crate::{move_up, move_down, AppEvent};
 
 // -------------- CANDLE SCREEN ------------- //
 #[derive(Clone)]
@@ -50,16 +53,6 @@ impl CandleAction {
         } 
     }
 
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Exchange => "Exchange",
-            Self::Ticker => "Ticker",
-            Self::Period => "Period",
-            Self::Build => "Build",
-            Self::None => "",
-        } 
-    }
-
 }
 
 pub enum CandleFocus {
@@ -73,19 +66,21 @@ pub struct CandleScreen {
     period: String,
 
     step: CandleAction,
-    exchange_state: ListState,
-    pair_state: ListState,
     pub focus: CandleFocus,
     top_state: ListState,
     btm_state: ListState,
     btm_item_data: Vec<String>,
     token_pairs: HashMap<String, Vec<String>>,
     task: Option<JoinHandle<()>>,
+    pub transmitter: UnboundedSender<AppEvent>,
 }
 
 impl CandleScreen {
 
-    pub fn new(token_pairs: HashMap<String, Vec<String>>) -> Self {
+    pub fn new(
+        token_pairs: HashMap<String, Vec<String>>,
+        transmitter: UnboundedSender<AppEvent>,
+    ) -> Self {
        
         let mut top_state = ListState::default();
         top_state.select(Some(0));
@@ -97,14 +92,13 @@ impl CandleScreen {
             period: String::new(),
             
             step: CandleAction::None,
-            exchange_state: ListState::default(),
-            pair_state: ListState::default(),
             focus: CandleFocus::Top,
             top_state,
             btm_state: ListState::default(),
             btm_item_data: Vec::new(),
             token_pairs,
             task,
+            transmitter,
         }
     
     }
@@ -121,7 +115,7 @@ impl CandleScreen {
 
         let top_items: Vec<ListItem> = Self::SCREEN_OPTIONS
             .iter()
-            .map(|v| ListItem::new(v.name()))
+            .map(|v| ListItem::new(self.get_option_title(v)))
             .collect();
 
         let top_list = List::new(top_items)
@@ -145,6 +139,7 @@ impl CandleScreen {
         );
 
         self.btm_item_data = match self.step {
+            
             CandleAction::Exchange => { 
                 let mut exchanges: Vec<String> = Vec::new();
                 for (ex, _) in &self.token_pairs {
@@ -152,10 +147,20 @@ impl CandleScreen {
                 };
                 exchanges
             },                 
+            
             CandleAction::Ticker => { 
                 let mut tickers: Vec<String> = Vec::new();
+                let key = &self.exchange;
+
+                if let Some(v) = self.token_pairs.get(key) {
+                    for pair in v {
+                        tickers.push(pair.clone());
+                    };
+                };
+
                 tickers 
-            }, 
+            },
+            
             _ => { Vec::new() } 
         };
 
@@ -184,6 +189,44 @@ impl CandleScreen {
             nested_chunks[1],
             &mut self.btm_state
         );
+    }
+
+    fn get_option_title(&self, action: &CandleAction) -> String {
+        
+        let mut title = String::new(); 
+        
+        match action {
+            
+            CandleAction::Exchange => {
+                title.push_str("Exchange");
+                if self.exchange.len() > 0 {
+                    title.push_str(&format!(": {}", self.exchange)) 
+                };
+            },
+
+            CandleAction::Ticker => {
+                title.push_str("Ticker");
+                if self.ticker.len() > 0 {
+                    title.push_str(&format!("  : {}", self.ticker)) 
+                };
+            },
+
+            CandleAction::Period => {
+                title.push_str("Period");
+                if self.period.len() > 0 {
+                    title.push_str(&format!("  : {}", self.period)) 
+                };
+            },
+
+            CandleAction::Build => { 
+                title.push_str("Build") 
+            },
+
+            _ => {}
+
+        }
+                
+        title
     }
 
     pub async fn handle_key(&mut self, key: KeyEvent) {
@@ -252,6 +295,7 @@ impl CandleScreen {
                     },
                     
                     CandleFocus::Bottom => {
+                        
                         match &self.step {
 
                             CandleAction::Exchange => {
@@ -262,7 +306,11 @@ impl CandleScreen {
                             }, 
                             
                             _ => {}
-                        }
+                        };
+                        
+                        self.focus = CandleFocus::Top;  
+                        self.step = CandleAction::None;
+                        self.btm_state.select(None);
                     },
                 }
             }

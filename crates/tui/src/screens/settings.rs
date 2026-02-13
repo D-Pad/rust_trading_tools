@@ -285,9 +285,18 @@ impl ConfigForm {
     
     }
 
-    pub fn save_input_values(&self) -> Result<(), ConfigError> {
+    pub fn save_input_values(
+        &self,
+        original_config: &AppConfig,
+    ) -> Result<AppConfig, ConfigError> {
         let config: AppConfig = self.to_config();
-        save_config(&config)
+        if *original_config != config {
+            save_config(&config)?;
+            Ok(config)
+        }
+        else {
+            Err(ConfigError::NoChangesMade)
+        }
     }
 
 }
@@ -298,7 +307,7 @@ pub struct SettingsScreen {
     pub config_form: ConfigForm,
     pub active: bool,
     pub previous_value: Option<String>,
-    pub msg_sender: UnboundedSender<AppEvent>, 
+    pub msg_sender: UnboundedSender<AppEvent>,
 }
 
 impl SettingsScreen {

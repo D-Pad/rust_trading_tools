@@ -67,7 +67,7 @@ impl AppState {
 /// struct. An Engine gets an instance of the AppConfig. There really only 
 /// ever needs to be one AppConfig value and it will be the one that's owned
 /// by the Engine.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppConfig {
     pub backtesting: BackTestSettings,
     pub supported_exchanges: SupportedExchanges,
@@ -97,26 +97,26 @@ impl AppConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BackTestSettings {
     pub inside_bar: bool,
 } 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ChartParams {
     pub num_bars: u16,
     pub log_scale: bool,
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SupportedExchanges {
     pub active: HashMap<String, bool>,
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataDownload {
     pub cache_size: String,
 }

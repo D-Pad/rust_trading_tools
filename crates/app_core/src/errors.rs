@@ -58,6 +58,7 @@ pub enum ConfigError {
     ParseFailure,
     SaveStateFailed,
     MissingDirectory(&'static str),
+    NoChangesMade,
 }
 
 impl std::fmt::Display for ConfigError {
@@ -74,6 +75,9 @@ impl std::fmt::Display for ConfigError {
             ),
             ConfigError::MissingDirectory(e) => write!(
                 f, "ConfigError::MissingDirectory: {}", e 
+            ),
+            ConfigError::NoChangesMade => write!(
+                f, "ConfigError::NoChangesMade: New config matches old one" 
             ),
 
         }

@@ -64,7 +64,8 @@ use app_core::{
             request_all_assets_from_kraken
         } 
     }, 
-    engine::Engine
+    engine::Engine,
+    errors::{ConfigError},
 };
 
 mod screens;
@@ -419,10 +420,9 @@ impl TerminalInterface {
 
             },
 
-            Screen::SystemSettings(_) => {
+            _ => {
                 msgs_to_render.push(msg);
             }
-            _ => {}
         
         }
                
@@ -494,7 +494,10 @@ impl TerminalInterface {
                                     self.engine.database.get_pool()
                                 ).await; 
                                 Screen::CandleBuilder(
-                                    CandleScreen::new(pairs)
+                                    CandleScreen::new(
+                                        pairs,
+                                        transmitter
+                                    )
                                 )
                             },
                             2 => Screen::SystemSettings(
@@ -530,22 +533,63 @@ impl TerminalInterface {
                 Screen::SystemSettings(screen) => {
                     
                     if let KeyCode::Esc = key.code {
+                        
                         if let FormMode::Movement = screen.config_form.mode {
                             screen.active = false;
                             new_focus = Focus::Operations;
                         };
-                        screen.config_form.save_input_values();
-                        transmitter.send(AppEvent::Output(
-                            OutputMsg { 
-                                text: "Settings saved!".to_string(), 
-                                color: Color::Green, 
-                                bold: true, 
-                                bg_color: None, 
-                                exchange: None, 
-                                ticker: None 
+
+                        transmitter.send(AppEvent::Clear);
+                        
+                        match screen.config_form.save_input_values(
+                            &self.engine.state.config
+                        ) {
+                            Ok(c) => {
+                                transmitter.send(AppEvent::Output(
+                                    OutputMsg { 
+                                        text: "Settings saved!".to_string(), 
+                                        color: Color::Green, 
+                                        bold: true, 
+                                        bg_color: None, 
+                                        exchange: None, 
+                                        ticker: None 
+                                    }
+                                ));
+
+                                self.engine.state.config = c;
+                            },
+
+                            Err(e) => {
+                                let mut msg: String = String::new();
+                                let mut col: Color = Color::Red;
+                                match e {
+                                    ConfigError::NoChangesMade => {
+                                        msg = String::from(
+                                            "No changes detected. Not saved."
+                                        );
+                                        col = Color::Yellow;
+                                    },
+                                    _ => {
+                                        msg = format!(
+                                            "Settings save failed: {}", e
+                                        );
+                                    }
+                                };
+                                transmitter.send(AppEvent::Output(
+                                    OutputMsg { 
+                                        text: msg, 
+                                        color: col, 
+                                        bold: true, 
+                                        bg_color: None, 
+                                        exchange: None, 
+                                        ticker: None 
+                                    }
+                                ));
                             }
-                        ));
+                        };
+                        
                     };
+                    
                     screen.handle_key(key).await;
                 },
                 
