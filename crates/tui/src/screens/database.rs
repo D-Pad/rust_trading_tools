@@ -438,9 +438,7 @@ impl DatabaseScreen {
                 }
 
                 DbFocus::Bottom => {
-
                     self.handle_btm_action(engine).await
-
                 }
             },
 

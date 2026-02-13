@@ -11,6 +11,7 @@ use ratatui::{
     crossterm::{
         event::{
             KeyEvent,
+            KeyCode
         }
     },
     layout::{
@@ -27,6 +28,7 @@ use ratatui::{
 };
 use tokio::task::JoinHandle;
 
+use crate::{move_up, move_down};
 
 // -------------- CANDLE SCREEN ------------- //
 #[derive(Clone)]
@@ -35,6 +37,7 @@ enum CandleAction {
     Ticker,
     Period,
     Build,
+    None,
 }
 
 impl CandleAction {
@@ -52,23 +55,27 @@ impl CandleAction {
             Self::Exchange => "Exchange",
             Self::Ticker => "Ticker",
             Self::Period => "Period",
-            Self::Build => "Build"
+            Self::Build => "Build",
+            Self::None => "",
         } 
     }
 
 }
 
-enum CandleFocus {
+pub enum CandleFocus {
     Top,
     Bottom
 }
 
 pub struct CandleScreen {
+    exchange: String,
+    ticker: String,
+    period: String,
+
     step: CandleAction,
     exchange_state: ListState,
     pair_state: ListState,
-    interval_state: String,
-    focus: CandleFocus,
+    pub focus: CandleFocus,
     top_state: ListState,
     btm_state: ListState,
     btm_item_data: Vec<String>,
@@ -85,10 +92,13 @@ impl CandleScreen {
         let task: Option<JoinHandle<()>> = None;
 
         CandleScreen {
-            step: CandleAction::Exchange,
+            exchange: String::new(),
+            ticker: String::new(),
+            period: String::new(),
+            
+            step: CandleAction::None,
             exchange_state: ListState::default(),
             pair_state: ListState::default(),
-            interval_state: String::new(),
             focus: CandleFocus::Top,
             top_state,
             btm_state: ListState::default(),
@@ -104,7 +114,7 @@ impl CandleScreen {
         let nested_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(30),
+                Constraint::Min(4),
                 Constraint::Percentage(70),
             ])
             .split(area);
@@ -134,48 +144,146 @@ impl CandleScreen {
             &mut self.top_state
         );
 
-        if matches!(self.focus, CandleFocus::Bottom) {
+        self.btm_item_data = match self.step {
+            CandleAction::Exchange => { 
+                let mut exchanges: Vec<String> = Vec::new();
+                for (ex, _) in &self.token_pairs {
+                    exchanges.push(ex.clone());
+                };
+                exchanges
+            },                 
+            CandleAction::Ticker => { 
+                let mut tickers: Vec<String> = Vec::new();
+                tickers 
+            }, 
+            _ => { Vec::new() } 
+        };
 
-            self.btm_item_data = match self.step {
-                CandleAction::Exchange => { 
-                    Vec::new() 
-                },                 
-                CandleAction::Ticker => { 
-                    Vec::new() 
-                }, 
-                _ => { return } 
-            };
+        let btm_items: Vec<ListItem> = self.btm_item_data.iter()
+            .map(|v| ListItem::new(&v[..]))
+            .collect();
 
-            let btm_items: Vec<ListItem> = self.btm_item_data.iter()
-                .map(|v| ListItem::new(&v[..]))
-                .collect();
-
-            let btm_list = List::new(btm_items)
-                .block(
-                    Block::default()
-                        .title(self.step.title())
-                        .borders(Borders::ALL)
-                )
-                .highlight_style(
-                    if let CandleFocus::Bottom = self.focus {
-                        Style::default()
-                            .add_modifier(Modifier::REVERSED)
-                            .green()
-                    } else {
-                        Style::default()
-                    }
-                );
-            
-            frame.render_stateful_widget(
-                btm_list, 
-                nested_chunks[1],
-                &mut self.btm_state
+        let btm_list = List::new(btm_items)
+            .block(
+                Block::default()
+                    .title(self.step.title())
+                    .borders(Borders::ALL)
+            )
+            .highlight_style(
+                if let CandleFocus::Bottom = self.focus {
+                    Style::default()
+                        .add_modifier(Modifier::REVERSED)
+                        .green()
+                } else {
+                    Style::default()
+                }
             );
-        }
+        
+        frame.render_stateful_widget(
+            btm_list, 
+            nested_chunks[1],
+            &mut self.btm_state
+        );
     }
 
-    pub fn handle_key(&self, key: KeyEvent) {
+    pub async fn handle_key(&mut self, key: KeyEvent) {
 
+        match key.code {
+        
+            KeyCode::Up | KeyCode::Char('k') => {
+                
+                match &self.focus {
+
+                    CandleFocus::Top => move_up(
+                        &mut self.top_state, 
+                        Self::SCREEN_OPTIONS.len(),
+                        1
+                    ),
+                    
+                    CandleFocus::Bottom => move_up(
+                        &mut self.btm_state, 
+                        self.btm_item_data.len(),
+                        1
+                    ),
+                
+                }
+            },
+
+            KeyCode::Down | KeyCode::Char('j') => {
+            
+                match &self.focus {
+
+                    CandleFocus::Top => move_down(
+                        &mut self.top_state, 
+                        Self::SCREEN_OPTIONS.len(),
+                        1
+                    ),
+                    
+                    CandleFocus::Bottom => move_down(
+                        &mut self.btm_state, 
+                        self.btm_item_data.len(),
+                        1
+                    ),
+                }
+            }
+
+            KeyCode::Enter => {
+            
+                match &self.focus {
+
+                    CandleFocus::Top => {
+                        if let Some(n) = &self.top_state.selected() {
+                            match n { 
+                                0 => {
+                                    self.step = CandleAction::Exchange;
+                                    self.focus = CandleFocus::Bottom;
+                                    self.btm_state.select(Some(0));
+                                }, 
+                                1 => {
+                                    self.step = CandleAction::Ticker;
+                                    self.focus = CandleFocus::Bottom;
+                                    self.btm_state.select(Some(0));
+                                }, 
+                                2 => self.step = CandleAction::Period, 
+                                3 => self.step = CandleAction::Build,
+                                _ => { return } 
+                            } 
+                        }
+                    },
+                    
+                    CandleFocus::Bottom => {
+                        match &self.step {
+
+                            CandleAction::Exchange => {
+                                if let Some(i) = self.btm_state.selected() {
+                                    self.exchange = self
+                                        .btm_item_data[i].clone();
+                                };
+                            }, 
+                            
+                            _ => {}
+                        }
+                    },
+                }
+            }
+
+            KeyCode::Esc => {
+                match &self.focus {
+                    CandleFocus::Top => {
+                        self.top_state.select(None);
+                    },
+                    CandleFocus::Bottom => {
+                        self.focus = CandleFocus::Top;
+                        self.step = CandleAction::None;
+                        self.btm_state.select(None);
+                    },
+                };
+            }
+
+            _ => {}
+        
+        }
+    
     }
 
     pub const SCREEN_NAME: &'static str = "Candle Builder";

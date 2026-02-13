@@ -77,7 +77,10 @@ use screens::{
         SettingsScreen,
         FormMode, 
     },
-    candles::CandleScreen,
+    candles::{
+        CandleScreen,
+        CandleFocus,
+    },
     AppEvent,
     Focus,
     OutputMsg,
@@ -545,7 +548,17 @@ impl TerminalInterface {
                     };
                     screen.handle_key(key).await;
                 },
-                _ => {} 
+                
+                Screen::CandleBuilder(screen) => {
+                    if let KeyCode::Esc = key.code {
+                        if let CandleFocus::Top = screen.focus {
+                            new_focus = Focus::Operations;
+                        };
+                    };
+                    screen.handle_key(key).await;
+                },
+
+                _ => {}
 
             } 
 
