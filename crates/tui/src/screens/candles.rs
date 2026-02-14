@@ -43,7 +43,7 @@ use string_helpers::multi_line_to_single_line;
 // ---------------------------- INFO STRINGS ------------------------------- //
 const INFO_STRINGS: [&'static str; 4] = [
     r#"Displays a list of available exchanges. Must choose an exchange before 
-    choosing a ticker symbol"#,
+    choosing a ticker symbol."#,
 
     r#"Displays a list of available ticker symbols from the given exchange.
     Must choose an exchange before choosing a ticker so that available tickers
@@ -52,7 +52,7 @@ const INFO_STRINGS: [&'static str; 4] = [
     r#"Press enter to begin typing a period length."#,
 
     r#"Builds a set of candles if all input values are provided. The candle
-    data will exported as a CSV file"#
+    data will exported as a CSV file."#
 ];
 
 

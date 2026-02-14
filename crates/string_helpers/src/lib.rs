@@ -47,6 +47,13 @@ pub fn multi_line_to_single_line(
         
     };
 
+    let next_len: u16 = word_buffer.len() as u16;
+    if next_len > 0 {
+        if c_count + next_len > width {
+            new_msg.push_str("\n");
+        };
+        new_msg.push_str(&word_buffer);
+    };
     new_msg 
 }
 

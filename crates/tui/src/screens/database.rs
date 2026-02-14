@@ -66,7 +66,19 @@ use app_core::{
     },
     engine::Engine,
 };
-use string_helpers::capitlize_first_letter;
+use string_helpers::{
+    capitlize_first_letter,
+    multi_line_to_single_line,
+};
+
+
+const INFO_STRINGS: [&'static str; 3] = [
+    r#"Downloads new tick data for the given pair to the database."#,
+
+    r#"Deletes data from the database."#,
+
+    r#"Updates database tables, depending on the asset pair that's chosen."#
+];
 
 
 // ------------ DATABASE SCREEN -------------- //
@@ -185,7 +197,15 @@ impl DatabaseScreen {
                 };
                 items
             },
-            Some(DbAction::None) | None => Vec::new(),
+            Some(DbAction::None) | None => {
+                if let Some(i) = self.top_state.selected() {
+                    let width: u16 = nested_chunks[0].width; 
+                    Vec::from([
+                        multi_line_to_single_line(INFO_STRINGS[i], width)
+                    ])
+                }
+                else { Vec::new() }
+            },
         };
 
         let btm_items: Vec<ListItem> = self.btm_item_data.iter()
