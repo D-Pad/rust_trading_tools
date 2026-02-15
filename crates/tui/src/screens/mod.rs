@@ -4,10 +4,12 @@ use std::cmp::min;
 pub mod database;
 pub mod candles;
 pub mod settings;
+pub mod strategies;
 
 use database::DatabaseScreen;
 use settings::SettingsScreen;
 use candles::CandleScreen;
+use strategies::StrategyScreen;
 
 use app_core::{
     database_ops::{
@@ -73,6 +75,7 @@ pub enum Screen {
     DatabaseManager(DatabaseScreen),
     CandleBuilder(CandleScreen),
     SystemSettings(SettingsScreen),
+    StrategyManager(StrategyScreen),
     Placeholder,
 }
 

@@ -82,6 +82,9 @@ use screens::{
         CandleScreen,
         CandleFocus,
     },
+    strategies::{
+        StrategyFocus,
+    },
     AppEvent,
     Focus,
     OutputMsg,
@@ -90,6 +93,10 @@ use screens::{
     move_down,
 };
 use string_helpers::multi_line_to_single_line;
+
+use crate::screens::strategies::{
+    StrategyScreen,
+};
 
 
 // ---------------------------- TERMINAL INTERFACE ------------------------- //
@@ -179,7 +186,7 @@ impl TerminalInterface {
     fn draw(
         &mut self, 
         frame: &mut Frame,
-        operations: &[&'static str; 3],
+        operations: &[&'static str; 4],
         focus: &Focus
     ) {
  
@@ -287,6 +294,10 @@ impl TerminalInterface {
                 screen.draw(frame, main_area);
             },
 
+            Screen::StrategyManager(screen) => {
+                screen.draw(frame, main_area)
+            }
+
             Screen::Placeholder => {}
         }
     }
@@ -304,10 +315,11 @@ impl TerminalInterface {
  
         let mut focus = Focus::Operations;
  
-        let operations: [&'static str; 3] = [
-            DatabaseScreen::SCREEN_NAME,
+        let operations: [&'static str; 4] = [
             CandleScreen::SCREEN_NAME,
-            SettingsScreen::SCREEN_NAME
+            DatabaseScreen::SCREEN_NAME,
+            SettingsScreen::SCREEN_NAME,
+            StrategyScreen::SCREEN_NAME,
         ];
 
         let (transmitter, mut receiver) = unbounded_channel::<AppEvent>();
@@ -461,7 +473,7 @@ impl TerminalInterface {
     async fn handle_key(
         &mut self,
         key: KeyEvent, 
-        operations: &[&'static str; 3],
+        operations: &[&'static str; 4],
         focus: Focus,
         transmitter: UnboundedSender<AppEvent>,
     ) -> Focus {
@@ -526,6 +538,9 @@ impl TerminalInterface {
                                     transmitter 
                                 )
                             ),
+                            3 => Screen::StrategyManager(
+                                StrategyScreen::new(transmitter)
+                            ), 
                             _ => Screen::Placeholder 
                         };
                         new_focus = Focus::Main;
@@ -627,6 +642,16 @@ impl TerminalInterface {
                     };
                     screen.handle_key(key).await;
                 },
+
+                Screen::StrategyManager(screen) => {
+                    if let KeyCode::Esc = key.code {
+                        if let StrategyFocus::Top = screen.focus {
+                            new_focus = Focus::Operations;
+                            breakout = true; 
+                        };
+                    };
+                    screen.handle_key(key).await;
+                }
 
                 _ => {}
 
