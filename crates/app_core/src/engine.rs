@@ -306,6 +306,10 @@ impl Engine {
             }
         }    
     }
+
+    pub fn set_args(&mut self, args: Vec<String>) {
+        self.args = parse_args(Some(args));
+    }
 }
 
 

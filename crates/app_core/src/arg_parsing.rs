@@ -90,7 +90,6 @@ pub enum Response {
 /// Takes command line arguments and parses them into Command types, to be 
 /// executed by the Engine.
 pub struct ParsedArgs {
-    pub executable_name: String,
     pub commands: Vec<Command>,
     pub parser_error: Option<ParserError>,
     pub dev_mode: bool,
@@ -101,7 +100,6 @@ impl ParsedArgs {
     fn new() -> Self {
         
         ParsedArgs {
-            executable_name: String::new(),
             commands: Vec::new(),
             parser_error: None,
             dev_mode: false,
@@ -118,11 +116,6 @@ impl std::fmt::Display for ParsedArgs {
     
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "\x1b[1;36mParsed Arguments: \x1b[0m\x1b[1m{{\x1b[0m")?;
-        
-        // write!(f, "\n  \x1b[33mexecutable_path\x1b[0m: {}",
-        //     self.executable_path)?;
-        write!(f, "\n  \x1b[33mexecutable_name\x1b[0m: {}",
-            self.executable_name)?;
         
         write!(f, "\n  \x1b[33mcommands\x1b[0m: [")?;
         for cmd in &self.commands {
@@ -185,22 +178,10 @@ pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
     // Initialization
     let mut arguments: Vec<String> = match passed_arguments {
         Some(a) => a, 
-        None => args().skip(1).collect()
+        None => args().skip(2).collect()
     };
-    
-    let executable_name: String;   
     
     let mut parsed_args: ParsedArgs = ParsedArgs::new();
-
-    // Main program path and name
-    if arguments.len() > 0 {
-        executable_name = arguments.remove(0);
-    }
-    else {
-        return parsed_args;
-    };
-
-    parsed_args.executable_name = executable_name;
 
     // Helper functions
     fn is_long_flag(arg: &str) -> bool {

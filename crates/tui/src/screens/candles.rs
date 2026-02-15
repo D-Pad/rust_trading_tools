@@ -49,7 +49,12 @@ const INFO_STRINGS: [&'static str; 4] = [
     Must choose an exchange before choosing a ticker so that available tickers
     can be looked up."#,
 
-    r#"Press enter to begin typing a period length."#,
+    r#"Press 'Enter' to begin typing a period length, and 'Esc' to cancel. 
+    Period lengths must have an integer value followed by a valid period 
+    symbol. Example: 5m for 5-minute, 4h for 4-hour, or 500t for 500-tick 
+    candles. Valid symbols are 's' for seconds, 'm' for minutes, 'h' for hours,
+    'd' for days, 'w' for weeks, 'M' for months, and 't' for tick based 
+    candles."#,
 
     r#"Builds a set of candles if all input values are provided. The candle
     data will exported as a CSV file."#
@@ -57,6 +62,10 @@ const INFO_STRINGS: [&'static str; 4] = [
 
 
 // -------------- CANDLE SCREEN ------------- //
+const ERROR_MSGS: [&'static str; 1] = [
+    "Needs Exchange, Ticker, and Period to build candle data with."
+];
+
 #[derive(Clone)]
 enum CandleAction {
     Exchange,
@@ -262,7 +271,7 @@ impl CandleScreen {
                     }
                     else {
                         title.push_str(
-                            "  : Enter period (5m, 4h, 500t, etc.)"
+                            "  : Enter period"
                         )
                     };
                 }
@@ -304,6 +313,7 @@ impl CandleScreen {
                         if period_is_valid(&self.period) {
                             self.previous_period = self.period.clone(); 
                             self.focus = CandleFocus::Top;
+                            self.step = CandleAction::None;
                             let _ = self.transmitter.send(AppEvent::Clear);
                         }
                         else {
@@ -383,56 +393,78 @@ impl CandleScreen {
                     match &self.focus {
 
                         CandleFocus::Top => {
-                            if let Some(n) = &self.top_state.selected() {
-                                match n { 
-                                    0 => {
-                                        self.step = CandleAction::Exchange;
+                            
+                            match &self.top_state.selected() {
+                                
+                                Some(0) => {
+                                    self.step = CandleAction::Exchange;
+                                    self.focus = CandleFocus::Bottom;
+                                    self.btm_state.select(Some(0));
+                                }, 
+                                Some(1) => {
+                                    if self.exchange.len() > 0 {
+                                        self.step = CandleAction::Ticker;
                                         self.focus = CandleFocus::Bottom;
                                         self.btm_state.select(Some(0));
-                                    }, 
-                                    1 => {
-                                        if self.exchange.len() > 0 {
-                                            self.step = CandleAction::Ticker;
-                                            self.focus = CandleFocus::Bottom;
-                                            self.btm_state.select(Some(0));
-                                        }
-                                        else {
-                                            let msg = String::from(
-                                                "Please choose an exchange"
-                                            );
-                                            self.transmitter.send(
-                                                AppEvent::Output(
-                                                    OutputMsg { 
-                                                        text: msg, 
-                                                        color: Color::Yellow, 
-                                                        bold: false, 
-                                                        bg_color: None, 
-                                                        exchange: None, 
-                                                        ticker: None 
-                                                    }
-                                                )
-                                            );
-                                        }
-                                    }, 
-                                    2 => self.step = {
-                                        let msg = "Start typing..."
-                                            .to_string();
-                                        self.focus = CandleFocus::InputMode;
+                                    }
+                                    else {
+                                        let msg = String::from(
+                                            "Please choose an exchange"
+                                        );
+                                        self.transmitter.send(
+                                            AppEvent::Output(
+                                                OutputMsg { 
+                                                    text: msg, 
+                                                    color: Color::Yellow, 
+                                                    bold: false, 
+                                                    bg_color: None, 
+                                                    exchange: None, 
+                                                    ticker: None 
+                                                }
+                                            )
+                                        );
+                                    }
+                                }, 
+                                Some(2) => self.step = {
+                                    let msg = "Start typing..."
+                                        .to_string();
+                                    self.focus = CandleFocus::InputMode;
+                                    self.transmitter.send(
+                                        AppEvent::Output(OutputMsg { 
+                                            text: msg, 
+                                            color: Color::Yellow, 
+                                            bold: true, 
+                                            bg_color: None, 
+                                            exchange: None, 
+                                            ticker: None 
+                                        })
+                                    );
+                                    CandleAction::Period
+                                }, 
+                                Some(3) => {
+                                    let e: bool = self.exchange.len() > 0;
+                                    let t: bool = self.ticker.len() > 0;
+                                    let p: bool = self.period.len() > 0;
+                                    
+                                    if e && t && p {
+                                        self.transmitter.send(AppEvent::Clear);
+                                    }
+                                    else {
+                                        
                                         self.transmitter.send(
                                             AppEvent::Output(OutputMsg { 
-                                                text: msg, 
-                                                color: Color::Yellow, 
+                                                text: ERROR_MSGS[0]
+                                                    .to_string(), 
+                                                color: Color::Red, 
                                                 bold: true, 
                                                 bg_color: None, 
                                                 exchange: None, 
                                                 ticker: None 
                                             })
                                         );
-                                        CandleAction::Period
-                                    }, 
-                                    3 => {},
-                                    _ => { return } 
-                                } 
+                                    }
+                                },
+                                _ => { return } 
                             }
                         },
                         
