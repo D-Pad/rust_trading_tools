@@ -287,7 +287,9 @@ impl CandleScreen {
     pub async fn handle_key(&mut self, key: KeyEvent) {
 
         if let CandleFocus::InputMode = self.focus {
+            
             if let CandleAction::Period = &self.step {
+                
                 match key.code {
                     KeyCode::Char(c) => {
                         self.period.push_str(&c.to_string());
@@ -321,6 +323,11 @@ impl CandleScreen {
                                 }
                             ));
                         };
+                    },
+                    KeyCode::Esc => {
+                        self.period = self.previous_period.clone();
+                        self.focus = CandleFocus::Top;
+                        self.step = CandleAction::None;
                     }
                     _ => {}
                 } 
