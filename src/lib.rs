@@ -1,7 +1,8 @@
 pub use app_core::*;
 pub use app_core::{
-    errors::error_handler, 
-    engine::{Engine, Server}, 
+    errors::{error_handler, ConfigError}, 
+    engine::{Engine, Server},
+    app_state::{get_path_state},
     RunTimeError,
     Response,
     DataResponse,
@@ -9,9 +10,13 @@ pub use app_core::{
 };
 use tui::{TerminalInterface};
 
+use std::{
+    path::PathBuf,
+    fs,
+};
+
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
-async fn dev_testing() {
-    
+async fn dev_testing() { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
 
 }
@@ -20,6 +25,11 @@ async fn dev_testing() {
 pub async fn app_start() -> i32 {
 
     let mut exit_code: i32 = 0;
+
+    if let Err(_) = first_time_setup() {
+        exit_code = 2;
+        return exit_code
+    };
 
     let mut engine: Engine = match initialize_app_engine().await {
         Ok(s) => s,
@@ -72,4 +82,29 @@ pub async fn app_start() -> i32 {
 
 }
 
+
+fn first_time_setup() -> Result<(), ConfigError> {
+   
+    let base: PathBuf = get_path_state()?;
+
+    if !base.exists() {
+        
+        if let Err(_) = fs::create_dir_all(&base) {
+            return Err(ConfigError::MissingDirectory(
+                "Failed to create 'dtrade' directory"
+            ));
+        };
+
+        let mut candle_dir = base.clone();
+        candle_dir.push("candle_data");
+        if let Err(_) = fs::create_dir_all(&candle_dir) {
+            return Err(ConfigError::MissingDirectory(
+                "Failed to create 'dtrade/candle_data' directory"
+            ));
+        };
+
+    }; 
+
+    Ok(())
+}
 

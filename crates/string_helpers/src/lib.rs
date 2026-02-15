@@ -26,6 +26,7 @@ pub fn multi_line_to_single_line(
     let mut new_msg = String::new();
     let mut c_count: u16 = 0; 
     let mut word_buffer: String = String::new();
+    let max_line_len: u16 = width.saturating_sub(2);
 
     for c in multi_line_str.chars() {
     
@@ -40,7 +41,7 @@ pub fn multi_line_to_single_line(
             c_count += 1;
         };
         
-        if c_count > width.saturating_sub(2) {
+        if c_count > max_line_len {
             new_msg.push_str("\n");
             c_count = word_buffer.len() as u16;
         }

@@ -147,7 +147,7 @@ impl DataDownload {
 }
 
 
-fn get_path_state() -> Result<PathBuf, ConfigError> {
+pub fn get_path_state() -> Result<PathBuf, ConfigError> {
 
     let mut base = if cfg!(target_os = "windows") {
         // Windows: %APPDATA%
@@ -176,15 +176,7 @@ fn get_path_state() -> Result<PathBuf, ConfigError> {
     };
 
     base.push("dtrade");
-
-    if !base.exists() {
-        if let Err(_) = fs::create_dir_all(&base) {
-            return Err(ConfigError::MissingDirectory(
-                "Failed to create 'dtrade' directory"
-            ));
-        };
-    };
-    
+   
     Ok(base)
 
 }

@@ -229,15 +229,15 @@ impl TerminalInterface {
 
         let hint_window: Paragraph = Paragraph::new(
                 match self.screen {
-                    Screen::Placeholder => format!("D-Trade:\n\n{}",
+                    Screen::Placeholder => format!("D-Trade:\n\n{}\n\n{}",
                         multi_line_to_single_line(
                             r#"Press 'Enter' to choose an option, and 'Esc' to 
                             return to the previous window. Up and down arrow
                             keys are used for navigation. Vim style navigation 
-                            works as well ('j' key for down and 'k' for up). 
-                            Press 'q' to quit."#, 
+                            works as well ('j' key for down and 'k' for up)."#, 
                             main_area.width
-                        )
+                        ),
+                        "Press 'q' to quit"
                     ),
                     _ => String::new()
                 }
