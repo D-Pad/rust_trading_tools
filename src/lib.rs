@@ -7,6 +7,7 @@ pub use app_core::{
     Response,
     DataResponse,
     initialize_app_engine,
+    build_candles,
 };
 use tui::{TerminalInterface};
 
@@ -15,8 +16,9 @@ use std::{
 };
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
-async fn dev_testing() { 
+async fn dev_testing(engine: &Engine) { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
+
 }
 
 
@@ -39,7 +41,7 @@ pub async fn app_start() -> i32 {
     };
 
     if engine.args.dev_mode {
-        dev_testing().await; 
+        dev_testing(&engine).await; 
     }
     else {
         

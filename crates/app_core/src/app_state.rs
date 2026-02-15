@@ -29,7 +29,7 @@ pub struct SystemPaths {
 
 impl SystemPaths {
     
-    fn new() -> Result<Self, ConfigError> {
+    pub fn new() -> Result<Self, ConfigError> {
 
         let mut base = if cfg!(target_os = "windows") {
             // Windows: %APPDATA%

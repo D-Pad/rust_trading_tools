@@ -30,7 +30,9 @@ use ratatui::{
 use tokio::{
     task::JoinHandle,
     sync::mpsc::UnboundedSender,
+    fs::write,
 };
+use sqlx::PgPool;
 
 use crate::{move_up, move_down, AppEvent, OutputMsg};
 use timestamp_tools::{
@@ -38,6 +40,10 @@ use timestamp_tools::{
     VALID_PERIODS,
 };
 use string_helpers::multi_line_to_single_line;
+use app_core::{
+    build_candles,
+    app_state::{SystemPaths},
+};
 
 
 // ---------------------------- INFO STRINGS ------------------------------- //
@@ -99,6 +105,8 @@ pub struct CandleScreen {
     period: String,
     previous_period: String,
 
+    db_pool: PgPool,
+
     step: CandleAction,
     pub focus: CandleFocus,
     top_state: ListState,
@@ -114,6 +122,7 @@ impl CandleScreen {
     pub fn new(
         token_pairs: HashMap<String, Vec<String>>,
         transmitter: UnboundedSender<AppEvent>,
+        db_pool: PgPool,
     ) -> Self {
        
         let mut top_state = ListState::default();
@@ -125,7 +134,9 @@ impl CandleScreen {
             ticker: String::new(),
             period: String::new(),
             previous_period: String::new(),  // For error checking
-            
+          
+            db_pool,
+
             step: CandleAction::None,
             focus: CandleFocus::Top,
             top_state,
@@ -293,7 +304,104 @@ impl CandleScreen {
         title
     }
 
+    pub async fn handle_candle_build(&mut self) {
+        
+        let e: bool = self.exchange.len() > 0;
+        let t: bool = self.ticker.len() > 0;
+        let p: bool = self.period.len() > 0;
+        
+        if e && t && p {
+
+            let exchange = self.exchange.clone();
+            let ticker = self.ticker.clone();
+            let period = self.period.clone();
+            let pool = self.db_pool.clone(); 
+            let tx = self.transmitter.clone();
+            
+            self.transmitter.send(AppEvent::Clear);
+            self.transmitter.send(
+                AppEvent::Output(OutputMsg::new(
+                    "Building candles.".to_string(),
+                    Color::Yellow,
+                    false,
+                    None,
+                    None,
+                    None
+                ))
+            );
+
+            self.task = Some(tokio::spawn(async move {
+
+                if let Ok(candles) = build_candles(
+                    &exchange, &ticker, &period, pool 
+                ).await
+                {
+                    let text = candles.to_string();
+                    
+                    if let Ok(paths) = SystemPaths::new() {
+
+                        let file_name = paths
+                            .candle_data
+                            .join(candles.get_file_name());
+                        
+                        if let Err(_) = write(&file_name, text).await {
+                            tx.send(AppEvent::Output(OutputMsg::new(
+                                "Failed to export candle data".to_string(),
+                                Color::Red,
+                                true,
+                                None,
+                                None,
+                                None
+                            )));
+                        }
+                        else {
+                            println!();
+                            tx.send(AppEvent::Output(OutputMsg::new(
+                                format!(
+                                    "Saved data to {}", 
+                                    file_name.display()
+                                ),
+                                Color::Green,
+                                true,
+                                None,
+                                None,
+                                None
+                            )));
+                        }; 
+                    }; 
+                };
+            
+            }));
+
+        }
+        else {
+            
+            self.transmitter.send(
+                AppEvent::Output(OutputMsg { 
+                    text: ERROR_MSGS[0]
+                        .to_string(), 
+                    color: Color::Red, 
+                    bold: true, 
+                    bg_color: None, 
+                    exchange: None, 
+                    ticker: None 
+                })
+            );
+        }
+    }
+
     pub async fn handle_key(&mut self, key: KeyEvent) {
+
+        if let Some(handle) = &self.task {
+            
+            if handle.is_finished() { 
+                self.task = None;
+            }
+            
+            else {
+                return 
+            };
+        };
 
         if let CandleFocus::InputMode = self.focus {
             
@@ -401,6 +509,7 @@ impl CandleScreen {
                                     self.focus = CandleFocus::Bottom;
                                     self.btm_state.select(Some(0));
                                 }, 
+                                
                                 Some(1) => {
                                     if self.exchange.len() > 0 {
                                         self.step = CandleAction::Ticker;
@@ -425,6 +534,7 @@ impl CandleScreen {
                                         );
                                     }
                                 }, 
+                                
                                 Some(2) => self.step = {
                                     let msg = "Start typing..."
                                         .to_string();
@@ -441,28 +551,9 @@ impl CandleScreen {
                                     );
                                     CandleAction::Period
                                 }, 
+                                
                                 Some(3) => {
-                                    let e: bool = self.exchange.len() > 0;
-                                    let t: bool = self.ticker.len() > 0;
-                                    let p: bool = self.period.len() > 0;
-                                    
-                                    if e && t && p {
-                                        self.transmitter.send(AppEvent::Clear);
-                                    }
-                                    else {
-                                        
-                                        self.transmitter.send(
-                                            AppEvent::Output(OutputMsg { 
-                                                text: ERROR_MSGS[0]
-                                                    .to_string(), 
-                                                color: Color::Red, 
-                                                bold: true, 
-                                                bg_color: None, 
-                                                exchange: None, 
-                                                ticker: None 
-                                            })
-                                        );
-                                    }
+                                    self.handle_candle_build().await;
                                 },
                                 _ => { return } 
                             }

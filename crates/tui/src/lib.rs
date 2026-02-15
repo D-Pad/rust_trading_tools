@@ -515,7 +515,8 @@ impl TerminalInterface {
                                 Screen::CandleBuilder(
                                     CandleScreen::new(
                                         pairs,
-                                        transmitter
+                                        transmitter,
+                                        self.engine.database.get_pool()
                                     )
                                 )
                             },

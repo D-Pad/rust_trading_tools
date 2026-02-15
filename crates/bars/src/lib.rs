@@ -314,6 +314,30 @@ impl BarSeries {
         true
     }
 
+    /// Builds a file name for candle data storage
+    ///
+    /// Formatted as exchange_ticker_period_startTimestamp-endTimestamp.csv
+    pub fn get_file_name(&self) -> String {
+
+        if self.bars.len() == 0 {
+            return String::new() 
+        };
+
+        let last_ts: i64 = match self.bars.iter().last() {
+            Some(bar) => bar.close_date.timestamp(),
+            None => return String::new()
+        };
+        format!(
+            "{}_{}_{}_{}-{}.csv",
+            self.info.exchange,
+            self.info.ticker,
+            self.info.period,
+            self.bars[0].open_date.timestamp(),
+            last_ts
+        ) 
+
+    }
+
     pub fn len(&self) -> usize {
         self.bars.len()
     }
@@ -331,11 +355,11 @@ impl<'a> IntoIterator for &'a BarSeries {
 
 impl fmt::Display for BarSeries {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Date,Open,High,Low,Close,Volume")?;
+        write!(f, "Timestamp,Open,High,Low,Close,Volume")?;
         for bar in &self.bars {
             write!(f, 
                 "\n{},{},{},{},{},{}", 
-                bar.open_date,
+                bar.open_date.timestamp(),
                 bar.open,
                 bar.high,
                 bar.low,
