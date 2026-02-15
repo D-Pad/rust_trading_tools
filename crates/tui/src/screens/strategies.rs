@@ -34,7 +34,7 @@ use ratatui::{
     },
 };
 
-use crate::{AppEvent};
+use crate::{AppEvent, move_up, move_down};
 
 
 pub enum StrategyFocus {
@@ -79,9 +79,13 @@ impl StrategyScreen {
     pub fn new(
         msg_sender: UnboundedSender<AppEvent>
     ) -> Self {
+        
+        let mut top_state = ListState::default();
+        top_state.select(Some(0));
+
         StrategyScreen {
             msg_sender,
-            top_state: ListState::default(),
+            top_state,
             btm_state: ListState::default(),
             btm_item_data: Vec::new(),
             focus: StrategyFocus::Top,
@@ -168,12 +172,64 @@ impl StrategyScreen {
 
     pub async fn handle_key(&mut self, key: KeyEvent) {
 
+        match key.code {
+        
+            KeyCode::Up | KeyCode::Char('k') => {
+                
+                match &self.focus {
+
+                    StrategyFocus::Top => move_up(
+                        &mut self.top_state, 
+                        Self::SCREEN_OPTIONS.len(),
+                        1
+                    ),
+                    
+                    StrategyFocus::Bottom => move_up(
+                        &mut self.btm_state, 
+                        self.btm_item_data.len(),
+                        1
+                    ),
+
+                    _ => {}
+                
+                }
+            },
+
+            KeyCode::Down | KeyCode::Char('j') => {
+            
+                match &self.focus {
+
+                    StrategyFocus::Top => move_down(
+                        &mut self.top_state, 
+                        Self::SCREEN_OPTIONS.len(),
+                        1
+                    ),
+                    
+                    StrategyFocus::Bottom => move_down(
+                        &mut self.btm_state, 
+                        self.btm_item_data.len(),
+                        1
+                    )
+                }
+            }
+
+            KeyCode::Enter => {
+
+            }
+
+            KeyCode::Esc => {
+
+            }
+
+            _ => {}
+        }
     }
 
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 
-    pub const SCREEN_OPTIONS: [StrategyAction; 0] = [
-    
+    pub const SCREEN_OPTIONS: [StrategyAction; 2] = [
+        StrategyAction::CreateNew,
+        StrategyAction::ModifyExisting,
     ];
 
 }
