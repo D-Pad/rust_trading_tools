@@ -6,8 +6,7 @@ use std::fmt::{
 
 use app_core::{
     app_state::{
-        AppConfig,
-        save_config,
+        AppConfig, AppState, SystemPaths, save_config
     },
     errors::ConfigError
 };
@@ -288,10 +287,13 @@ impl ConfigForm {
     pub fn save_input_values(
         &self,
         original_config: &AppConfig,
+        paths: &SystemPaths,
     ) -> Result<AppConfig, ConfigError> {
+        
         let config: AppConfig = self.to_config();
+        
         if *original_config != config {
-            save_config(&config)?;
+            save_config(&config, paths)?;
             Ok(config)
         }
         else {

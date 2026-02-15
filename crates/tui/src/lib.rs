@@ -565,7 +565,8 @@ impl TerminalInterface {
                         transmitter.send(AppEvent::Clear);
                         
                         match screen.config_form.save_input_values(
-                            &self.engine.state.config
+                            &self.engine.state.config,
+                            &self.engine.state.paths
                         ) {
                             Ok(c) => {
                                 transmitter.send(AppEvent::Output(

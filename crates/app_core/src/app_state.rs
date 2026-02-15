@@ -22,22 +22,67 @@ use crate::errors::{
 
 // ------------------------- APP STATE MANAGEMENT -------------------------- //
 #[derive(Debug)]
+pub struct SystemPaths {
+    pub base: PathBuf,
+    pub candle_data: PathBuf,
+}
+
+impl SystemPaths {
+    
+    fn new() -> Result<Self, ConfigError> {
+
+        let mut base = if cfg!(target_os = "windows") {
+            // Windows: %APPDATA%
+            env::var_os("APPDATA")
+                .map(PathBuf::from)
+                .ok_or(ConfigError::MissingDirectory("APPDATA not set"))?
+        
+        } else if cfg!(target_os = "macos") {
+            // macOS: ~/Library/Application Support
+            let home = env::var_os("HOME")
+                .map(PathBuf::from)
+                .ok_or(ConfigError::MissingDirectory("HOME not set"))?;
+            home.join("Library").join("Application Support")
+        
+        } else {
+            
+            // Linux / Unix: XDG spec
+            if let Some(xdg) = env::var_os("XDG_CONFIG_HOME") {
+                PathBuf::from(xdg)
+            } else {
+                let home = env::var_os("HOME")
+                    .map(PathBuf::from)
+                    .ok_or(ConfigError::MissingDirectory("HOME not set"))?;
+                home.join(".config")
+            }
+        };
+
+        base.push("dtrade");
+        let mut candle_data = base.clone();
+        candle_data.push("candle_data");
+    
+        Ok(Self { base, candle_data })
+
+    }
+}
+
+#[derive(Debug)]
 pub struct AppState {
-    pub config: AppConfig
+    pub config: AppConfig,
+    pub paths: SystemPaths
 }
 
 impl AppState {
     
     pub fn new() -> Result<Self, InitializationError> {
         
-        let config = match load_config() {
-            Ok(c) => c,
-            Err(e) => return Err(
-                InitializationError::Config(e)
-            )
-        }; 
+        let config = load_config()
+            .map_err(|e| InitializationError::Config(e))?;
 
-        Ok(AppState { config })
+        let paths: SystemPaths = SystemPaths::new()
+            .map_err(|_| InitializationError::InitFailure)?;
+
+        Ok(AppState { config, paths })
 
     }
 
@@ -147,45 +192,11 @@ impl DataDownload {
 }
 
 
-pub fn get_path_state() -> Result<PathBuf, ConfigError> {
-
-    let mut base = if cfg!(target_os = "windows") {
-        // Windows: %APPDATA%
-        env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .ok_or(ConfigError::MissingDirectory("APPDATA not set"))?
-    
-    } else if cfg!(target_os = "macos") {
-        // macOS: ~/Library/Application Support
-        let home = env::var_os("HOME")
-            .map(PathBuf::from)
-            .ok_or(ConfigError::MissingDirectory("HOME not set"))?;
-        home.join("Library").join("Application Support")
-    
-    } else {
-        
-        // Linux / Unix: XDG spec
-        if let Some(xdg) = env::var_os("XDG_CONFIG_HOME") {
-            PathBuf::from(xdg)
-        } else {
-            let home = env::var_os("HOME")
-                .map(PathBuf::from)
-                .ok_or(ConfigError::MissingDirectory("HOME not set"))?;
-            home.join(".config")
-        }
-    };
-
-    base.push("dtrade");
-   
-    Ok(base)
-
-}
-
 /// Loads the config.json file into an AppConfig struct
 pub fn load_config() -> Result<AppConfig, ConfigError> {
-  
-    let cache_path: PathBuf = get_path_state()?;
-    let json_path: PathBuf = cache_path.join("config.json");
+ 
+    let system_paths: SystemPaths = SystemPaths::new()?;
+    let json_path: PathBuf = system_paths.base.join("config.json");
 
     if json_path.exists() {
         if let Ok(d) = fs::read_to_string(&json_path) {
@@ -201,7 +212,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
 
     let config = AppConfig::default();
 
-    if let Ok(_) = save_config(&config) {
+    if let Ok(_) = save_config(&config, &system_paths) {
         Ok(config)
     }
     else {
@@ -210,9 +221,10 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
 }
 
 /// Exports the AppConfig state into the config.json file.
-pub fn save_config(config: &AppConfig) -> Result<(), ConfigError> {
+pub fn save_config(config: &AppConfig, paths: &SystemPaths) 
+    -> Result<(), ConfigError> {
 
-    let path = get_path_state()?.join("config.json");
+    let path = paths.base.join("config.json");
     
     let json = match serde_json::to_string_pretty(config) {
         Ok(d) => d,
