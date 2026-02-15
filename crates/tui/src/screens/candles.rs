@@ -430,7 +430,7 @@ impl CandleScreen {
                                         );
                                         CandleAction::Period
                                     }, 
-                                    3 => self.step = CandleAction::Build,
+                                    3 => {},
                                     _ => { return } 
                                 } 
                             }
@@ -479,14 +479,12 @@ impl CandleScreen {
                             self.top_state.select(None);
                         },
                         CandleFocus::Bottom => {
-                            self.focus = CandleFocus::Top;
                             self.step = CandleAction::None;
                             self.btm_state.select(None);
                         },
-                        CandleFocus::InputMode => {
-                            self.focus = CandleFocus::Top;
-                        }
+                        CandleFocus::InputMode => { }
                     };
+                    self.focus = CandleFocus::Top;
                 }
 
                 _ => {}
