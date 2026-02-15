@@ -40,7 +40,7 @@ pub fn multi_line_to_single_line(
             c_count += 1;
         };
         
-        if c_count > width {
+        if c_count > width.saturating_sub(2) {
             new_msg.push_str("\n");
             c_count = word_buffer.len() as u16;
         }

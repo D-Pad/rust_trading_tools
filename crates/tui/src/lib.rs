@@ -89,6 +89,7 @@ use screens::{
     move_up,
     move_down,
 };
+use string_helpers::multi_line_to_single_line;
 
 
 // ---------------------------- TERMINAL INTERFACE ------------------------- //
@@ -221,12 +222,30 @@ impl TerminalInterface {
             ].as_ref())
             .split(vertical_chunks[0]);
 
-        let main_area = main_chunks[1];                
+        let main_area = main_chunks[1]; 
 
         let main_block = Block::default()
             .borders(Borders::ALL);
 
-        frame.render_widget(main_block, main_area);
+        let hint_window: Paragraph = Paragraph::new(
+                match self.screen {
+                    Screen::Placeholder => format!("D-Trade:\n\n{}",
+                        multi_line_to_single_line(
+                            r#"Press 'Enter' to choose an option, and 'Esc' to 
+                            return to the previous window. Up and down arrow
+                            keys are used for navigation. Vim style navigation 
+                            works as well ('j' key for down and 'k' for up). 
+                            Press 'q' to quit."#, 
+                            main_area.width
+                        )
+                    ),
+                    _ => String::new()
+                }
+            )
+            .block(main_block)
+            .style(Style::default().fg(Color::White));
+
+        frame.render_widget(hint_window, main_area);
 
         // ---------------------- Operation Panes ------------------ // 
         let operations_block = Block::default()
@@ -517,6 +536,8 @@ impl TerminalInterface {
         }
         else {
 
+            let mut breakout: bool = false;
+            
             match &mut self.screen {
 
                 Screen::DatabaseManager(screen) => {
@@ -524,6 +545,7 @@ impl TerminalInterface {
                     if let KeyCode::Esc = key.code {
                         if let DbFocus::Top = screen.focus {
                             new_focus = Focus::Operations;
+                            breakout = true; 
                         };
                     };
                     screen.handle_key(key, &self.engine).await;
@@ -537,6 +559,7 @@ impl TerminalInterface {
                         if let FormMode::Movement = screen.config_form.mode {
                             screen.active = false;
                             new_focus = Focus::Operations;
+                            breakout = true; 
                         };
 
                         transmitter.send(AppEvent::Clear);
@@ -587,7 +610,7 @@ impl TerminalInterface {
                                 ));
                             }
                         };
-                        
+                       
                     };
                     
                     screen.handle_key(key).await;
@@ -597,6 +620,7 @@ impl TerminalInterface {
                     if let KeyCode::Esc = key.code {
                         if let CandleFocus::Top = screen.focus {
                             new_focus = Focus::Operations;
+                            breakout = true; 
                         };
                     };
                     screen.handle_key(key).await;
@@ -605,6 +629,10 @@ impl TerminalInterface {
                 _ => {}
 
             } 
+                           
+            if breakout {
+                self.screen = Screen::Placeholder;
+            };
 
         };
 
