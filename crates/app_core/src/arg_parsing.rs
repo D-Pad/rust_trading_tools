@@ -176,7 +176,7 @@ const ARG_ERROR: &'static str = {
 pub fn parse_args(passed_arguments: Option<Vec<String>>) -> ParsedArgs {
 
     // Initialization
-    let mut arguments: Vec<String> = match passed_arguments {
+    let arguments: Vec<String> = match passed_arguments {
         Some(a) => a, 
         None => args().skip(2).collect()
     };

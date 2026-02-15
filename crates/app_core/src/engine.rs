@@ -121,6 +121,7 @@ EXIT STATUS
     3     Parser error (unknown flags, missing arguments, ...)
     4     Database connection / query failure
     5     Candle builder error
+    6     Terminal User Interface Error
 
 BUGS / LIMITATIONS
     Currently only Kraken is fully tested for pair adding/removal.

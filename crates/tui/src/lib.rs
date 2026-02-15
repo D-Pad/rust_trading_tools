@@ -422,10 +422,13 @@ impl TerminalInterface {
                     (Some(exchange), Some(ticker)) => {
                        
                         clear_lines = true;
-                        &screen.db_update_msgs.msgs
+                        if let None = &screen.db_update_msgs.msgs
                             .entry(exchange.to_string())
                             .or_insert_with(|| BTreeMap::new())
-                            .insert(ticker.to_string(), msg);
+                            .insert(ticker.to_string(), msg)
+                        {
+                            return
+                        };
 
                         for (ex, pairs) in &screen.db_update_msgs.msgs {
                             msgs_to_render.push(
@@ -578,14 +581,14 @@ impl TerminalInterface {
                             breakout = true; 
                         };
 
-                        transmitter.send(AppEvent::Clear);
+                        let _ = transmitter.send(AppEvent::Clear);
                         
                         match screen.config_form.save_input_values(
                             &self.engine.state.config,
                             &self.engine.state.paths
                         ) {
                             Ok(c) => {
-                                transmitter.send(AppEvent::Output(
+                                let _ = transmitter.send(AppEvent::Output(
                                     OutputMsg { 
                                         text: "Settings saved!".to_string(), 
                                         color: Color::Green, 
@@ -600,7 +603,7 @@ impl TerminalInterface {
                             },
 
                             Err(e) => {
-                                let mut msg: String = String::new();
+                                let msg: String;
                                 let mut col: Color = Color::Red;
                                 match e {
                                     ConfigError::NoChangesMade => {
@@ -615,7 +618,7 @@ impl TerminalInterface {
                                         );
                                     }
                                 };
-                                transmitter.send(AppEvent::Output(
+                                let _ = transmitter.send(AppEvent::Output(
                                     OutputMsg { 
                                         text: msg, 
                                         color: col, 

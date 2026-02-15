@@ -94,16 +94,16 @@ impl DatabaseUpdateMsgs {
 
 pub struct DatabaseScreen {
     pub focus: DbFocus,
-    pub top_state: ListState,
-    pub btm_state: ListState,
-    pub btm_item_data: Vec<String>,
-    pub selected_action: Option<DbAction>,
-    pub token_pairs: HashMap<String, Vec<String>>,
-    pub asset_pairs: Arc<BTreeMap<String, BTreeMap<String, AssetPairInfo>>>,
-    pub db_pool: PgPool,
-    pub transmitter: UnboundedSender<AppEvent>,
-    pub is_busy: bool,
-    pub task_handle: Option<JoinHandle<()>>,
+    top_state: ListState,
+    btm_state: ListState,
+    btm_item_data: Vec<String>,
+    selected_action: Option<DbAction>,
+    token_pairs: HashMap<String, Vec<String>>,
+    asset_pairs: Arc<BTreeMap<String, BTreeMap<String, AssetPairInfo>>>,
+    db_pool: PgPool,
+    transmitter: UnboundedSender<AppEvent>,
+    is_busy: bool,
+    task_handle: Option<JoinHandle<()>>,
     pub db_update_msgs: DatabaseUpdateMsgs, 
 }
 
@@ -239,7 +239,7 @@ impl DatabaseScreen {
 
     pub async fn handle_btm_action(&mut self, engine: &Engine) {
  
-        let ACTION = match &self.selected_action {
+        let action = match &self.selected_action {
             Some(a) => a.clone(),
             None => Self::SCREEN_OPTIONS[3].clone()
         };
@@ -247,7 +247,7 @@ impl DatabaseScreen {
         if let Some(i) = self.btm_state.selected() {
 
             // Update option
-            if let DbAction::UpdateData = ACTION { 
+            if let DbAction::UpdateData = action { 
                
                 let (prog_tx, mut prog_rx) = 
                     unbounded_channel::<DataDownloadStatus>();
@@ -285,9 +285,10 @@ impl DatabaseScreen {
                 };
 
                 let (exchange, ticker) = pair;
+                let tx = self.transmitter.clone();
 
                 self.task_handle = Some(tokio::spawn(async move {
-                    update_database_tables(
+                    if let Err(e) = update_database_tables(
                         &active_exchanges,
                         time_offset, 
                         &client, 
@@ -295,11 +296,22 @@ impl DatabaseScreen {
                         prog_tx, 
                         exchange.as_deref(), 
                         ticker.as_deref()
-                    ).await;
+                    ).await 
+                    {
+                        let _  = tx.send(AppEvent::Output(
+                            OutputMsg::new(
+                                format!("Database update failed: {}", e),
+                                Color::Red,
+                                true,
+                                None,
+                                None,
+                                None
+                            )));
+                    }
                 }));
             }
 
-            else if let DbAction::AddPairs = ACTION {
+            else if let DbAction::AddPairs = action {
 
                 if self.btm_item_data.len() > 0 { 
 
@@ -319,7 +331,7 @@ impl DatabaseScreen {
 
                     self.task_handle = Some(tokio::spawn(async move {
                         
-                        tx.send(AppEvent::Output(OutputMsg::new(
+                        let _ = tx.send(AppEvent::Output(OutputMsg::new(
                             format!("Downloading seed data..."),
                             Color::Yellow,
                             false,
@@ -328,28 +340,41 @@ impl DatabaseScreen {
                             None
                         )));
 
-                        database_ops::add_new_pair(
+                        if let Err(e) = database_ops::add_new_pair(
                             &exchange, 
                             &ticker, 
                             time_offset, 
                             db_pool, 
                             &client,
                             Some(&*asset_pairs)
-                        ).await;
+                        ).await 
+                        {
+                            let _ = tx.send(AppEvent::Output(OutputMsg::new(
+                                format!("Failed to add new pair: {}", e),
+                                Color::Red,
+                                true,
+                                None,
+                                None,
+                                None
+                            )));
+
+                        }
+                        else {
+                            let _ = tx.send(AppEvent::Output(OutputMsg::new(
+                                format!("Added {} {}", exchange, ticker),
+                                Color::Green,
+                                true,
+                                None,
+                                None,
+                                None
+                            )));
+                        };
                         
-                        tx.send(AppEvent::Output(OutputMsg::new(
-                            format!("Added {} {}", exchange, ticker),
-                            Color::Green,
-                            true,
-                            None,
-                            None,
-                            None
-                        )));
                     }));
                 };
             }
 
-            else if let DbAction::RemovePairs = ACTION {
+            else if let DbAction::RemovePairs = action {
 
                 if self.btm_item_data.len() > 0 { 
 
@@ -364,20 +389,32 @@ impl DatabaseScreen {
 
                     self.task_handle = Some(tokio::spawn(async move {
 
-                        database_ops::drop_pair(
+                        if let Err(e) = database_ops::drop_pair(
                             &exchange, 
                             &ticker, 
                             db_pool, 
-                        ).await;
+                        ).await
+                        {
+                            let _ = tx.send(AppEvent::Output(OutputMsg::new(
+                                format!("Deletion failed: {}", e),
+                                Color::Red,
+                                true,
+                                None,
+                                None,
+                                None
+                            )));
+                        }
+                        else {
+                            let _ = tx.send(AppEvent::Output(OutputMsg::new(
+                                format!("Deleted {} {}", exchange, ticker),
+                                Color::Magenta,
+                                true,
+                                None,
+                                None,
+                                None
+                            )));
+                        };
                         
-                        tx.send(AppEvent::Output(OutputMsg::new(
-                            format!("Deleted {} {}", exchange, ticker),
-                            Color::Magenta,
-                            true,
-                            None,
-                            None,
-                            None
-                        )));
                     }));
                 };
             };
@@ -496,7 +533,7 @@ impl DatabaseScreen {
 
     pub const SCREEN_NAME: &'static str = "Database Management";
 
-    pub const SCREEN_OPTIONS: [DbAction; 4] = [
+    const SCREEN_OPTIONS: [DbAction; 4] = [
         DbAction::AddPairs, 
         DbAction::RemovePairs, 
         DbAction::UpdateData,

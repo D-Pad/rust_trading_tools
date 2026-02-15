@@ -16,7 +16,7 @@ use std::{
 };
 
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
-async fn dev_testing(engine: &Engine) { 
+async fn dev_testing() { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
 
 }
@@ -41,7 +41,7 @@ pub async fn app_start() -> i32 {
     };
 
     if engine.args.dev_mode {
-        dev_testing(&engine).await; 
+        dev_testing().await; 
     }
     else {
         
@@ -53,6 +53,7 @@ pub async fn app_start() -> i32 {
                     RunTimeError::Arguments(_) => 3,
                     RunTimeError::DataBase(_) => 4,
                     RunTimeError::Bar(_) => 5,
+                    RunTimeError::TuiError => 6,
                 };
                 error_handler(e);
                 return exit_code;
@@ -70,7 +71,9 @@ pub async fn app_start() -> i32 {
         // Start the server if 'start' was passed as the first argument 
         if let Server::CLI = engine.op_mode {
             let mut tui = TerminalInterface::new(engine).await;
-            tui.run().await;
+            if let Err(_) = tui.run().await {
+                exit_code = 6;
+            };
         }
 
         else if let Server::HTTP = engine.op_mode {

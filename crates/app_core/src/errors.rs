@@ -9,6 +9,7 @@ pub enum RunTimeError {
     Init(InitializationError),
     Bar(BarBuildError),
     Arguments(ParserError),
+    TuiError,
 }
 
 impl std::fmt::Display for RunTimeError {
@@ -18,6 +19,7 @@ impl std::fmt::Display for RunTimeError {
             RunTimeError::Init(e) => write!(f, "{}", e),
             RunTimeError::Bar(e) => write!(f, "{}", e),
             RunTimeError::Arguments(e) => write!(f, "{}", e),
+            RunTimeError::TuiError => write!(f, "TUI Crashed"),
         }
     }
 }

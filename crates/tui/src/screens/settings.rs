@@ -6,7 +6,9 @@ use std::fmt::{
 
 use app_core::{
     app_state::{
-        AppConfig, AppState, SystemPaths, save_config
+        AppConfig, 
+        SystemPaths, 
+        save_config
     },
     errors::ConfigError
 };
@@ -49,8 +51,8 @@ use tokio::sync::mpsc::UnboundedSender;
 pub enum FieldKind {
     Bool,
     Integer,
-    Float,
-    Text,
+    // Float,
+    // Text,
     TimeFrame,
 }
 
@@ -59,8 +61,8 @@ impl Display for FieldKind {
         match self {
             FieldKind::Bool => write!(f, "Bool"),
             FieldKind::Integer => write!(f, "Integer"),
-            FieldKind::Float => write!(f, "Float"),
-            FieldKind::Text => write!(f, "Text"),
+            // FieldKind::Float => write!(f, "Float"),
+            // FieldKind::Text => write!(f, "Text"),
             FieldKind::TimeFrame => write!(f, "TimeFrame"),
         } 
     }
@@ -97,7 +99,7 @@ pub struct ConfigField {
     pub label: String,
     pub kind: FieldKind,
     pub value: String,
-    pub key: ConfigFieldKey
+    key: ConfigFieldKey
 }
 
 impl ConfigField {
@@ -105,8 +107,8 @@ impl ConfigField {
         match &self.kind {
             FieldKind::Bool => true, // Isn't modifiable by user anyway
             FieldKind::Integer => self.value.parse::<u64>().is_ok(),
-            FieldKind::Float => self.value.parse::<f64>().is_ok(), 
-            FieldKind::Text => true,
+            // FieldKind::Float => self.value.parse::<f64>().is_ok(), 
+            // FieldKind::Text => true,
             FieldKind::TimeFrame => period_is_valid(&self.value),
         } 
     }
@@ -582,10 +584,10 @@ impl SettingsScreen {
 
                             tokio::spawn(async move {
                                 
-                                sender.send(AppEvent::Clear);
+                                let _ = sender.send(AppEvent::Clear);
 
                                 for msg in msgs {
-                                    sender.send(AppEvent::Output(
+                                    let _ = sender.send(AppEvent::Output(
                                         OutputMsg { 
                                             text: msg, 
                                             color: Color::Red, 
@@ -599,7 +601,7 @@ impl SettingsScreen {
                             }); 
                         }
                         else {
-                            sender.send(AppEvent::Clear);
+                            let _ = sender.send(AppEvent::Clear);
                             self.config_form.mode = FormMode::Movement;
                             self.previous_value = None;
                         };
@@ -642,7 +644,7 @@ impl SettingsScreen {
 
     pub const SCREEN_NAME: &'static str = "System Settings";
 
-    pub const SCREEN_OPTIONS: [&'static str; 0] = [];
+    // const SCREEN_OPTIONS: [&'static str; 0] = [];
 
 }
 

@@ -318,8 +318,8 @@ impl CandleScreen {
             let pool = self.db_pool.clone(); 
             let tx = self.transmitter.clone();
             
-            self.transmitter.send(AppEvent::Clear);
-            self.transmitter.send(
+            let _ = self.transmitter.send(AppEvent::Clear);
+            let _ = self.transmitter.send(
                 AppEvent::Output(OutputMsg::new(
                     "Building candles.".to_string(),
                     Color::Yellow,
@@ -345,7 +345,7 @@ impl CandleScreen {
                             .join(candles.get_file_name());
                         
                         if let Err(_) = write(&file_name, text).await {
-                            tx.send(AppEvent::Output(OutputMsg::new(
+                            let _ = tx.send(AppEvent::Output(OutputMsg::new(
                                 "Failed to export candle data".to_string(),
                                 Color::Red,
                                 true,
@@ -355,8 +355,7 @@ impl CandleScreen {
                             )));
                         }
                         else {
-                            println!();
-                            tx.send(AppEvent::Output(OutputMsg::new(
+                            let _ = tx.send(AppEvent::Output(OutputMsg::new(
                                 format!(
                                     "Saved data to {}", 
                                     file_name.display()
@@ -376,7 +375,7 @@ impl CandleScreen {
         }
         else {
             
-            self.transmitter.send(
+            let _ = self.transmitter.send(
                 AppEvent::Output(OutputMsg { 
                     text: ERROR_MSGS[0]
                         .to_string(), 
@@ -520,7 +519,7 @@ impl CandleScreen {
                                         let msg = String::from(
                                             "Please choose an exchange"
                                         );
-                                        self.transmitter.send(
+                                        let _ = self.transmitter.send(
                                             AppEvent::Output(
                                                 OutputMsg { 
                                                     text: msg, 
@@ -539,7 +538,7 @@ impl CandleScreen {
                                     let msg = "Start typing..."
                                         .to_string();
                                     self.focus = CandleFocus::InputMode;
-                                    self.transmitter.send(
+                                    let _ = self.transmitter.send(
                                         AppEvent::Output(OutputMsg { 
                                             text: msg, 
                                             color: Color::Yellow, 
@@ -619,7 +618,7 @@ impl CandleScreen {
 
     pub const SCREEN_NAME: &'static str = "Candle Builder";
 
-    pub const SCREEN_OPTIONS: [CandleAction; 4] = [
+    const SCREEN_OPTIONS: [CandleAction; 4] = [
         CandleAction::Exchange,
         CandleAction::Ticker,
         CandleAction::Period,

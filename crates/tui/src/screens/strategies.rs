@@ -35,6 +35,15 @@ use ratatui::{
 };
 
 use crate::{AppEvent, move_up, move_down};
+use string_helpers::multi_line_to_single_line;
+
+
+const INFO_STRINGS: [&'static str; 2] = [
+    r#"Create a new strategy by choosing indicator components and entry 
+    conditions."#,
+    
+    r#"Modify the input values of an existing strategy."#
+];
 
 
 pub enum StrategyFocus {
@@ -129,6 +138,7 @@ impl StrategyScreen {
             &mut self.top_state
         );
 
+        let width = nested_chunks[0].width;
         self.btm_item_data = match self.action {
             
             StrategyAction::CreateNew => { 
@@ -139,7 +149,17 @@ impl StrategyScreen {
                 Vec::new() 
             },
            
-            _ => { Vec::new() } 
+            StrategyAction::None => {
+                if let Some(i) = self.top_state.selected() {
+                    Vec::from([
+                        multi_line_to_single_line(
+                            INFO_STRINGS[i], 
+                            width
+                        ),
+                    ])
+                }
+                else { Vec::new() }
+            } 
         };
 
         let btm_items: Vec<ListItem> = self.btm_item_data.iter()
@@ -189,8 +209,6 @@ impl StrategyScreen {
                         self.btm_item_data.len(),
                         1
                     ),
-
-                    _ => {}
                 
                 }
             },
@@ -227,7 +245,7 @@ impl StrategyScreen {
 
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 
-    pub const SCREEN_OPTIONS: [StrategyAction; 2] = [
+    const SCREEN_OPTIONS: [StrategyAction; 2] = [
         StrategyAction::CreateNew,
         StrategyAction::ModifyExisting,
     ];
