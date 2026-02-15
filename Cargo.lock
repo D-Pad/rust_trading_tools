@@ -1162,6 +1162,10 @@ dependencies = [
 [[package]]
 name = "indicators"
 version = "0.1.0"
+dependencies = [
+ "bars",
+ "sqlx",
+]
 
 [[package]]
 name = "indoc"

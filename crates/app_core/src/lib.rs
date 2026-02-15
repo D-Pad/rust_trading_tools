@@ -17,6 +17,7 @@ pub use arg_parsing::{
     Response,
     DataResponse
 };
+pub use indicators::*;
 
 use sqlx::PgPool;
 
@@ -167,6 +168,18 @@ pub async fn build_candles(
         period.to_string(), 
         BarType::Candle, 
         db_pool).await
+}
+
+
+pub async fn build_default_indicator_set(
+    bar_series: &BarSeries,
+    ma_types: Option<Vec<&str>>
+) -> IndicatorSet {
+   
+    let default_inputs = IndicatorInputValues::defaults(ma_types);
+    let indicators = IndicatorSet::new(bar_series, default_inputs);
+    indicators 
+
 }
 
 

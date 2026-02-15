@@ -338,6 +338,28 @@ impl BarSeries {
 
     }
 
+    pub fn get_data_source_from_str(
+        &self, 
+        source_type: &str
+    ) -> Vec<&BigDecimal> {
+       
+        let mut source: Vec<&BigDecimal> = Vec::new();
+        
+        for bar in &self.bars {
+            match source_type {
+                "o" | "open" => source.push(&bar.open),
+                "h" | "high" => source.push(&bar.high),
+                "l" | "low" => source.push(&bar.low),
+                "c" | "close" => source.push(&bar.close),
+                "v" | "volume" => source.push(&bar.volume),
+                _ => {}
+            };
+        };
+
+        source
+
+    }
+
     pub fn len(&self) -> usize {
         self.bars.len()
     }
