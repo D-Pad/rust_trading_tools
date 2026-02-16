@@ -10,8 +10,8 @@ use crate::MovingAverage;
 
 #[derive(Serialize, Deserialize)]
 pub struct SmaInputs {
-    period: u16,
-    source: String,
+    pub period: u16,
+    pub source: String,
 }
 
 impl SmaInputs {

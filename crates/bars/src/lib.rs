@@ -113,6 +113,22 @@ impl Bar {
             tick_data 
         }
     }
+
+    /// # Fetch a bar component from &str
+    ///
+    /// Defaults to bar.close if an invalid input string is given.
+    pub fn component_from_str(&self, src_str: &str) -> &BigDecimal {
+
+        match src_str {
+            "v" | "volume" => &self.volume,
+            "o" | "open" => &self.open,
+            "h" | "high" => &self.high,
+            "l" | "low" => &self.low,
+            "c" | "close" | _ => &self.close,
+        } 
+
+    }
+
 }
 
 impl fmt::Display for Bar {

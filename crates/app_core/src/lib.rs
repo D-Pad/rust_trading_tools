@@ -8,6 +8,7 @@ pub mod errors;
 use engine::Engine;
 pub use database_ops::{self, Db, DbError, DataDownloadStatus};
 pub use charts::{
+    Chart, 
     bars::{self, BarBuildError, BarSeries, BarType},
     indicators::{self, *} 
 };
@@ -20,7 +21,6 @@ pub use arg_parsing::{
     Response,
     DataResponse
 };
-pub use indicators::*;
 
 use sqlx::PgPool;
 

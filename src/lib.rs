@@ -5,6 +5,8 @@ pub use app_core::{
     errors::{error_handler, ConfigError}, 
     engine::{Engine, Server},
     app_state::{SystemPaths},
+    indicators::*,
+    Chart,
     RunTimeError,
     Response,
     DataResponse,
@@ -22,6 +24,35 @@ use std::{
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: &Engine) { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
+   
+    println!("\x1b[33mBuilding candles...\x1b[0m");
+    let candles = match build_candles(
+        "kraken", "BTCUSD", "5m", engine.database.get_pool()
+    ).await {
+        Ok(c) => c,
+        Err(_) => return 
+    };
+
+    println!("\x1b[33mBuilding chart...\x1b[0m");
+    let mut chart = Chart::new(candles);
+
+    println!("\x1b[33mAdding moving averages...\x1b[0m");
+    let ma_inputs: Vec<MaInputs> = Vec::from([
+        MaInputs::SMA(SmaInputs::default())
+    ]);
+
+    chart.indicator_set.set_moving_averages(ma_inputs);
+    chart.populate_indicator_values();
+
+    if let Some(ma_container) = chart.indicator_set.ma_container {
+   
+        for ma in ma_container.moving_averages {
+            match ma {
+                MA::SMA(sma) => println!("{:?}", sma.line)
+            } 
+        };
+
+    };
 
 }
 

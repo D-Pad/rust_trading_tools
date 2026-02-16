@@ -5,7 +5,7 @@ use sqlx::{
 };
 
 pub mod sma;
-use sma::{SimpleMovingAverage, SmaInputs};
+pub use sma::{SimpleMovingAverage, SmaInputs};
 
 // ----------------------------- COMMON TRAITS ----------------------------- //
 pub trait MovingAverage {
@@ -88,7 +88,7 @@ impl MA {
 
 // ------------------------------ CONTAINER -------------------------------- //
 pub struct MaContainer {
-    moving_averages: Vec<MA>
+    pub moving_averages: Vec<MA>
 }
 
 impl MaContainer {
@@ -105,6 +105,20 @@ impl MaContainer {
     ) {
         let ma = MA::constructor(ma_inputs);
         self.moving_averages.push(ma);
+    }
+
+    pub fn add_default_ma(&mut self, type_str: &str) -> Result<(), MaError> {
+        match type_str {
+
+            "sma" => {
+                self.add_new_ma(MaInputs::SMA(SmaInputs::default()));
+            },
+
+            _ => return Err(MaError::InvalidType)
+
+        }
+
+        Ok(())
     }
 
     pub fn to_json(&self) {
