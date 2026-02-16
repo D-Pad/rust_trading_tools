@@ -7,7 +7,10 @@ pub mod errors;
 
 use engine::Engine;
 pub use database_ops::{self, Db, DbError, DataDownloadStatus};
-pub use bars::{self, BarBuildError, BarSeries, BarType};
+pub use charts::{
+    bars::{self, BarBuildError, BarSeries, BarType},
+    indicators::{self, *} 
+};
 pub use app_state::{AppState};
 pub use errors::{RunTimeError, InitializationError};
 pub use arg_parsing::{

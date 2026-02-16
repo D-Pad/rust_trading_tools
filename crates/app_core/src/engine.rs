@@ -1,8 +1,6 @@
 use std::{collections::HashMap, io::{self, Write}};
 
-use bars::{BarSeries, BarType, BarBuildError};
 use database_ops::*;
-
 use crate::{
     app_state::AppState,
     errors::{RunTimeError},
@@ -12,6 +10,11 @@ use crate::{
         ParsedArgs,
         Response,
         parse_args
+    },
+    bars::{
+        BarSeries, 
+        BarBuildError,
+        BarType
     },
     DataDownloadStatus,
     DownloadStatusViewer,

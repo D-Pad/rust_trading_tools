@@ -1,8 +1,10 @@
-use bars::{BarSeries};
+pub use bars::{self, *};
+pub use indicators::{self, *};
 
 
 pub struct Chart {
-    pub bars: BarSeries
+    pub bars: BarSeries,
+    // pub indicators: IndicatorSet,
 }
 
 impl Chart {

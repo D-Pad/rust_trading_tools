@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use sqlx::{
     types::{BigDecimal},
 };
 
 pub mod sma;
-use sma::SimpleMovingAverage;
+use sma::{SimpleMovingAverage, SmaInputs};
 
 // ----------------------------- COMMON TRAITS ----------------------------- //
 pub trait MovingAverage {
@@ -30,6 +32,8 @@ pub trait MovingAverage {
     /// append the line with the newly calculated value.
     fn update(&mut self, input_val: &BigDecimal);
 
+    const SHORT_NAME: &'static str;
+
 }
 
 
@@ -46,7 +50,7 @@ struct UniqueMaInputs {
 }
 
 impl UniqueMaInputs {
-    fn new() -> Self {
+    fn default() -> Self {
         Self {
             jma_phase: None,
             jma_power: None,
@@ -57,7 +61,7 @@ impl UniqueMaInputs {
 }
 
 pub enum MaInputs {
-    SMA { period: u16, source: String }
+    SMA(SmaInputs),
 }
 
 pub enum MA {
@@ -70,14 +74,9 @@ impl MA {
 
         match ma_inputs {
             
-            MaInputs::SMA { period, source } => {
-
-                let ma = SimpleMovingAverage::empty(
-                    period, 
-                    Some(source.clone())
-                );
+            MaInputs::SMA(sma) => {
+                let ma = SimpleMovingAverage::empty(sma);
                 MA::SMA(ma)
-
             }
 
         }
@@ -108,6 +107,34 @@ impl MaContainer {
         self.moving_averages.push(ma);
     }
 
+    pub fn to_json(&self) {
+
+        let mut data: HashMap<&'static str, Vec<String>> = HashMap::new();
+
+        for ma in &self.moving_averages {
+     
+            match ma {
+
+                MA::SMA(sma) => {
+
+                    let name = SimpleMovingAverage::SHORT_NAME;
+                    data.entry(name)
+                        .or_insert(Vec::new())
+                        .push(
+                            match serde_json::to_string(&sma.inputs) {
+                                Ok(s) => s,
+                                Err(_) => String::new()
+                            }
+                        );
+
+                } 
+
+            }
+
+        };
+
+    }
 }
+
 
 

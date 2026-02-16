@@ -6,7 +6,8 @@ edition = "2024"
 [dependencies]
 
 # My local modules
-timestamp_tools = { path = "../timestamp_tools" }
 bars = { path = "../bars" }
+indicators = { path = "../indicators" }
+timestamp_tools = { path = "../timestamp_tools" }
 
 

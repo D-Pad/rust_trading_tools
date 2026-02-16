@@ -1,5 +1,5 @@
 use std::{env::args};
-use bars::{BarSeries};
+use crate::bars::{BarSeries};
 
 
 // --------------------------- COMMAND ENUMS ------------------------------- //

@@ -1,6 +1,8 @@
 pub use database_ops::DbError;
-pub use bars::BarBuildError;
-pub use crate::arg_parsing::{ParserError};
+pub use crate::{
+    arg_parsing::{ParserError},
+    bars::{BarBuildError}
+};
 
 
 #[derive(Debug)]

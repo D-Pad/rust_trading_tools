@@ -3,36 +3,51 @@ use std::collections::VecDeque;
 use sqlx::{
     types::{BigDecimal},
 };
+use serde::{Serialize, Deserialize};
 
 use crate::MovingAverage;
 
 
-pub struct SimpleMovingAverage {
-    source: String,
-    line: Vec<Option<BigDecimal>>,
-    lookback_values: VecDeque<BigDecimal>,
+#[derive(Serialize, Deserialize)]
+pub struct SmaInputs {
     period: u16,
+    source: String,
 }
 
-impl SimpleMovingAverage {
-
-    pub fn empty(
-        period: u16,
-        src: Option<String>,
-    ) -> Self {
+impl SmaInputs {
+    
+    pub fn new(period: u16, src: Option<String>) -> Self {
 
         let source = match src {
             Some(s) => s,
             None => "close".to_string()
         };
 
+        Self { period, source }
+
+    }
+
+    pub fn default() -> Self {
+        Self { period: 13, source: "close".to_string() }
+    }
+}
+
+pub struct SimpleMovingAverage {
+    pub inputs: SmaInputs, 
+    pub line: Vec<Option<BigDecimal>>,
+    lookback_values: VecDeque<BigDecimal>,
+}
+
+impl SimpleMovingAverage {
+
+    pub fn empty(inputs: SmaInputs) -> Self {
+
         let mut line: Vec<Option<BigDecimal>> = Vec::new();
         let lookback_values: VecDeque<BigDecimal> = VecDeque::new();
 
         Self {
-            source,
+            inputs, 
             line,
-            period,
             lookback_values
         } 
     }
@@ -43,11 +58,11 @@ impl MovingAverage for SimpleMovingAverage {
     
     fn calculate(&self, input_val: Option<&BigDecimal>) -> Option<BigDecimal> {
         
-        match (self.lookback_values.len() as u16) < self.period {
+        match (self.lookback_values.len() as u16) < self.inputs.period {
             true => None,
             false => {
                 let total: BigDecimal = self.lookback_values.iter().sum();
-                let avg = total / self.period;
+                let avg = total / self.inputs.period;
                 Some(avg)
             }
         }
@@ -73,7 +88,7 @@ impl MovingAverage for SimpleMovingAverage {
         
         self.lookback_values.push_back(input_val.clone());
         
-        if self.lookback_values.len() as u16 > self.period {
+        if self.lookback_values.len() as u16 > self.inputs.period {
             let _ = self.lookback_values.pop_front();
         };
 
@@ -81,6 +96,8 @@ impl MovingAverage for SimpleMovingAverage {
         self.line.push(val);
 
     }
+
+    const SHORT_NAME: &'static str = "sma";
 
 }
 
