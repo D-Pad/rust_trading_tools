@@ -19,17 +19,7 @@ use std::{
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: &Engine) { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
-    
-    let candles = match build_candles(
-        "kraken", "BTCUSD", "5m", engine.database.get_pool()
-    ).await 
-    {
-        Ok(c) => c,
-        Err(_) => return 
-    }; 
-   
-    let ma_types = vec!["sma"];
-    let indicators = build_default_indicator_set(&candles, Some(ma_types)); 
+
 }
 
 

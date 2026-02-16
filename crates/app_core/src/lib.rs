@@ -171,16 +171,17 @@ pub async fn build_candles(
 }
 
 
-pub async fn build_default_indicator_set(
-    bar_series: &BarSeries,
-    ma_types: Option<Vec<&str>>
-) -> IndicatorSet {
-   
-    let default_inputs = IndicatorInputValues::defaults(ma_types);
-    let indicators = IndicatorSet::new(bar_series, default_inputs);
-    indicators 
-
-}
+// pub async fn build_default_indicator_set(
+//     bar_series: &BarSeries,
+//     ma_types: Option<Vec<&str>>
+// ) -> IndicatorSet {
+//    
+//     let defaults = IndicatorInputValues::defaults(bar_series, ma_types);
+//     let indicators = IndicatorSet::new(
+//         bar_series, Some(default_inputs), None);
+//     indicators 
+// 
+// }
 
 
 // -------------------------- UNIT TESTING --------------------------------- //
