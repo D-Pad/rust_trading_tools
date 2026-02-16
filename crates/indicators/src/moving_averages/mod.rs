@@ -56,8 +56,8 @@ impl UniqueMaInputs {
     }
 }
 
-pub enum MaType {
-    SMA
+pub enum MaInputs {
+    SMA { period: u16, source: String }
 }
 
 pub enum MA {
@@ -66,16 +66,11 @@ pub enum MA {
 
 impl MA {
 
-    pub fn constructor(
-        ma_type: MaType,
-        period: u16,
-        source: String,
-        optional_inputs: Option<UniqueMaInputs>
-    ) -> Self {
+    pub fn constructor(ma_inputs: MaInputs) -> Self {
 
-        match ma_type {
+        match ma_inputs {
             
-            MaType::SMA => {
+            MaInputs::SMA { period, source } => {
 
                 let ma = SimpleMovingAverage::empty(
                     period, 
@@ -99,10 +94,18 @@ pub struct MaContainer {
 
 impl MaContainer {
     
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             moving_averages: Vec::new()
         }
+    }
+
+    pub fn add_new_ma(
+        &mut self,
+        ma_inputs: MaInputs,
+    ) {
+        let ma = MA::constructor(ma_inputs);
+        self.moving_averages.push(ma);
     }
 
 }
