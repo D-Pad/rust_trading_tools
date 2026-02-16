@@ -83,7 +83,9 @@ pub async fn app_start() -> i32 {
         }
 
         else if let Server::HTTP(server) = engine.op_mode {
-            todo!();
+            if let Err(_) = server.serve().await {
+                exit_code = 7;
+            };
         };
     };
 
