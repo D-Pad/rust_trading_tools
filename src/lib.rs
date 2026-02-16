@@ -1,3 +1,5 @@
+use dotenvy;
+
 pub use app_core::*;
 pub use app_core::{
     errors::{error_handler, ConfigError}, 
@@ -24,6 +26,8 @@ async fn dev_testing(engine: &Engine) {
 
 
 pub async fn app_start() -> i32 {
+
+    dotenvy::dotenv().ok(); 
 
     let mut exit_code: i32 = 0;
 
@@ -55,6 +59,7 @@ pub async fn app_start() -> i32 {
                     RunTimeError::DataBase(_) => 4,
                     RunTimeError::Bar(_) => 5,
                     RunTimeError::TuiError => 6,
+                    RunTimeError::WebServer(_) => 7
                 };
                 error_handler(e);
                 return exit_code;
@@ -77,7 +82,7 @@ pub async fn app_start() -> i32 {
             };
         }
 
-        else if let Server::HTTP = engine.op_mode {
+        else if let Server::HTTP(server) = engine.op_mode {
             todo!();
         };
     };

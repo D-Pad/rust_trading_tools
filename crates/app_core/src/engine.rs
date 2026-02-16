@@ -2,6 +2,7 @@ use std::{collections::HashMap, io::{self, Write}};
 
 use bars::{BarSeries, BarType, BarBuildError};
 use database_ops::*;
+use webserver::*;
 
 use crate::{
     app_state::AppState,
@@ -122,6 +123,7 @@ EXIT STATUS
     4     Database connection / query failure
     5     Candle builder error
     6     Terminal User Interface Error
+    7     Web server error
 
 BUGS / LIMITATIONS
     Currently only Kraken is fully tested for pair adding/removal.
@@ -139,7 +141,7 @@ Report bugs or suggestions at:
 
 pub enum Server {
     CLI,
-    HTTP,
+    HTTP(WebServer),
     OneShot,
 }
 
@@ -147,7 +149,7 @@ impl std::fmt::Display for Server {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Server::CLI => { write!(f, "CLI Mode") },
-            Server::HTTP => { write!(f, "HTTP Mode") },
+            Server::HTTP(_) => { write!(f, "HTTP Mode") },
             Server::OneShot => { write!(f, "One-Shot Mode") }
         }
     }
@@ -246,7 +248,18 @@ impl Engine {
 
             Command::StartServer { http } => {
                 if http {
-                    self.op_mode = Server::HTTP;
+                    self.op_mode = Server::HTTP(
+                        match WebServer::new().await {
+                            Ok(ws) => ws,
+                            Err(_) => return Err(
+                                RunTimeError::WebServer(
+                                    ServerError::InitError(
+                                        "Web server init failed".to_string() 
+                                    )
+                                )
+                            )
+                        }
+                    );
                 }
                 else {
                     self.op_mode = Server::CLI;
