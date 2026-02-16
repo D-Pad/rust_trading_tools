@@ -46,7 +46,6 @@ dependencies = [
  "sqlx",
  "timestamp_tools",
  "tokio",
- "webserver",
 ]
 
 [[package]]
@@ -3168,6 +3167,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "tui",
+ "webserver",
 ]
 
 [[package]]
@@ -3444,6 +3444,7 @@ dependencies = [
 name = "webserver"
 version = "0.1.0"
 dependencies = [
+ "app_core",
  "axum",
  "tokio",
 ]

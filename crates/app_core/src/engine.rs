@@ -2,7 +2,6 @@ use std::{collections::HashMap, io::{self, Write}};
 
 use bars::{BarSeries, BarType, BarBuildError};
 use database_ops::*;
-use webserver::*;
 
 use crate::{
     app_state::AppState,
@@ -140,16 +139,16 @@ Report bugs or suggestions at:
 
 
 pub enum Server {
-    CLI,
-    HTTP(WebServer),
+    TUI,
+    HTTP,
     OneShot,
 }
 
 impl std::fmt::Display for Server {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Server::CLI => { write!(f, "CLI Mode") },
-            Server::HTTP(_) => { write!(f, "HTTP Mode") },
+            Server::TUI => { write!(f, "TUI Mode") },
+            Server::HTTP => { write!(f, "HTTP Mode") },
             Server::OneShot => { write!(f, "One-Shot Mode") }
         }
     }
@@ -248,21 +247,10 @@ impl Engine {
 
             Command::StartServer { http } => {
                 if http {
-                    self.op_mode = Server::HTTP(
-                        match WebServer::new().await {
-                            Ok(ws) => ws,
-                            Err(_) => return Err(
-                                RunTimeError::WebServer(
-                                    ServerError::InitError(
-                                        "Web server init failed".to_string() 
-                                    )
-                                )
-                            )
-                        }
-                    );
+                    self.op_mode = Server::HTTP;
                 }
                 else {
-                    self.op_mode = Server::CLI;
+                    self.op_mode = Server::TUI;
                 };
                 Ok(Response::Ok)
             },

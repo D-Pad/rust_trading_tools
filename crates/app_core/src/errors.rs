@@ -1,7 +1,6 @@
 pub use database_ops::DbError;
 pub use bars::BarBuildError;
 pub use crate::arg_parsing::{ParserError};
-use webserver::ServerError;
 
 
 #[derive(Debug)]
@@ -10,7 +9,6 @@ pub enum RunTimeError {
     Init(InitializationError),
     Bar(BarBuildError),
     Arguments(ParserError),
-    WebServer(ServerError),
     TuiError,
 }
 
@@ -21,7 +19,6 @@ impl std::fmt::Display for RunTimeError {
             RunTimeError::Init(e) => write!(f, "{}", e),
             RunTimeError::Bar(e) => write!(f, "{}", e),
             RunTimeError::Arguments(e) => write!(f, "{}", e),
-            RunTimeError::WebServer(e) => write!(f, "{}", e),
             RunTimeError::TuiError => write!(f, "TUI Crashed"),
         }
     }

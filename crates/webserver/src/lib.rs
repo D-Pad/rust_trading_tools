@@ -1,8 +1,21 @@
-use std::env;
+use std::{env, sync::Arc};
 
-use axum::{routing::get, Router};
+use axum::{
+    Router, 
+    routing::get,
+    serve::serve,
+};
 use tokio::net::TcpListener;
 
+use app_core::{
+    engine::{Engine}
+};
+
+mod routes;
+use routes::{
+    generic::*, 
+    database::{db_status, db_tables},
+};
 
 #[derive(Debug)]
 pub enum ServerError {
@@ -19,13 +32,8 @@ impl std::fmt::Display for ServerError {
     }
 }
 
-// ---------------------------------- ROUTES ------------------------------- //
-async fn home() -> &'static str {
-    "Hello world"
-}
 
-
-// --------------------------------- WE SERVER ----------------------------- //
+// -------------------------------- WEB SERVER ----------------------------- //
 pub struct WebServer {
     router: Router,
     listener: TcpListener,
@@ -33,12 +41,15 @@ pub struct WebServer {
 
 impl WebServer {
 
-    pub async fn new() -> Result<Self, ServerError> {
+    pub async fn new(engine: Engine) -> Result<Self, ServerError> {
 
         let port: String = env::var("HTTP_PORT").unwrap_or_default(); 
         
         let router = Router::new()
-            .route("/", get(home));
+            .route("/", get(home))
+            .route("/database", get(db_status)) 
+            .route("/database/tables", get(db_tables)) 
+            .with_state(Arc::new(engine));
 
         let bind_addr = format!("0.0.0.0:{}", port); 
         
@@ -49,14 +60,14 @@ impl WebServer {
 
         Ok(Self {
             router,
-            listener
+            listener,
         })
 
     }
 
     pub async fn serve(self) -> Result<(), ServerError> {
 
-        axum::serve(self.listener, self.router).await
+        serve(self.listener, self.router).await
             .map_err(|_| ServerError::ServeFailed(
                 "Failed to start server".to_string()
             ))?;

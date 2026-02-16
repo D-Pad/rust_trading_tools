@@ -22,6 +22,7 @@ pub use indicators::*;
 use sqlx::PgPool;
 
 
+
 enum StatusMessageProgress {
     Started,
     Completed,
@@ -169,19 +170,6 @@ pub async fn build_candles(
         BarType::Candle, 
         db_pool).await
 }
-
-
-// pub async fn build_default_indicator_set(
-//     bar_series: &BarSeries,
-//     ma_types: Option<Vec<&str>>
-// ) -> IndicatorSet {
-//    
-//     let defaults = IndicatorInputValues::defaults(bar_series, ma_types);
-//     let indicators = IndicatorSet::new(
-//         bar_series, Some(default_inputs), None);
-//     indicators 
-// 
-// }
 
 
 // -------------------------- UNIT TESTING --------------------------------- //

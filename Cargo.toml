@@ -7,6 +7,7 @@ edition = "2024"
 # My modules
 app_core = { path = "crates/app_core" }   
 tui = { path = "crates/tui" }   
+webserver = { path = "crates/webserver" }   
 
 # Third party
 reqwest = { version = "0.13.1", features = ["json"] }

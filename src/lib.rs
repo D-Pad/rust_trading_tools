@@ -12,6 +12,7 @@ pub use app_core::{
     build_candles,
 };
 use tui::{TerminalInterface};
+use webserver::{WebServer};
 
 use std::{
     fs,
@@ -59,7 +60,6 @@ pub async fn app_start() -> i32 {
                     RunTimeError::DataBase(_) => 4,
                     RunTimeError::Bar(_) => 5,
                     RunTimeError::TuiError => 6,
-                    RunTimeError::WebServer(_) => 7
                 };
                 error_handler(e);
                 return exit_code;
@@ -68,25 +68,36 @@ pub async fn app_start() -> i32 {
 
         if let Response::Data(data) = response {
             match data {
-                DataResponse::Bars(_) => {
-                        
+                DataResponse::Bars(b) => {
+                    println!("{b}"); 
                 }
             }
         };
 
-        // Start the server if 'start' was passed as the first argument 
-        if let Server::CLI = engine.op_mode {
+        // Start the HTTP server is 'start --http' was passed.
+        if let Server::HTTP = engine.op_mode {
+            
+            match WebServer::new(engine).await {
+                Ok(server) => {
+                    
+                    if let Err(_) = server.serve().await {
+                        exit_code = 7;
+                    }; 
+
+                },
+                Err(_) => { exit_code = 7 } 
+            };
+
+        }
+
+        // Start the TUI if 'start' was passed without a flag.
+        else if let Server::TUI = engine.op_mode {
             let mut tui = TerminalInterface::new(engine).await;
             if let Err(_) = tui.run().await {
                 exit_code = 6;
             };
-        }
-
-        else if let Server::HTTP(server) = engine.op_mode {
-            if let Err(_) = server.serve().await {
-                exit_code = 7;
-            };
         };
+
     };
 
     exit_code
