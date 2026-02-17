@@ -24,6 +24,7 @@ members = [
     "crates/charts",
     "crates/database_ops", 
     "crates/indicators", 
+    "crates/strategies", 
     "crates/string_helpers", 
     "crates/timestamp_tools", 
     "crates/tui", 

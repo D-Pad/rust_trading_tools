@@ -45,9 +45,7 @@ async fn dev_testing(engine: &Engine) {
     chart.populate_indicator_values();
 
     if let Some(ma_container) = chart.indicator_set.ma_container {
-   
-        ma_container.to_json();
-
+        ma_container.to_strategy_component();
     };
 
 }

@@ -7,7 +7,7 @@ edition = "2024"
 
 # My local modules
 bars = { path = "../bars" }
-indicators = { path = "../indicators" }
+strategies = { path = "../strategies" }
 timestamp_tools = { path = "../timestamp_tools" }
 
 

@@ -176,7 +176,8 @@ impl MaContainer {
         Ok(())
     }
 
-    pub fn to_json(&self) -> Result<String, MaError> {
+    pub fn to_strategy_component(&self) 
+        -> HashMap<&'static str, Vec<MaInputs>> {
 
         let mut data: HashMap<&'static str, Vec<MaInputs>> = HashMap::new();
 
@@ -196,11 +197,8 @@ impl MaContainer {
             }
 
         };
-
-        let json_string: String = serde_json::to_string(&data)
-            .map_err(|_| MaError::JsonParseFailed)?;
         
-        Ok(json_string)
+       data 
 
     }
 }

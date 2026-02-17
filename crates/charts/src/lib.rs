@@ -1,5 +1,8 @@
 pub use bars::{self, *};
-pub use indicators::{self, *};
+pub use strategies::{
+    self,
+    indicators::{self, *}
+};
 
 
 pub struct Chart {

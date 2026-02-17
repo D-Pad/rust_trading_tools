@@ -10,7 +10,9 @@ pub use database_ops::{self, Db, DbError, DataDownloadStatus};
 pub use charts::{
     Chart, 
     bars::{self, BarBuildError, BarSeries, BarType},
-    indicators::{self, *} 
+    strategies::{
+        indicators::{self, *}
+    } 
 };
 pub use app_state::{AppState};
 pub use errors::{RunTimeError, InitializationError};
