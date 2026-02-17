@@ -46,9 +46,7 @@ async fn dev_testing(engine: &Engine) {
 
     if let Some(ma_container) = chart.indicator_set.ma_container {
    
-        for ma in ma_container.moving_averages {
-            println!("MA: {}", ma);
-        };
+        ma_container.to_json();
 
     };
 

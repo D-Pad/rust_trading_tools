@@ -10,9 +10,11 @@ use std::{
 use sqlx::{
     types::{BigDecimal},
 };
+use serde::{Deserialize, Serialize};
 
 pub mod sma;
 pub use sma::{SimpleMovingAverage, SmaInputs};
+
 
 // ----------------------------- COMMON TRAITS ----------------------------- //
 pub trait MovingAverage {
@@ -46,7 +48,8 @@ pub trait MovingAverage {
 
 // ---------------------------- MOVING AVERAGES ---------------------------- //
 pub enum MaError {
-    InvalidType
+    InvalidType,
+    JsonParseFailed,
 }
 
 struct UniqueMaInputs {
@@ -67,6 +70,8 @@ impl UniqueMaInputs {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type", content = "inputs")]
 pub enum MaInputs {
     SMA(SmaInputs),
 }
@@ -90,6 +95,7 @@ impl MA {
 }
 
 impl Display for MA {
+    
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
        
         let mut line_string: String = String::from("[");
@@ -170,9 +176,9 @@ impl MaContainer {
         Ok(())
     }
 
-    pub fn to_json(&self) {
+    pub fn to_json(&self) -> Result<String, MaError> {
 
-        let mut data: HashMap<&'static str, Vec<String>> = HashMap::new();
+        let mut data: HashMap<&'static str, Vec<MaInputs>> = HashMap::new();
 
         for ma in &self.moving_averages {
      
@@ -183,18 +189,18 @@ impl MaContainer {
                     let name = SimpleMovingAverage::SHORT_NAME;
                     data.entry(name)
                         .or_insert(Vec::new())
-                        .push(
-                            match serde_json::to_string(&sma.inputs) {
-                                Ok(s) => s,
-                                Err(_) => String::new()
-                            }
-                        );
+                        .push(MaInputs::SMA(sma.inputs.clone()));
 
                 } 
 
             }
 
         };
+
+        let json_string: String = serde_json::to_string(&data)
+            .map_err(|_| MaError::JsonParseFailed)?;
+        
+        Ok(json_string)
 
     }
 }
