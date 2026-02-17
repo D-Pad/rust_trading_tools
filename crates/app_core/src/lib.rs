@@ -11,6 +11,7 @@ pub use charts::{
     Chart, 
     bars::{self, BarBuildError, BarSeries, BarType},
     strategies::{
+        self,
         indicators::{self, *}
     } 
 };

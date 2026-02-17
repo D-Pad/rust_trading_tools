@@ -8,7 +8,7 @@ use serde::{Serialize, Deserialize};
 use crate::MovingAverage;
 
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SmaInputs {
     pub period: u16,
     pub source: String,

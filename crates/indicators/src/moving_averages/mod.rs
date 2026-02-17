@@ -70,11 +70,20 @@ impl UniqueMaInputs {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", content = "inputs")]
 pub enum MaInputs {
     SMA(SmaInputs),
 }
+
+impl Display for MaInputs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            MaInputs::SMA(_) => write!(f, "MaInputs::SMA")
+        }
+    }     
+}
+
 
 pub enum MA {
     SMA(SimpleMovingAverage)
