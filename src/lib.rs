@@ -47,9 +47,7 @@ async fn dev_testing(engine: &Engine) {
     if let Some(ma_container) = chart.indicator_set.ma_container {
    
         for ma in ma_container.moving_averages {
-            match ma {
-                MA::SMA(sma) => println!("{:?}", sma.line)
-            } 
+            println!("MA: {}", ma);
         };
 
     };

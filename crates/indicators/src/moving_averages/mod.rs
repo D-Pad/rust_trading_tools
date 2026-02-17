@@ -1,4 +1,11 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap, 
+    fmt::{
+        Display,
+        Formatter,
+        self
+    }
+};
 
 use sqlx::{
     types::{BigDecimal},
@@ -78,11 +85,53 @@ impl MA {
                 let ma = SimpleMovingAverage::empty(sma);
                 MA::SMA(ma)
             }
-
         }
+    }
+}
 
-    } 
+impl Display for MA {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+       
+        let mut line_string: String = String::from("[");
 
+        let line = match self {
+            MA::SMA(sma) => {
+                &sma.line  
+            }
+        };
+        
+        let length = line.len();
+        
+        if length > 6 {
+            let indices: Vec<usize> = vec![
+                0, 1, 2, length - 3, length - 2, length - 1
+            ];
+            for (i, index) in indices.iter().enumerate() {
+                match &line[*index] {
+                    Some(v) => line_string.push_str(
+                        &format!("{:.4}", v)
+                    ),
+                    None => line_string.push_str("None")
+                };
+
+                if i < 5 { line_string.push_str(", ") };
+                if i == 2 { line_string.push_str(" ... , ") }
+            };
+        }
+        else {
+            for (i, val) in line.iter().enumerate() {
+
+                let sl = match val {
+                    Some(v) => &format!("{:.4}", v),
+                    None => "None"
+                };
+
+                line_string.push_str(sl);
+                if i < length - 1 { line_string.push_str(", ") };
+            }
+        };
+        write!(f, "{}]", line_string)
+    }
 }
 
 
