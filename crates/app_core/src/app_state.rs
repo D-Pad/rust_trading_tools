@@ -25,6 +25,7 @@ use crate::errors::{
 pub struct SystemPaths {
     pub base: PathBuf,
     pub candle_data: PathBuf,
+    pub strategy_templates: PathBuf,
 }
 
 impl SystemPaths {
@@ -58,10 +59,10 @@ impl SystemPaths {
         };
 
         base.push("dtrade");
-        let mut candle_data = base.clone();
-        candle_data.push("candle_data");
+        let candle_data = base.join("candle_data");
+        let strategy_templates = base.join("strategies");
     
-        Ok(Self { base, candle_data })
+        Ok(Self { base, candle_data, strategy_templates })
 
     }
 }

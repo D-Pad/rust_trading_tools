@@ -118,4 +118,13 @@ impl StrategyInputs {
 
 }
 
+// -------------------------- IMPORT & EXPORT ------------------------------ //
+pub fn export_strategy_template(strategy_template: StrategyInputs) {
+
+}
+
+
+pub fn load_strategy_template (strategy_name: &str) {
+
+}
 

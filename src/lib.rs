@@ -123,9 +123,17 @@ fn first_time_setup(paths: &SystemPaths) -> Result<(), ConfigError> {
             ));
         };
 
+
         if let Err(_) = fs::create_dir_all(&paths.candle_data) {
             return Err(ConfigError::MissingDirectory(
                 "Failed to create 'dtrade/candle_data' directory"
+            ));
+        };
+
+
+        if let Err(_) = fs::create_dir_all(&paths.strategy_templates) {
+            return Err(ConfigError::MissingDirectory(
+                "Failed to create 'dtrade/strategies' directory"
             ));
         };
 
