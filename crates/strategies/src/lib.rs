@@ -1,4 +1,8 @@
-use std::fs;
+use std::{
+    fs,
+    fmt::{Display, Formatter, self},
+    path::PathBuf
+};
 
 pub use indicators::{self, *};
 use config::SystemPaths;
@@ -8,7 +12,9 @@ use serde::{Serialize, Deserialize};
 
 pub enum StrategyError {
     MaInput(MaError),
+    FileNotFound,
     ExportFailed,
+    ImportFailed,
 }
 
 
@@ -123,6 +129,27 @@ impl StrategyInputs {
 
 }
 
+impl Display for StrategyInputs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self.moving_averages {
+            Some(v) => {
+                write!(f, "Moving Averages:\n")?;
+                for ma_input in v {
+                    write!(f, "{}", match ma_input {
+                        MaInputs::SMA(sma) => format!(
+                            "  SMA: {{ period: {}, source: {} }}",
+                            sma.period,
+                            sma.source
+                        ),
+                    })?
+                };
+                Ok(())
+            },
+            None => write!(f, "None")
+        }
+    }    
+}
+
 // -------------------------- IMPORT & EXPORT ------------------------------ //
 pub fn export_strategy_template(strategy: Strategy) 
     -> Result<(), StrategyError> {
@@ -130,9 +157,12 @@ pub fn export_strategy_template(strategy: Strategy)
     let sys_paths: SystemPaths = SystemPaths::new()
         .map_err(|_| StrategyError::ExportFailed)?;
 
-    let mut file_name: String = strategy.name.replace(" ", "_");
+    let mut file_name: String = strategy.name.replace(" ", "_").to_lowercase();
     let num_chars: usize = file_name.len();  
-    if num_chars > 5 && &file_name[&num_chars - 5..] != ".json" {
+   
+    if num_chars <= 5 || 
+        (num_chars > 5 && &file_name[&num_chars - 5..] != ".json") 
+    {
         file_name.push_str(".json");
     };
     let file_path = sys_paths.strategy_templates.join(file_name);
@@ -152,7 +182,34 @@ pub fn export_strategy_template(strategy: Strategy)
 }
 
 
-pub fn load_strategy_template (strategy_name: &str) {
-     
+pub fn load_strategy_template (strategy_name: &str) 
+    -> Result<StrategyInputs, StrategyError> {
+
+    let sys_paths: SystemPaths = SystemPaths::new()
+        .map_err(|_| StrategyError::ImportFailed)?;
+
+    let mut file_name = strategy_name.to_lowercase();
+    let num_chars: usize = file_name.len();  
+    if num_chars <= 5 || 
+        (num_chars > 5 && &file_name[&num_chars - 5..] != ".json") 
+    {
+        file_name.push_str(".json");
+    }; 
+
+    let expected_path: PathBuf = sys_paths.strategy_templates.join(file_name);
+    if expected_path.exists() {
+       
+        let json = fs::read_to_string(&expected_path)
+            .map_err(|_| StrategyError::ImportFailed)?;
+
+        let inputs = serde_json::from_str::<StrategyInputs>(&json)
+            .map_err(|_| StrategyError::ImportFailed)?;
+        
+        Ok(inputs)
+    }
+    else {
+        println!("COULDN'T FIND");
+        Err(StrategyError::FileNotFound)
+    }
 }
 

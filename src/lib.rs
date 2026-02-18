@@ -25,11 +25,10 @@ async fn dev_testing(engine: &Engine) {
     let comp = StrategyComponentType::MA { ma_type: "sma" };
     strat.inputs.add_new_default_component(comp);
     
-    let json_str = match serde_json::to_string_pretty(&strat.inputs) {
-        Ok(s) => s,
-        Err(_) => String::new()
+    // export_strategy_template(strat); 
+    if let Ok(s) = load_strategy_template("test_strat") {
+        println!("{}", s)
     };
-    println!("{}", json_str);
 
 }
 

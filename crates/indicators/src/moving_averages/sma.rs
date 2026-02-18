@@ -42,7 +42,7 @@ impl SimpleMovingAverage {
 
     pub fn empty(inputs: SmaInputs) -> Self {
 
-        let mut line: Vec<Option<BigDecimal>> = Vec::new();
+        let line: Vec<Option<BigDecimal>> = Vec::new();
         let lookback_values: VecDeque<BigDecimal> = VecDeque::new();
 
         Self {
@@ -56,7 +56,7 @@ impl SimpleMovingAverage {
 
 impl MovingAverage for SimpleMovingAverage {
     
-    fn calculate(&self, input_val: Option<&BigDecimal>) -> Option<BigDecimal> {
+    fn calculate(&self, _input_val: Option<&BigDecimal>) -> Option<BigDecimal> {
         
         match (self.lookback_values.len() as u16) < self.inputs.period {
             true => None,

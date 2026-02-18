@@ -13,12 +13,6 @@ use app_core::{
 };
 
 
-pub async fn db_status(State(engine): State<Arc<Engine>>) 
-    -> &'static str
-{
-    "TESTING"
-}
-
 
 pub async fn db_tables(State(engine): State<Arc<Engine>>) 
     -> Json<HashMap<String, Vec<String>>> 

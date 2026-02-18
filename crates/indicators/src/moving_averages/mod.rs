@@ -52,23 +52,23 @@ pub enum MaError {
     JsonParseFailed,
 }
 
-struct UniqueMaInputs {
-    jma_phase: Option<BigDecimal>,
-    jma_power: Option<u8>,
-    kama_fast: Option<u16>,
-    kama_slow: Option<u16>
-}
-
-impl UniqueMaInputs {
-    fn default() -> Self {
-        Self {
-            jma_phase: None,
-            jma_power: None,
-            kama_fast: None,
-            kama_slow: None,
-        }
-    }
-}
+// struct UniqueMaInputs {
+//     jma_phase: Option<BigDecimal>,
+//     jma_power: Option<u8>,
+//     kama_fast: Option<u16>,
+//     kama_slow: Option<u16>
+// }
+// 
+// impl UniqueMaInputs {
+//     fn default() -> Self {
+//         Self {
+//             jma_phase: None,
+//             jma_power: None,
+//             kama_fast: None,
+//             kama_slow: None,
+//         }
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", content = "inputs")]

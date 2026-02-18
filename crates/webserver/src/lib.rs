@@ -14,7 +14,7 @@ use app_core::{
 mod routes;
 use routes::{
     generic::*, 
-    database::{db_status, db_tables},
+    database::{db_tables},
 };
 
 #[derive(Debug)]
@@ -47,7 +47,6 @@ impl WebServer {
         
         let router = Router::new()
             .route("/", get(home))
-            .route("/database", get(db_status)) 
             .route("/database/tables", get(db_tables)) 
             .with_state(Arc::new(engine));
 

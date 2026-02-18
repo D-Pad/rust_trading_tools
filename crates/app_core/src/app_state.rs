@@ -7,8 +7,7 @@ use std::{
     fs,
     path::{
         PathBuf
-    },
-    env
+    }
 };
 use timestamp_tools::{
     calculate_seconds_in_period,
