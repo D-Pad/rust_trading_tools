@@ -1,4 +1,5 @@
 pub use indicators::{self, *};
+use serde::{Serialize, Deserialize};
 
 
 pub enum StrategyInputError {
@@ -26,6 +27,7 @@ impl Strategy {
 }
 
 
+#[derive(Serialize, Deserialize)]
 pub struct StrategyInputs {
     pub moving_averages: Option<Vec<MaInputs>>
 }

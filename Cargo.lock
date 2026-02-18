@@ -2752,6 +2752,8 @@ name = "strategies"
 version = "0.1.0"
 dependencies = [
  "indicators",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
