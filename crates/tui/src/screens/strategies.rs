@@ -25,6 +25,7 @@ use ratatui::{
     style::{
         Style,
         Modifier,
+        Color,
     },
     crossterm::{
         event::{
@@ -34,26 +35,62 @@ use ratatui::{
     },
 };
 
-use crate::{AppEvent, move_up, move_down};
+use crate::{AppEvent, OutputMsg, move_up, move_down};
 use string_helpers::multi_line_to_single_line;
+use strategies::{
+    StrategyInputs, 
+    load_strategy_template,
+    export_strategy_template,
+    fetch_available_templates,
+};
 
 
-const INFO_STRINGS: [&'static str; 2] = [
+const INFO_STRINGS: [&'static str; 3] = [
     r#"Create a new strategy by choosing indicator components and entry 
     conditions."#,
     
-    r#"Modify the input values of an existing strategy."#
+    r#"Modify the input values of an existing strategy."#,
+
+    r#"Remove any existing strategy templates. This action cannot be undone"#
 ];
+// -------------------------- STRATERGY CREATION --------------------------- //
+struct NewStrategyConstructor {
+    name: String
+}
 
+impl NewStrategyConstructor {
+    fn new() -> Self {
+        Self {
+            name: String::new()
+        }
+    }
 
+    fn get_form_rows(&self) -> Vec<String> {
+        
+        let mut rows: Vec<String> = Vec::new();
+        
+        if self.name.len() == 0 {
+            rows.push("Name: Enter name here".to_string());
+        }
+        else {
+            rows.push(format!("Name: {}", self.name));
+        };
+
+        rows
+    }
+}
+
+// ------------------------------------------------------------------------- //
 pub enum StrategyFocus {
     Top,
     Bottom,
 }
 
+#[derive(Clone)]
 enum StrategyAction {
     CreateNew,
     ModifyExisting,
+    Delete,
     None,
 }
 
@@ -62,6 +99,7 @@ impl StrategyAction {
         match self {
             StrategyAction::CreateNew => "Create New",
             StrategyAction::ModifyExisting => "Modify Existing",
+            StrategyAction::Delete => "Delete Existing",
             StrategyAction::None => ""
         }
     }
@@ -80,7 +118,9 @@ pub struct StrategyScreen {
     btm_state: ListState,
     btm_item_data: Vec<String>,
     pub focus: StrategyFocus,
-    action: StrategyAction
+    action: StrategyAction,
+
+    new_strategy: Option<NewStrategyConstructor>,
 }
 
 impl StrategyScreen {
@@ -99,6 +139,7 @@ impl StrategyScreen {
             btm_item_data: Vec::new(),
             focus: StrategyFocus::Top,
             action: StrategyAction::None,
+            new_strategy: None,
         } 
     }
 
@@ -141,14 +182,38 @@ impl StrategyScreen {
         let width = nested_chunks[0].width;
         self.btm_item_data = match self.action {
             
-            StrategyAction::CreateNew => { 
-                Vec::new() 
+            StrategyAction::CreateNew => {
+                let strat = match &self.new_strategy {
+                    Some(s) => s,
+                    None => return
+                };
+                strat.get_form_rows() 
             },                 
             
             StrategyAction::ModifyExisting => { 
                 Vec::new() 
             },
-           
+          
+            StrategyAction::Delete => {
+                match fetch_available_templates() {
+                    Ok(t) => t,
+                    Err(_) => {
+                        let _ = self.msg_sender.send(AppEvent::Output(
+                            OutputMsg::new(
+                                "Failed to fetch existing templates"
+                                    .to_string(),
+                                Color::Red,
+                                true,
+                                None,
+                                None,
+                                None,
+                            )
+                        ));
+                        Vec::new()
+                    }
+                }
+            },
+
             StrategyAction::None => {
                 if let Some(i) = self.top_state.selected() {
                     Vec::from([
@@ -192,6 +257,8 @@ impl StrategyScreen {
 
     pub async fn handle_key(&mut self, key: KeyEvent) {
 
+        let top_len = Self::SCREEN_OPTIONS.len().saturating_sub(1);
+
         match key.code {
         
             KeyCode::Up | KeyCode::Char('k') => {
@@ -200,7 +267,7 @@ impl StrategyScreen {
 
                     StrategyFocus::Top => move_up(
                         &mut self.top_state, 
-                        Self::SCREEN_OPTIONS.len(),
+                        top_len, 
                         1
                     ),
                     
@@ -219,7 +286,7 @@ impl StrategyScreen {
 
                     StrategyFocus::Top => move_down(
                         &mut self.top_state, 
-                        Self::SCREEN_OPTIONS.len(),
+                        top_len, 
                         1
                     ),
                     
@@ -233,9 +300,24 @@ impl StrategyScreen {
 
             KeyCode::Enter => {
 
+                self.focus = StrategyFocus::Bottom;
+                self.action = match &self.top_state.selected() {
+                    Some(0) => {
+                        let new_strat = NewStrategyConstructor::new();
+                        self.new_strategy = Some(new_strat);
+                        self.btm_state.select(Some(0));
+                        Self::SCREEN_OPTIONS[0].clone()
+                    }, 
+                    Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
+                    Some(2) => Self::SCREEN_OPTIONS[2].clone(),
+                    None | _ => StrategyAction::None,
+                }
+
             }
 
             KeyCode::Esc => {
+                
+                self.focus = StrategyFocus::Top;
 
             }
 
@@ -245,9 +327,10 @@ impl StrategyScreen {
 
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 
-    const SCREEN_OPTIONS: [StrategyAction; 2] = [
+    const SCREEN_OPTIONS: [StrategyAction; 3] = [
         StrategyAction::CreateNew,
         StrategyAction::ModifyExisting,
+        StrategyAction::Delete,
     ];
 
 }

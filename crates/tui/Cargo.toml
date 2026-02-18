@@ -10,7 +10,8 @@ ratatui = "0.30.0"
 
 # My modules 
 app_core = { path = "../app_core" }   
+config = { path = "../config" }   
+strategies = { path = "../strategies" }
 string_helpers = { path = "../string_helpers" }   
 timestamp_tools = { path = "../timestamp_tools" }   
-config = { path = "../config" }   
 

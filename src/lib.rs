@@ -36,7 +36,6 @@ async fn dev_testing(engine: &Engine) {
     else {
         Vec::new() 
     };
-    println!("{:?}", template_names);
 }
 
 
