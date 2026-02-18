@@ -147,7 +147,7 @@ impl DatabaseScreen {
         let nested_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Percentage(30),
+                Constraint::Min(5),
                 Constraint::Percentage(70),
             ])
             .split(area);
@@ -426,7 +426,7 @@ impl DatabaseScreen {
         self.check_and_modify_task_state();
         if self.is_busy { return };
 
-        let top_len = Self::SCREEN_OPTIONS.len();
+        let top_len = Self::SCREEN_OPTIONS.len().saturating_sub(2);
         let btm_len = self.btm_item_data.len();
         const PAGE_STEP: usize = 10;
 

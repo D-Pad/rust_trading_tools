@@ -98,3 +98,34 @@ exported via output redirection
 dtrade candles kraken SOLUSD 50t > candles_50_tick.csv
 ```
 
+## TUI Mode
+A terminal user interface is available by passing `start` as the first and 
+only argument.
+```
+dtrade start
+```
+The main menus are under the `Operations` section. Press 'Enter' to select an 
+option and 'Esc' to go back. You can either use arrow keys, or vim style 
+navigation with 'j' and 'k' to move down and up, respectively. Here's an 
+example of what the TUI looks like when using the `Database Management` option.
+```
+┌Operations─────────┐┌Database Management───────────────────────────┐
+│Candle Builder     ││Add new pairs                                 │
+│Database Management││Delete pairs                                  │
+│System Settings    ││Update data                                   │
+│Strategy Manager   │└──────────────────────────────────────────────┘
+│                   │┌Update data───────────────────────────────────┐
+│                   ││All Tables                                    │
+│                   ││Kraken - BTCUSD                               │
+│                   ││Kraken - 0GUSD                                │
+│                   ││Kraken - SOLUSD                               │
+└───────────────────┘└──────────────────────────────────────────────┘
+┌Output─────────────────────────────────────────────────────────────┐
+│Kraken                                                             │
+│  0GUSD: 5%                                                        │
+│  BTCUSD: 3%                                                       │
+│  SOLUSD: 4%                                                       │
+└───────────────────────────────────────────────────────────────────┘
+```
+The `Output` window is reserve for status messages.
+

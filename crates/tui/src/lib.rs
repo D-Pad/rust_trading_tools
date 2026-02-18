@@ -510,20 +510,7 @@ impl TerminalInterface {
                 KeyCode::Enter => {
                     if let Some(i) = self.operation_state.selected() {
                         self.screen = match i {
-                            0 => Screen::DatabaseManager(
-                                
-                                DatabaseScreen::new(
-                                    self.engine
-                                        .database
-                                        .get_pool(),
-                                    
-                                    transmitter,
-
-                                    Arc::clone(&self.asset_pairs)
-                                )
-                            
-                            ),
-                            1 => {
+                            0 => {
                                 let pairs = fetch_exchanges_and_pairs_from_db(
                                     self.engine.database.get_pool()
                                 ).await; 
@@ -535,6 +522,19 @@ impl TerminalInterface {
                                     )
                                 )
                             },
+                            1 => Screen::DatabaseManager(
+
+                                DatabaseScreen::new(
+                                    self.engine
+                                        .database
+                                        .get_pool(),
+
+                                    transmitter,
+
+                                    Arc::clone(&self.asset_pairs)
+                                )
+
+                            ),
                             2 => Screen::SystemSettings(
                                 SettingsScreen::new(
                                     &self.engine.state.config,
