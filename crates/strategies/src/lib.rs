@@ -15,6 +15,7 @@ pub enum StrategyError {
     FileNotFound,
     ExportFailed,
     ImportFailed,
+    LookupFailed,
 }
 
 
@@ -151,6 +152,27 @@ impl Display for StrategyInputs {
 }
 
 // -------------------------- IMPORT & EXPORT ------------------------------ //
+pub fn fetch_available_templates() 
+    -> Result<Vec<String>, StrategyError> {
+
+    let sys_paths: SystemPaths = SystemPaths::new()
+        .map_err(|_| StrategyError::LookupFailed)?;
+
+    let files: Vec<String> = fs::read_dir(sys_paths.strategy_templates) 
+        .map_err(|_| StrategyError::LookupFailed)? 
+        .filter_map(|res| res.ok())
+        .filter_map(|e| {
+            e.path()
+                .file_stem()?
+                .to_str()?
+                .to_owned()
+                .into()
+        })
+        .collect();
+
+    Ok(files)
+}
+
 pub fn export_strategy_template(strategy: Strategy) 
     -> Result<(), StrategyError> {
 

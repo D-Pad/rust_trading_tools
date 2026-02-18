@@ -26,10 +26,17 @@ async fn dev_testing(engine: &Engine) {
     strat.inputs.add_new_default_component(comp);
     
     // export_strategy_template(strat); 
-    if let Ok(s) = load_strategy_template("test_strat") {
-        println!("{}", s)
-    };
+    // if let Ok(s) = load_strategy_template("test_strat") {
+    //     println!("{}", s)
+    // };
 
+    let template_names = if let Ok(files) = fetch_available_templates() {
+        files
+    }
+    else {
+        Vec::new() 
+    };
+    println!("{:?}", template_names);
 }
 
 
