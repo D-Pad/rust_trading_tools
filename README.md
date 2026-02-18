@@ -26,7 +26,8 @@ dtrade start
 The main menus are under the `Operations` section. Press 'Enter' to select an 
 option and 'Esc' to go back. You can either use arrow keys, or vim style 
 navigation with 'j' and 'k' to move down and up, respectively. Here's an 
-example of what the TUI looks like when using the `Database Management` option.
+example of what the TUI looks like when using the
+`Database Management > Update data > All tables` option.
 ```
 ┌Operations─────────┐┌Database Management───────────────────────────┐
 │Candle Builder     ││Add new pairs                                 │

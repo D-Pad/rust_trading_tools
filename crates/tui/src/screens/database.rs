@@ -179,7 +179,7 @@ impl DatabaseScreen {
 
         self.btm_item_data = match self.selected_action {
             Some(DbAction::RemovePairs | DbAction::UpdateData) => {
-                let mut items = Vec::from(["All Tables".to_string()]);
+                let mut items = Vec::from(["All tables".to_string()]);
                 for (key, vals) in &self.token_pairs {
                     for v in vals {
                         items.push(format!("{key} - {v}"))
