@@ -7,10 +7,9 @@ use std::fmt::{
 use app_core::{
     app_state::{
         AppConfig, 
-        SystemPaths, 
         save_config
     },
-    errors::ConfigError
+    config::{ConfigError, SystemPaths},
 };
 use string_helpers::capitlize_first_letter;
 use timestamp_tools::{

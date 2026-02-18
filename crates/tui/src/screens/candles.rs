@@ -42,7 +42,7 @@ use timestamp_tools::{
 use string_helpers::multi_line_to_single_line;
 use app_core::{
     build_candles,
-    app_state::{SystemPaths},
+    config::SystemPaths
 };
 
 

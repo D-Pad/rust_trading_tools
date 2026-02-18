@@ -16,56 +16,15 @@ use timestamp_tools::{
 };
 use crate::errors::{
     InitializationError, 
+};
+use config::{
+    SystemPaths,
     ConfigError
 };
 
 
 // ------------------------- APP STATE MANAGEMENT -------------------------- //
-#[derive(Debug)]
-pub struct SystemPaths {
-    pub base: PathBuf,
-    pub candle_data: PathBuf,
-    pub strategy_templates: PathBuf,
-}
 
-impl SystemPaths {
-    
-    pub fn new() -> Result<Self, ConfigError> {
-
-        let mut base = if cfg!(target_os = "windows") {
-            // Windows: %APPDATA%
-            env::var_os("APPDATA")
-                .map(PathBuf::from)
-                .ok_or(ConfigError::MissingDirectory("APPDATA not set"))?
-        
-        } else if cfg!(target_os = "macos") {
-            // macOS: ~/Library/Application Support
-            let home = env::var_os("HOME")
-                .map(PathBuf::from)
-                .ok_or(ConfigError::MissingDirectory("HOME not set"))?;
-            home.join("Library").join("Application Support")
-        
-        } else {
-            
-            // Linux / Unix: XDG spec
-            if let Some(xdg) = env::var_os("XDG_CONFIG_HOME") {
-                PathBuf::from(xdg)
-            } else {
-                let home = env::var_os("HOME")
-                    .map(PathBuf::from)
-                    .ok_or(ConfigError::MissingDirectory("HOME not set"))?;
-                home.join(".config")
-            }
-        };
-
-        base.push("dtrade");
-        let candle_data = base.join("candle_data");
-        let strategy_templates = base.join("strategies");
-    
-        Ok(Self { base, candle_data, strategy_templates })
-
-    }
-}
 
 #[derive(Debug)]
 pub struct AppState {

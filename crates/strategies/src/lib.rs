@@ -2,8 +2,9 @@ pub use indicators::{self, *};
 use serde::{Serialize, Deserialize};
 
 
-pub enum StrategyInputError {
-    MA(MaError)
+pub enum StrategyError {
+    MaInput(MaError),
+    ExportFailed,
 }
 
 
@@ -86,7 +87,7 @@ impl StrategyInputs {
     /// strat.inputs.add_new_default_component(comp);
     /// ```
     pub fn add_new_default_component(&mut self, comp: StrategyComponentType) 
-        -> Result<(), StrategyInputError> {
+        -> Result<(), StrategyError> {
         
         match comp {
             StrategyComponentType::MA { ma_type } => {
@@ -96,7 +97,7 @@ impl StrategyInputs {
                         MaInputs::SMA(indicators::SmaInputs::default())
                     },
                     _ => { 
-                        return Err(StrategyInputError::MA(
+                        return Err(StrategyError::MaInput(
                             MaError::InvalidType
                         ))
                     }
@@ -119,12 +120,27 @@ impl StrategyInputs {
 }
 
 // -------------------------- IMPORT & EXPORT ------------------------------ //
-pub fn export_strategy_template(strategy_template: StrategyInputs) {
+pub fn export_strategy_template(strategy: Strategy) 
+    -> Result<(), StrategyError> {
+
+    let mut file_name: String = strategy.name.replace(" ", "_");
+    let num_chars: usize = file_name.len();  
+    if num_chars > 5 && &file_name[&num_chars - 5..] != ".json" {
+        file_name.push_str(".json");
+    };
+
+    if let Ok(o) = serde_json::to_string_pretty(&strategy.inputs) {
+        
+        Ok(())
+    }
+    else {
+        Err(StrategyError::ExportFailed)
+    }
 
 }
 
 
 pub fn load_strategy_template (strategy_name: &str) {
-
+    
 }
 

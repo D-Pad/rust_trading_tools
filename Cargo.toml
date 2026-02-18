@@ -21,7 +21,7 @@ dotenvy = "0.15.7"
 members = [
     "crates/app_core", 
     "crates/bars", 
-    "crates/charts",
+    "crates/charts", "crates/config",
     "crates/database_ops", 
     "crates/indicators", 
     "crates/strategies", 

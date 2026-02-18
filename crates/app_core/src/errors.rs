@@ -3,6 +3,7 @@ pub use crate::{
     arg_parsing::{ParserError},
     bars::{BarBuildError}
 };
+pub use config::ConfigError;
 
 
 #[derive(Debug)]
@@ -54,40 +55,6 @@ impl std::fmt::Display for InitializationError {
         }
     }
 }
-
-
-#[derive(Debug)]
-pub enum ConfigError {
-    FileNotFound(&'static str),
-    ParseFailure,
-    SaveStateFailed,
-    MissingDirectory(&'static str),
-    NoChangesMade,
-}
-
-impl std::fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ConfigError::FileNotFound(e) => write!(
-                f, "ConfigError::FileNotFound: {}", e
-            ),
-            ConfigError::ParseFailure => write!(
-                f, "ConfigError::ParseFailure: Couldn't parse config file" 
-            ),
-            ConfigError::SaveStateFailed => write!(
-                f, "ConfigError::SaveStateFailed" 
-            ),
-            ConfigError::MissingDirectory(e) => write!(
-                f, "ConfigError::MissingDirectory: {}", e 
-            ),
-            ConfigError::NoChangesMade => write!(
-                f, "ConfigError::NoChangesMade: New config matches old one" 
-            ),
-
-        }
-    }
-}
-
 
 
 

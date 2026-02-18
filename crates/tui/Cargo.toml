@@ -12,4 +12,5 @@ ratatui = "0.30.0"
 app_core = { path = "../app_core" }   
 string_helpers = { path = "../string_helpers" }   
 timestamp_tools = { path = "../timestamp_tools" }   
+config = { path = "../config" }   
 

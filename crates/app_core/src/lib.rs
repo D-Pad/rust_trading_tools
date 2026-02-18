@@ -16,6 +16,7 @@ pub use charts::{
     } 
 };
 pub use app_state::{AppState};
+pub use config::{self, *};
 pub use errors::{RunTimeError, InitializationError};
 pub use arg_parsing::{
     parse_args, 

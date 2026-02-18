@@ -5,11 +5,11 @@ use std::{
 use app_core::{
     errors::{error_handler, ConfigError, RunTimeError}, 
     engine::{Engine, Server},
-    app_state::{SystemPaths},
     strategies::*,
     Response,
     DataResponse,
     initialize_app_engine,
+    config::SystemPaths,
 };
 use tui::{TerminalInterface};
 use webserver::{WebServer};

@@ -65,7 +65,7 @@ use app_core::{
         } 
     }, 
     engine::Engine,
-    errors::{ConfigError},
+    config::{ConfigError},
 };
 
 mod screens;
