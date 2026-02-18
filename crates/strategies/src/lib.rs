@@ -1,6 +1,11 @@
 pub use indicators::{self, *};
 
 
+pub enum StrategyInputError {
+    MA(MaError)
+}
+
+
 pub enum StrategyComponentType<'a> {
     MA { ma_type: &'a str },
 }
@@ -45,29 +50,35 @@ impl StrategyInputs {
     
     }
 
-    pub fn add_new_default_component(&mut self, comp: StrategyComponentType) {
+    pub fn add_new_default_component(&mut self, comp: StrategyComponentType) 
+        -> Result<(), StrategyInputError> {
         
         match comp {
             StrategyComponentType::MA { ma_type } => {
-                match ma_type {
+                
+                let inputs = match ma_type {
                     "sma" => {
-                        let inputs = MaInputs::SMA(
-                            indicators::SmaInputs::default()
-                        );
-                        if let None = &self.moving_averages {
-                            let mut vector = Vec::new();
-                            vector.push(inputs);
-                            self.moving_averages = Some(vector); 
-                        }
-                        else if let Some(vector) = &mut self.moving_averages {
-                            vector.push(inputs)
-                        }
+                        MaInputs::SMA(indicators::SmaInputs::default())
                     },
-                    _ => {}
+                    _ => { 
+                        return Err(StrategyInputError::MA(
+                            MaError::InvalidType
+                        ))
+                    }
+                };
+                
+                if let None = &self.moving_averages {
+                    let mut vector = Vec::new();
+                    vector.push(inputs);
+                    self.moving_averages = Some(vector); 
                 }
+                else if let Some(vector) = &mut self.moving_averages {
+                    vector.push(inputs)
+                };
             }
         }
 
+        Ok(())
     }
 
 }
