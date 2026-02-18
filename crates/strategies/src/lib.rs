@@ -1,4 +1,8 @@
+use std::fs;
+
 pub use indicators::{self, *};
+use config::SystemPaths;
+
 use serde::{Serialize, Deserialize};
 
 
@@ -123,15 +127,23 @@ impl StrategyInputs {
 pub fn export_strategy_template(strategy: Strategy) 
     -> Result<(), StrategyError> {
 
+    let sys_paths: SystemPaths = SystemPaths::new()
+        .map_err(|_| StrategyError::ExportFailed)?;
+
     let mut file_name: String = strategy.name.replace(" ", "_");
     let num_chars: usize = file_name.len();  
     if num_chars > 5 && &file_name[&num_chars - 5..] != ".json" {
         file_name.push_str(".json");
     };
+    let file_path = sys_paths.strategy_templates.join(file_name);
 
     if let Ok(o) = serde_json::to_string_pretty(&strategy.inputs) {
         
+        fs::write(file_path, o)
+            .map_err(|_| StrategyError::ExportFailed)?;
+        
         Ok(())
+
     }
     else {
         Err(StrategyError::ExportFailed)
@@ -141,6 +153,6 @@ pub fn export_strategy_template(strategy: Strategy)
 
 
 pub fn load_strategy_template (strategy_name: &str) {
-    
+     
 }
 
