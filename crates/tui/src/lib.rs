@@ -84,6 +84,7 @@ use screens::{
     },
     strategies::{
         StrategyFocus,
+        StrategyScreen,
     },
     AppEvent,
     Focus,
@@ -94,9 +95,7 @@ use screens::{
 };
 use string_helpers::multi_line_to_single_line;
 
-use crate::screens::strategies::{
-    StrategyScreen,
-};
+pub mod strategy_form;
 
 
 // ---------------------------- TERMINAL INTERFACE ------------------------- //
@@ -111,9 +110,9 @@ use crate::screens::strategies::{
 /// let tui = TerminalUserInterface::new(engine);
 /// tui.run().await;
 /// ```
-pub struct TerminalInterface {
+pub struct TerminalInterface<'a> {
     operation_state: ListState,
-    screen: Screen,
+    screen: Screen<'a>,
     output_buffer: VecDeque<Line<'static>>,
     output_scroll: u16,
     output_area: Rect,
@@ -121,7 +120,7 @@ pub struct TerminalInterface {
     engine: Engine,
 }
 
-impl TerminalInterface {
+impl<'a> TerminalInterface<'a> {
     
     pub async fn new(engine: Engine) -> Self {
         

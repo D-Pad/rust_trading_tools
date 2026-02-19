@@ -71,11 +71,11 @@ pub enum AppEvent {
 }
 
 // ------------ SCREENS ------------- //
-pub enum Screen {
+pub enum Screen<'a> {
     DatabaseManager(DatabaseScreen),
     CandleBuilder(CandleScreen),
     SystemSettings(SettingsScreen),
-    StrategyManager(StrategyScreen),
+    StrategyManager(StrategyScreen<'a>),
     Placeholder,
 }
 

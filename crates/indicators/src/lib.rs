@@ -3,6 +3,23 @@ pub use moving_averages::*;
 use bars::BarSeries;
 
 
+pub enum IndicatorTypes {  // Use for strategy template creation
+    MovingAverages
+}
+
+impl IndicatorTypes {
+
+    pub fn list() -> [&'static str; 1] {
+
+        [
+            "Multi Moving Average",
+        ]
+
+    }
+
+}
+
+
 pub struct IndicatorSet {
     pub ma_container: Option<MaContainer>
 }

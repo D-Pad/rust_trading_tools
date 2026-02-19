@@ -45,8 +45,6 @@ impl Strategy {
         }
     }
 
-
-
 }
 
 
