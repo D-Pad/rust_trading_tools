@@ -30,12 +30,23 @@ pub struct Strategy {
 }
 
 impl Strategy {
-    pub fn empty(name: String) -> Self {
+    
+    pub fn new(name: String) -> Self {
         Self { 
             name, 
             inputs: StrategyInputs::empty()
         }
     }
+
+    pub fn empty() -> Self {
+        Self { 
+            name: String::new(), 
+            inputs: StrategyInputs::empty()
+        }
+    }
+
+
+
 }
 
 

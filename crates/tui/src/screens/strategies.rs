@@ -38,6 +38,7 @@ use ratatui::{
 use crate::{AppEvent, OutputMsg, move_up, move_down};
 use string_helpers::multi_line_to_single_line;
 use strategies::{
+    Strategy,
     StrategyInputs, 
     load_strategy_template,
     export_strategy_template,
@@ -55,13 +56,14 @@ const INFO_STRINGS: [&'static str; 3] = [
 ];
 // -------------------------- STRATERGY CREATION --------------------------- //
 struct NewStrategyConstructor {
-    name: String
+    strategy: Strategy,
 }
 
 impl NewStrategyConstructor {
+    
     fn new() -> Self {
         Self {
-            name: String::new()
+            strategy: Strategy::empty(),
         }
     }
 
@@ -69,12 +71,16 @@ impl NewStrategyConstructor {
         
         let mut rows: Vec<String> = Vec::new();
         
-        if self.name.len() == 0 {
+        if self.strategy.name.len() == 0 {
             rows.push("Name: Enter name here".to_string());
         }
         else {
-            rows.push(format!("Name: {}", self.name));
+            rows.push(format!("Name: {}", self.strategy.name));
         };
+
+        if let Some(mas) = &self.strategy.inputs.moving_averages {
+
+        }
 
         rows
     }
@@ -300,18 +306,28 @@ impl StrategyScreen {
 
             KeyCode::Enter => {
 
-                self.focus = StrategyFocus::Bottom;
-                self.action = match &self.top_state.selected() {
-                    Some(0) => {
-                        let new_strat = NewStrategyConstructor::new();
-                        self.new_strategy = Some(new_strat);
-                        self.btm_state.select(Some(0));
-                        Self::SCREEN_OPTIONS[0].clone()
-                    }, 
-                    Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
-                    Some(2) => Self::SCREEN_OPTIONS[2].clone(),
-                    None | _ => StrategyAction::None,
-                }
+                match &self.focus {
+
+                    StrategyFocus::Top => {
+                        self.focus = StrategyFocus::Bottom;
+                        self.action = match &self.top_state.selected() {
+                            Some(0) => {
+                                let mut strat = NewStrategyConstructor::new();
+                                self.new_strategy = Some(strat);
+                                self.btm_state.select(Some(0));
+                                Self::SCREEN_OPTIONS[0].clone()
+                            }, 
+                            Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
+                            Some(2) => Self::SCREEN_OPTIONS[2].clone(),
+                            None | _ => StrategyAction::None,
+                        }
+                    },
+
+                    StrategyFocus::Bottom => {
+                        
+                    }
+
+                };
 
             }
 
