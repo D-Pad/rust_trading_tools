@@ -94,7 +94,7 @@ impl Display for StrategyAction {
 }
 
 
-pub struct StrategyScreen<'a> {
+pub struct StrategyScreen {
     pub msg_sender: UnboundedSender<AppEvent>,
     top_state: ListState,
     btm_state: ListState,
@@ -106,10 +106,11 @@ pub struct StrategyScreen<'a> {
     new_strategy: Option<NewStrategyConstructor>,
 
     // Strategy Creation values
-    indicator_choices: Vec<ListItem<'a>>,
+    indicator_choices: Vec<String>,
+    width: u16,
 }
 
-impl<'a> StrategyScreen<'a> {
+impl StrategyScreen {
 
     pub fn new(
         msg_sender: UnboundedSender<AppEvent>
@@ -118,10 +119,14 @@ impl<'a> StrategyScreen<'a> {
         let mut top_state = ListState::default();
         top_state.select(Some(0));
 
-        let indicator_choices: Vec<ListItem<'a>> = IndicatorTypes::list()
+        let indicator_choices: Vec<String> = IndicatorTypes::list()
             .iter()
-            .map(|v| ListItem::new(*v))
+            .map(|v| v.to_string())
             .collect();
+        // let indicator_choices: Vec<ListItem<'a>> = IndicatorTypes::list()
+        //     .iter()
+        //     .map(|v| ListItem::new(*v))
+        //     .collect();
 
         StrategyScreen {
             msg_sender,
@@ -133,6 +138,7 @@ impl<'a> StrategyScreen<'a> {
             action: StrategyAction::None,
             new_strategy: None,
             indicator_choices,
+            width: 20,
         } 
     }
 
@@ -171,7 +177,9 @@ impl<'a> StrategyScreen<'a> {
             nested_chunks[0],
             &mut self.top_state
         );
-
+        
+        self.width = nested_chunks[0].width;
+        
         if let StrategyAction::CreateNew = self.action {
 
             let block = Block::default()
@@ -190,7 +198,7 @@ impl<'a> StrategyScreen<'a> {
                 ])
                 .split(inner);
          
-            let btm_data = List::new(self.indicator_choices.clone()) 
+            let btm_data = List::new(self.btm_item_data.clone()) 
                 .block(
                     Block::default()
                         .title("Indicator Selection")
@@ -211,50 +219,6 @@ impl<'a> StrategyScreen<'a> {
 
         }
         else {
-
-            let width = nested_chunks[0].width;
-            let blank_vec: Vec<String> = Vec::new();
-
-            self.btm_item_data = match self.action {
-                               
-                StrategyAction::ModifyExisting => { 
-                    blank_vec 
-                },
-              
-                StrategyAction::Delete => {
-                    match fetch_available_templates() {
-                        Ok(t) => t,
-                        Err(_) => {
-                            let _ = self.msg_sender.send(AppEvent::Output(
-                                OutputMsg::new(
-                                    "Failed to fetch existing templates"
-                                        .to_string(),
-                                    Color::Red,
-                                    true,
-                                    None,
-                                    None,
-                                    None,
-                                )
-                            ));
-                            blank_vec 
-                        }
-                    }
-                },
-
-                StrategyAction::None => {
-                    if let Some(i) = self.top_state.selected() {
-                        Vec::from([
-                            multi_line_to_single_line(
-                                INFO_STRINGS[i], 
-                                width
-                            ),
-                        ])
-                    }
-                    else { blank_vec }
-                },
-
-                _ => { blank_vec }
-            };
 
             let btm_items: Vec<ListItem> = self.btm_item_data.iter()
                 .map(|v| ListItem::new(&v[..]))
@@ -339,9 +303,12 @@ impl<'a> StrategyScreen<'a> {
                         self.action = match &self.top_state.selected() {
                             
                             Some(0) => {
+
+                                println!("BTM ITEMS: {:?}", self.btm_item_data);
                                 let mut strat = NewStrategyConstructor::new();
                                 self.new_strategy = Some(strat);
                                 Self::SCREEN_OPTIONS[0].clone()
+                            
                             }, 
                             Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
                             Some(2) => Self::SCREEN_OPTIONS[2].clone(),
@@ -357,7 +324,51 @@ impl<'a> StrategyScreen<'a> {
                     }
 
                 };
+                
+                let blank_vec: Vec<String> = Vec::new();  // Temporary
+                
+                self.btm_item_data = match self.action {
+                                   
+                    StrategyAction::ModifyExisting => { 
+                        blank_vec 
+                    },
+                  
+                    StrategyAction::Delete => {
+                        match fetch_available_templates() {
+                            Ok(t) => t,
+                            Err(_) => {
+                                let _ = self.msg_sender.send(AppEvent::Output(
+                                    OutputMsg::new(
+                                        "Failed to fetch existing templates"
+                                            .to_string(),
+                                        Color::Red,
+                                        true,
+                                        None,
+                                        None,
+                                        None,
+                                    )
+                                ));
+                                blank_vec 
+                            }
+                        }
+                    },
 
+                    StrategyAction::None => {
+                        if let Some(i) = self.top_state.selected() {
+                            Vec::from([
+                                multi_line_to_single_line(
+                                    INFO_STRINGS[i], 
+                                    self.width
+                                ),
+                            ])
+                        }
+                        else { blank_vec }
+                    },
+
+                    StrategyAction::CreateNew => { 
+                        self.indicator_choices.clone()
+                    }
+                };
             }
 
             KeyCode::Esc => {

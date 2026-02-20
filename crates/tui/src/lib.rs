@@ -110,9 +110,9 @@ pub mod strategy_form;
 /// let tui = TerminalUserInterface::new(engine);
 /// tui.run().await;
 /// ```
-pub struct TerminalInterface<'a> {
+pub struct TerminalInterface {
     operation_state: ListState,
-    screen: Screen<'a>,
+    screen: Screen,
     output_buffer: VecDeque<Line<'static>>,
     output_scroll: u16,
     output_area: Rect,
@@ -120,7 +120,7 @@ pub struct TerminalInterface<'a> {
     engine: Engine,
 }
 
-impl<'a> TerminalInterface<'a> {
+impl TerminalInterface {
     
     pub async fn new(engine: Engine) -> Self {
         
