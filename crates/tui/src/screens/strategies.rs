@@ -69,8 +69,14 @@ pub enum StrategyFocus {
 }
 
 #[derive(Clone)]
+enum CreationAction {
+    IndicatorSelect,
+    ParameterSelect,
+}
+
+#[derive(Clone)]
 enum StrategyAction {
-    CreateNew,
+    CreateNew(CreationAction),
     ModifyExisting,
     Delete,
     None,
@@ -79,7 +85,7 @@ enum StrategyAction {
 impl StrategyAction {
     fn to_title(&self) -> &'static str {
         match self {
-            StrategyAction::CreateNew => "Create New",
+            StrategyAction::CreateNew(_) => "Create New",
             StrategyAction::ModifyExisting => "Modify Existing",
             StrategyAction::Delete => "Delete Existing",
             StrategyAction::None => ""
@@ -217,12 +223,12 @@ impl StrategyScreen {
                 else { blank_vec }
             },
 
-            StrategyAction::CreateNew => { 
+            StrategyAction::CreateNew(_) => { 
                 self.indicator_choices.clone()
             }
         };
 
-        if let StrategyAction::CreateNew = self.action {
+        if let StrategyAction::CreateNew(c_action) = &self.action {
 
             let block = Block::default()
                 .title("Create New Strategy")
@@ -235,8 +241,8 @@ impl StrategyScreen {
             let creation_chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
-                    Constraint::Percentage(50),
-                    Constraint::Percentage(50),
+                    Constraint::Min(25),
+                    Constraint::Percentage(100),
                 ])
                 .split(inner);
          
@@ -248,9 +254,17 @@ impl StrategyScreen {
                 )
                 .highlight_style(
                     if let StrategyFocus::Bottom = self.focus {
-                        Style::default()
-                            .add_modifier(Modifier::REVERSED)
-                            .green()
+                        let mut style = Style::default()
+                            .add_modifier(Modifier::REVERSED);
+                        match c_action {
+                            CreationAction::IndicatorSelect => {
+                                style = style.green();
+                            },
+                            CreationAction::ParameterSelect => {
+                                style = style.yellow();
+                            }
+                        };
+                        style
                     } else {
                         Style::default()
                     }
@@ -263,13 +277,8 @@ impl StrategyScreen {
             );
            
             width = creation_chunks[1].width;
-            let indicator_options: Vec<ListItem> = Vec::from([
-                ListItem::new(multi_line_to_single_line(
-                    "When selected, indicator options are shown here",
-                    width
-                ))
-            ]);
-            let option_data = List::new(indicator_options)
+            let options: Vec<ListItem> = self.get_indicator_options(width);
+            let option_data = List::new(options)
                 .block(
                     Block::default()
                         .title("Indicator Parameters")
@@ -308,6 +317,23 @@ impl StrategyScreen {
             );
 
         }
+    }
+
+    fn get_indicator_options(&self, width: u16) -> Vec<ListItem> {
+        let mut options = Vec::from([
+                ListItem::new(multi_line_to_single_line(
+                    "When selected, indicator options are shown here",
+                    width
+                ))
+            ]); 
+        
+        if let StrategyAction::CreateNew(c_action) = &self.action { 
+            if let CreationAction::ParameterSelect = c_action {
+
+            }
+        };
+        
+        options
     }
 
     pub async fn handle_key(&mut self, key: KeyEvent) {
@@ -400,7 +426,7 @@ impl StrategyScreen {
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 
     const SCREEN_OPTIONS: [StrategyAction; 3] = [
-        StrategyAction::CreateNew,
+        StrategyAction::CreateNew(CreationAction::IndicatorSelect),
         StrategyAction::ModifyExisting,
         StrategyAction::Delete,
     ];

@@ -575,61 +575,61 @@ impl TerminalInterface {
                     if let KeyCode::Esc = key.code {
                         
                         if let FormMode::Movement = screen.config_form.mode {
+                            
                             screen.active = false;
                             new_focus = Focus::Operations;
                             breakout = true; 
+                            let _ = transmitter.send(AppEvent::Clear);
+
+                            match screen.config_form.save_input_values(
+                                &self.engine.state.config,
+                                &self.engine.state.paths
+                            ) {
+                                Ok(c) => {
+                                    let _ = transmitter.send(AppEvent::Output(
+                                        OutputMsg { 
+                                            text: "Settings saved!"
+                                                .to_string(), 
+                                            color: Color::Green, 
+                                            bold: true, 
+                                            bg_color: None, 
+                                            exchange: None, 
+                                            ticker: None 
+                                        }
+                                    ));
+
+                                    self.engine.state.config = c;
+                                },
+
+                                Err(e) => {
+                                    let msg: String;
+                                    let mut col: Color = Color::Red;
+                                    match e {
+                                        ConfigError::NoChangesMade => {
+                                            msg = String::from(
+                                                "No changes detected."
+                                            );
+                                            col = Color::Yellow;
+                                        },
+                                        _ => {
+                                            msg = format!(
+                                                "Settings save failed: {}", e
+                                            );
+                                        }
+                                    };
+                                    let _ = transmitter.send(AppEvent::Output(
+                                        OutputMsg { 
+                                            text: msg, 
+                                            color: col, 
+                                            bold: true, 
+                                            bg_color: None, 
+                                            exchange: None, 
+                                            ticker: None 
+                                        }
+                                    ));
+                                }
+                            };
                         };
-
-                        let _ = transmitter.send(AppEvent::Clear);
-                        
-                        match screen.config_form.save_input_values(
-                            &self.engine.state.config,
-                            &self.engine.state.paths
-                        ) {
-                            Ok(c) => {
-                                let _ = transmitter.send(AppEvent::Output(
-                                    OutputMsg { 
-                                        text: "Settings saved!".to_string(), 
-                                        color: Color::Green, 
-                                        bold: true, 
-                                        bg_color: None, 
-                                        exchange: None, 
-                                        ticker: None 
-                                    }
-                                ));
-
-                                self.engine.state.config = c;
-                            },
-
-                            Err(e) => {
-                                let msg: String;
-                                let mut col: Color = Color::Red;
-                                match e {
-                                    ConfigError::NoChangesMade => {
-                                        msg = String::from(
-                                            "No changes detected. Not saved."
-                                        );
-                                        col = Color::Yellow;
-                                    },
-                                    _ => {
-                                        msg = format!(
-                                            "Settings save failed: {}", e
-                                        );
-                                    }
-                                };
-                                let _ = transmitter.send(AppEvent::Output(
-                                    OutputMsg { 
-                                        text: msg, 
-                                        color: col, 
-                                        bold: true, 
-                                        bg_color: None, 
-                                        exchange: None, 
-                                        ticker: None 
-                                    }
-                                ));
-                            }
-                        };
-                       
                     };
                     
                     screen.handle_key(key).await;

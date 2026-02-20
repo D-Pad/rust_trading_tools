@@ -372,7 +372,7 @@ impl SettingsScreen {
                         .split(form_rows[i]);
                    
                     let label = Paragraph::new(
-                        format!(" {}:", input_row.label.as_str())
+                        format!(" {}", input_row.label.as_str())
                     );
                     frame.render_widget(
                         
@@ -391,7 +391,7 @@ impl SettingsScreen {
                     );
 
                     let input = Paragraph::new(
-                        format!(":{}", input_row.value.as_str())
+                        format!("> {}", input_row.value.as_str())
                     );
                     frame.render_widget(
                         
