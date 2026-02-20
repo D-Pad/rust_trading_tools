@@ -9,10 +9,13 @@ pub enum IndicatorTypes {  // Use for strategy template creation
 
 impl IndicatorTypes {
 
-    pub fn list() -> [&'static str; 1] {
+    pub fn list() -> [(IndicatorTypes, String); 1] {
 
         [
-            "Multi Moving Average",
+            (
+                IndicatorTypes::MovingAverages, 
+                "Multi Moving Average".to_string()
+            ),
         ]
 
     }

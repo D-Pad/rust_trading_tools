@@ -112,7 +112,8 @@ pub struct StrategyScreen {
     new_strategy: Option<NewStrategyConstructor>,
 
     // Strategy Creation values
-    indicator_choices: Vec<String>,
+    indicator_choices: [(IndicatorTypes, String); 1],
+    indicator_index: usize,
 }
 
 impl StrategyScreen {
@@ -124,10 +125,7 @@ impl StrategyScreen {
         let mut top_state = ListState::default();
         top_state.select(Some(0));
 
-        let indicator_choices: Vec<String> = IndicatorTypes::list()
-            .iter()
-            .map(|v| v.to_string())
-            .collect();
+        let indicator_choices = IndicatorTypes::list();
         // let indicator_choices: Vec<ListItem<'a>> = IndicatorTypes::list()
         //     .iter()
         //     .map(|v| ListItem::new(*v))
@@ -143,6 +141,7 @@ impl StrategyScreen {
             action: StrategyAction::None,
             new_strategy: None,
             indicator_choices,
+            indicator_index: 0,
         } 
     }
 
@@ -224,7 +223,10 @@ impl StrategyScreen {
             },
 
             StrategyAction::CreateNew(_) => { 
-                self.indicator_choices.clone()
+                self.indicator_choices
+                    .iter()
+                    .map(|v| v.1.clone())
+                    .collect()
             }
         };
 
@@ -329,7 +331,7 @@ impl StrategyScreen {
         
         if let StrategyAction::CreateNew(c_action) = &self.action { 
             if let CreationAction::ParameterSelect = c_action {
-
+                
             }
         };
         
