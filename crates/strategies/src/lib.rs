@@ -54,8 +54,8 @@ impl Strategy {
 /// Used to describe a strategy component. Can be used in the 
 /// StrategyInputs.add_new_default_component() method to add an indicator to 
 /// a strategy.
-pub enum StrategyComponentType<'a> {
-    MA { ma_type: &'a str },
+pub enum StrategyComponentType {
+    MA,
 }
 
 
@@ -68,17 +68,17 @@ pub enum StrategyComponentType<'a> {
 /// 'add_new_default_component' method to see how components should be added
 /// to a strategy template.
 pub struct StrategyInputs {
-    pub moving_averages: Option<Vec<MaInputs>>
+    pub moving_average: Option<MaInputs>
 }
 
 impl StrategyInputs {
 
     pub fn new(
-        moving_averages: Option<Vec<MaInputs>>
+        moving_average: Option<MaInputs>
     ) -> Self {
         
         Self {
-            moving_averages
+            moving_average
         }
     
     }
@@ -86,7 +86,7 @@ impl StrategyInputs {
     pub fn empty() -> Self {
         
         Self {
-            moving_averages: None
+            moving_average: None
         }
     
     }
@@ -110,26 +110,11 @@ impl StrategyInputs {
         -> Result<(), StrategyError> {
         
         match comp {
-            StrategyComponentType::MA { ma_type } => {
-                
-                let inputs = match ma_type {
-                    "sma" => {
+            StrategyComponentType::MA => {
+                if let None = &self.moving_average {
+                    self.moving_average = Some(
                         MaInputs::SMA(indicators::SmaInputs::default())
-                    },
-                    _ => { 
-                        return Err(StrategyError::MaInput(
-                            MaError::InvalidType
-                        ))
-                    }
-                };
-                
-                if let None = &self.moving_averages {
-                    let mut vector = Vec::new();
-                    vector.push(inputs);
-                    self.moving_averages = Some(vector); 
-                }
-                else if let Some(vector) = &mut self.moving_averages {
-                    vector.push(inputs)
+                    ); 
                 };
             }
         }
@@ -141,18 +126,16 @@ impl StrategyInputs {
 
 impl Display for StrategyInputs {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.moving_averages {
+        match &self.moving_average {
             Some(v) => {
-                write!(f, "Moving Averages:\n")?;
-                for ma_input in v {
-                    write!(f, "{}", match ma_input {
-                        MaInputs::SMA(sma) => format!(
-                            "  SMA: {{ period: {}, source: {} }}",
-                            sma.period,
-                            sma.source
-                        ),
-                    })?
-                };
+                write!(f, "Moving Average:\n")?;
+                write!(f, "{}", match v {
+                    MaInputs::SMA(sma) => format!(
+                        "  SMA: {{ period: {}, source: {} }}",
+                        sma.period,
+                        sma.source
+                    ),
+                })?;
                 Ok(())
             },
             None => write!(f, "None")
@@ -239,7 +222,6 @@ pub fn load_strategy_template (strategy_name: &str)
         Ok(inputs)
     }
     else {
-        println!("COULDN'T FIND");
         Err(StrategyError::FileNotFound)
     }
 }

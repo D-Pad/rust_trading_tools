@@ -22,7 +22,7 @@ async fn dev_testing(engine: &Engine) {
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
    
     let mut strat = Strategy::new("Test Strat".to_string());
-    let comp = StrategyComponentType::MA { ma_type: "sma" };
+    let comp = StrategyComponentType::MA;
     strat.inputs.add_new_default_component(comp);
     
     // export_strategy_template(strat); 

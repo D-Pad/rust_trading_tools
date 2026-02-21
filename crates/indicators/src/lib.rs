@@ -4,7 +4,7 @@ use bars::BarSeries;
 
 
 pub enum IndicatorTypes {  // Use for strategy template creation
-    MovingAverages
+    MovingAverage
 }
 
 impl IndicatorTypes {
@@ -13,8 +13,8 @@ impl IndicatorTypes {
 
         [
             (
-                IndicatorTypes::MovingAverages, 
-                "Multi Moving Average".to_string()
+                IndicatorTypes::MovingAverage, 
+                "Moving Average".to_string()
             ),
         ]
 
@@ -24,49 +24,49 @@ impl IndicatorTypes {
 
 
 pub struct IndicatorSet {
-    pub ma_container: Option<MaContainer>
+    pub moving_average: Option<MA>
 }
 
 impl IndicatorSet {
 
     pub fn build_from_bar_set(&mut self, bar_set: &BarSeries) {
         
-        if let Some(mac) = &mut self.ma_container {
+        for bar in &bar_set.bars {
 
-            for bar in &bar_set.bars {
+            if let Some(ma) = &mut self.moving_average {
             
-                for ma in &mut mac.moving_averages {
+                match ma {
 
-                    match ma {
-
-                        MA::SMA(sma) => {
-                            sma.update(
-                                bar.component_from_str(&sma.inputs.source)
-                            )
-                        }
-
+                    MA::SMA(sma) => {
+                        sma.update(
+                            bar.component_from_str(&sma.inputs.source)
+                        )
                     }
-
-                } 
+                
+                }
+            
             }
+        
         }
-
+    
     }
 
     pub fn empty() -> Self {
         Self {
-            ma_container: None
+            moving_average: None
         } 
     }
 
-    pub fn set_moving_averages(&mut self, ma_inputs: Vec<MaInputs>) {
+    pub fn set_moving_average(&mut self, ma_inputs: MaInputs) {
 
-        if self.ma_container.is_none() {
-            let mut ma_container = MaContainer::new();
-            for inputs in ma_inputs {
-                ma_container.add_new_ma(inputs); 
-            };
-            self.ma_container = Some(ma_container);
+        if self.moving_average.is_none() {
+            self.moving_average = Some(
+                match ma_inputs {
+                    MaInputs::SMA(inputs) => MA::SMA(
+                        SimpleMovingAverage::empty(inputs)
+                    )
+                }
+            );
         };
             
     }
