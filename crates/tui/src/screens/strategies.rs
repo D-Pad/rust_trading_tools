@@ -234,7 +234,7 @@ impl StrategyScreen {
                 else { blank_vec }
             },
 
-            StrategyAction::CreateNew(_) => { 
+            StrategyAction::CreateNew(_) => {
                 self.indicator_choices
                     .iter()
                     .map(|v| v.1.clone())
@@ -250,23 +250,6 @@ impl StrategyScreen {
             &mut self.btm_state
         );
 
-    }
-
-    fn get_indicator_options(&self, width: u16) -> Vec<ListItem> {
-        let mut options = Vec::from([
-                ListItem::new(multi_line_to_single_line(
-                    "When selected, indicator options are shown here",
-                    width
-                ))
-            ]); 
-        
-        if let StrategyAction::CreateNew(c_action) = &self.action { 
-            if let CreationAction::ParameterSelect = c_action {
-                
-            }
-        };
-        
-        options
     }
 
     pub async fn handle_key(&mut self, key: KeyEvent) {
