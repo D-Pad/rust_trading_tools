@@ -178,6 +178,7 @@ impl DatabaseScreen {
         );
 
         self.btm_item_data = match self.selected_action {
+            
             Some(DbAction::RemovePairs | DbAction::UpdateData) => {
                 let mut items = Vec::from(["All tables".to_string()]);
                 for (key, vals) in &self.token_pairs {
@@ -187,6 +188,7 @@ impl DatabaseScreen {
                 };
                 items
             },
+            
             Some(DbAction::AddPairs) => {
                 let mut items = Vec::new();
                 for (key, pairs) in self.asset_pairs.iter() {
@@ -197,6 +199,7 @@ impl DatabaseScreen {
                 };
                 items
             },
+            
             Some(DbAction::None) | None => {
                 if let Some(i) = self.top_state.selected() {
                     let width: u16 = nested_chunks[0].width; 

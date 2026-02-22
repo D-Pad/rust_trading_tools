@@ -145,6 +145,18 @@ impl StrategyScreen {
         } 
     }
 
+    pub fn get_btm_item_rows(data: &[String]) -> List {
+        data
+            .iter()
+            .map(|i| ListItem::new(i.clone()))
+            .collect::<List>()
+            .block(
+                Block::default()
+                    .title(Self::SCREEN_NAME)
+                    .borders(Borders::ALL)
+            )
+    }
+
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
 
         let nested_chunks = Layout::default()
@@ -182,8 +194,8 @@ impl StrategyScreen {
         );
         
         let mut width = nested_chunks[0].width;
-        let blank_vec: Vec<String> = Vec::new();  // Temporary
-        
+        let blank_vec = Vec::new();
+
         self.btm_item_data = match self.action {
                            
             StrategyAction::ModifyExisting => { 
@@ -230,95 +242,14 @@ impl StrategyScreen {
             }
         };
 
-        if let StrategyAction::CreateNew(c_action) = &self.action {
+        let btm_list: List = Self::get_btm_item_rows(&self.btm_item_data);
 
-            let block = Block::default()
-                .title("Create New Strategy")
-                .borders(Borders::ALL);
+        frame.render_stateful_widget(
+            btm_list,
+            nested_chunks[1],
+            &mut self.btm_state
+        );
 
-            frame.render_widget(block.clone(), nested_chunks[1]);
-
-            let inner = block.inner(nested_chunks[1]);
-
-            let creation_chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Min(25),
-                    Constraint::Percentage(100),
-                ])
-                .split(inner);
-         
-            let btm_list = List::new(self.btm_item_data.clone()) 
-                .block(
-                    Block::default()
-                        .title("Indicator Selection")
-                        .borders(Borders::ALL)
-                )
-                .highlight_style(
-                    if let StrategyFocus::Bottom = self.focus {
-                        let mut style = Style::default()
-                            .add_modifier(Modifier::REVERSED);
-                        match c_action {
-                            CreationAction::IndicatorSelect => {
-                                style = style.green();
-                            },
-                            CreationAction::ParameterSelect => {
-                                style = style.yellow();
-                            }
-                        };
-                        style
-                    } else {
-                        Style::default()
-                    }
-                );
- 
-            frame.render_stateful_widget(
-                btm_list, 
-                creation_chunks[0],
-                &mut self.btm_state
-            );
-           
-            width = creation_chunks[1].width;
-            let options: Vec<ListItem> = self.get_indicator_options(width);
-            let option_data = List::new(options)
-                .block(
-                    Block::default()
-                        .title("Indicator Parameters")
-                        .borders(Borders::ALL)
-                );
-            
-            frame.render_widget(option_data, creation_chunks[1]);
-
-        }
-        else {
-
-            let btm_items: Vec<ListItem> = self.btm_item_data.iter()
-                .map(|v| ListItem::new(&v[..]))
-                .collect();
-
-            let btm_list = List::new(btm_items)
-                .block(
-                    Block::default()
-                        // .title(self.focus.title())
-                        .borders(Borders::ALL)
-                )
-                .highlight_style(
-                    if let StrategyFocus::Bottom = self.focus {
-                        Style::default()
-                            .add_modifier(Modifier::REVERSED)
-                            .green()
-                    } else {
-                        Style::default()
-                    }
-                );
-            
-            frame.render_stateful_widget(
-                btm_list, 
-                nested_chunks[1],
-                &mut self.btm_state
-            );
-
-        }
     }
 
     fn get_indicator_options(&self, width: u16) -> Vec<ListItem> {

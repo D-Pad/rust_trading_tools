@@ -10,14 +10,12 @@ pub enum IndicatorTypes {  // Use for strategy template creation
 impl IndicatorTypes {
 
     pub fn list() -> [(IndicatorTypes, String); 1] {
-
         [
             (
                 IndicatorTypes::MovingAverage, 
                 "Moving Average".to_string()
             ),
         ]
-
     }
 
 }
@@ -29,6 +27,10 @@ pub struct IndicatorSet {
 
 impl IndicatorSet {
 
+    /// # Build indicator data from candle set 
+    ///
+    /// Call this method after initializing indicators to populate them with 
+    /// data.
     pub fn build_from_bar_set(&mut self, bar_set: &BarSeries) {
         
         for bar in &bar_set.bars {
@@ -68,8 +70,6 @@ impl IndicatorSet {
                 }
             );
         };
-            
     }
-
 }
 
