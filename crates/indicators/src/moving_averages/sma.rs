@@ -1,9 +1,7 @@
 use std::collections::VecDeque;
 
-use sqlx::{
-    types::{BigDecimal},
-};
 use serde::{Serialize, Deserialize};
+use bigdecimal::BigDecimal;
 
 use crate::MovingAverage;
 

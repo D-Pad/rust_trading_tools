@@ -6,10 +6,8 @@ use std::{
     }
 };
 
-use sqlx::{
-    types::{BigDecimal},
-};
 use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
 
 pub mod sma;
 pub use sma::{SimpleMovingAverage, SmaInputs};

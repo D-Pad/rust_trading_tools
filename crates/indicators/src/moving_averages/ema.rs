@@ -1,9 +1,7 @@
 use std::collections::VecDeque;
 
-use sqlx::{
-    types::{BigDecimal},
-};
 use serde::{Serialize, Deserialize};
+use bigdecimal::BigDecimal;
 
 use crate::MovingAverage;
 
@@ -17,6 +15,7 @@ use crate::MovingAverage;
 pub struct EmaInputs {
     pub period: u16,
     pub source: String,
+    k_val: BigDecimal,
 }
 
 impl EmaInputs {
@@ -28,19 +27,22 @@ impl EmaInputs {
             None => "close".to_string()
         };
 
-        Self { period, source }
+        let two: BigDecimal = BigDecimal::from(2u8);
+        let denom: BigDecimal = BigDecimal::from(period + 1);
+        let k_val: BigDecimal = two / denom;
+        Self { period, source, k_val }
 
     }
 
     pub fn default() -> Self {
-        Self { period: 13, source: "close".to_string() }
+        Self::new(13, None)
     }
 }
 
 pub struct ExponentialMovingAverage {
     pub inputs: EmaInputs, 
     pub line: Vec<Option<BigDecimal>>,
-    lookback_values: VecDeque<BigDecimal>,
+    lookback_values: Option<VecDeque<BigDecimal>>,
 }
 
 impl ExponentialMovingAverage {
@@ -48,7 +50,7 @@ impl ExponentialMovingAverage {
     pub fn empty(inputs: EmaInputs) -> Self {
 
         let line: Vec<Option<BigDecimal>> = Vec::new();
-        let lookback_values: VecDeque<BigDecimal> = VecDeque::new();
+        let lookback_values = Some(VecDeque::new());
 
         Self {
             inputs, 
@@ -61,43 +63,77 @@ impl ExponentialMovingAverage {
 
 impl MovingAverage for ExponentialMovingAverage {
     
-    fn calculate(&self, _input_val: Option<&BigDecimal>) -> Option<BigDecimal> {
+    fn calculate(&self, input_val: Option<&BigDecimal>) -> Option<BigDecimal> {
         
-        match (self.lookback_values.len() as u16) < self.inputs.period {
+        match (self.line.len() as u16) < self.inputs.period {
             true => None,
             false => {
-                let total: BigDecimal = self.lookback_values.iter().sum();
-                let avg = total / self.inputs.period;
-                Some(avg)
+                
+                // Initial SMA Value
+                if (self.line.len() as u16) == self.inputs.period {
+                    if let Some(vals) = &self.lookback_values {
+                        let total: BigDecimal = vals 
+                            .iter()
+                            .sum();
+                        let avg = total / self.inputs.period;
+                        Some(avg)
+                    }
+                    else {
+                        eprintln!(
+                            "\x1b[1;31mReached an unreachable line\x1b[0m"
+                        );
+                        None // Should be unreachable
+                    }
+                }
+
+                // EMA Value
+                else {
+
+                    // EMA=Price(t)×k+EMA(y)×(1−k)
+                    // where:
+                    // t=today
+                    // y=yesterday
+                    // N=number of days in EMA
+                    // k=2÷(N+1)
+                   
+                    if let Some(price) = input_val {
+                  
+                        let i: usize = self.line.len();
+                        if let Some(prev) = &self.line[i] {
+                            let one = BigDecimal::from(1u8);
+                            let kxp = price * &self.inputs.k_val;
+                            Some(kxp + prev * (one - &self.inputs.k_val)) 
+                        }
+                        else {
+                            None
+                        }
+
+                    }
+                    else {
+                        None 
+                    }
+                }
             }
         }
 
     }
 
     fn set_live_preview(&mut self, input_val: &BigDecimal) {
-        
-        if self.lookback_values.len() > 0 {
-
-            let mut i = self.lookback_values.len() - 1;
-            self.lookback_values[i] = input_val.clone();
-            
-            let val: Option<BigDecimal> = self.calculate(None);
-            i = self.line.len() - 1; 
-            self.line[i] = val; 
-
-        }; 
-
+        let i = self.line.len() - 1;
+        let val: Option<BigDecimal> = self.calculate(Some(input_val));
+        self.line[i] = val; 
     }
 
     fn update(&mut self, input_val: &BigDecimal) {
-        
-        self.lookback_values.push_back(input_val.clone());
-        
-        if self.lookback_values.len() as u16 > self.inputs.period {
-            let _ = self.lookback_values.pop_front();
-        };
-
-        let val: Option<BigDecimal> = self.calculate(None);
+       
+        if let Some(ref mut vals) = self.lookback_values {
+            vals.push_back(input_val.clone());
+            if vals.len() as u16 > self.inputs.period {
+                self.lookback_values = None;
+            };
+        }; 
+            
+        let val: Option<BigDecimal> = self.calculate(Some(input_val));
         self.line.push(val);
 
     }
