@@ -1,9 +1,3 @@
-use std::fmt::{
-    Display,
-    Formatter,
-    self,
-};
-
 use app_core::{
     app_state::{
         AppConfig, 
@@ -14,12 +8,11 @@ use app_core::{
 use string_helpers::capitlize_first_letter;
 use timestamp_tools::{
     VALID_PERIODS, 
-    period_is_valid
 };
 use crate::{
     AppEvent, 
     OutputMsg,
-    ConfigField,
+    FormField,
     FormRow,
     FormMode,
     FieldKind,
@@ -102,7 +95,7 @@ impl ConfigForm {
             "Backtest Settings".to_string()
         ));
         rows.push(FormRow::InputRow(
-            ConfigField {
+            FormField {
                 label: "Inside Bar Testing".to_string(),
                 kind: FieldKind::Bool,
                 value: cfg.backtesting.inside_bar.to_string(),
@@ -114,7 +107,7 @@ impl ConfigForm {
             "Chart Parameters".to_string()
         ));
         rows.push(FormRow::InputRow(
-            ConfigField {
+            FormField {
                 label: "Max number of bars on chart".to_string(),
                 kind: FieldKind::Integer,
                 value: cfg.chart_parameters.num_bars.to_string(),
@@ -122,7 +115,7 @@ impl ConfigForm {
             })
         );
         rows.push(FormRow::InputRow(
-            ConfigField {
+            FormField {
                 label: "Logarithmic scale".to_string(),
                 kind: FieldKind::Bool,
                 value: cfg.chart_parameters.log_scale.to_string(),
@@ -136,7 +129,7 @@ impl ConfigForm {
         for (exchange, enabled) in &cfg.supported_exchanges.active {
             rows.push(
                 FormRow::InputRow(
-                    ConfigField {
+                    FormField {
                         label: capitlize_first_letter(exchange),
                         kind: FieldKind::Bool,
                         value: enabled.to_string(),
@@ -150,7 +143,7 @@ impl ConfigForm {
             "Data Download Settings".to_string()
         ));
         rows.push(FormRow::InputRow(
-            ConfigField {
+            FormField {
                 label: "Initial download cache size".to_string(),
                 kind: FieldKind::TimeFrame,
                 value: cfg.data_download.cache_size.clone(),

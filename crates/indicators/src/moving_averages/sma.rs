@@ -9,6 +9,11 @@ use crate::MovingAverage;
 
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+/// # Simple Moving Average Inputs
+///
+/// Input values for a simple moving average.
+///   - period: The number of periods to lookback on for each new calculation.
+///   - source: Only applicable when calling the 'build_from_bar_set' method.
 pub struct SmaInputs {
     pub period: u16,
     pub source: String,

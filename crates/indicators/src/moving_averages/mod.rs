@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap, 
     fmt::{
         Display,
         Formatter,
@@ -72,6 +71,16 @@ pub enum MaError {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", content = "inputs")]
+/// # Moving average inputs
+///
+/// Some moving average types have a unique set of input values only relevant
+/// to themselves. Input values are as follows.
+///
+/// ## SMA & EMA
+///   - period: The number of periods in the lookback values.
+///   - source: The candle component that the moving average will be built 
+///             from. Only applicable when using the `build_from_bar_set()` 
+///             method on the MovingAverage trait.
 pub enum MaInputs {
     SMA(SmaInputs),
 }

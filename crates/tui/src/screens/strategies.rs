@@ -21,7 +21,6 @@ use ratatui::{
         List,
         ListState,
         ListItem,
-        Paragraph,
     },
     style::{
         Style,
@@ -39,9 +38,12 @@ use ratatui::{
 use crate::{
     AppEvent, 
     OutputMsg, 
+    FormField, 
     move_up, 
     move_down,
-    strategy_form::NewStrategyConstructor,
+    strategy_form::{
+        StrategyConstructor
+    },
 };
 use string_helpers::multi_line_to_single_line;
 use strategies::{
@@ -49,7 +51,9 @@ use strategies::{
     load_strategy_template,
     export_strategy_template,
     fetch_available_templates,
-    indicators::IndicatorTypes,
+    indicators::{
+        IndicatorTypes,
+    },
 };
 
 
@@ -68,15 +72,10 @@ pub enum StrategyFocus {
     Bottom,
 }
 
-#[derive(Clone)]
-enum CreationAction {
-    IndicatorSelect,
-    ParameterSelect,
-}
 
 #[derive(Clone)]
 enum StrategyAction {
-    CreateNew(CreationAction),
+    CreateNew,
     ModifyExisting,
     Delete,
     None,
@@ -85,7 +84,7 @@ enum StrategyAction {
 impl StrategyAction {
     fn to_title(&self) -> &'static str {
         match self {
-            StrategyAction::CreateNew(_) => "Create New",
+            StrategyAction::CreateNew => "Create New",
             StrategyAction::ModifyExisting => "Modify Existing",
             StrategyAction::Delete => "Delete Existing",
             StrategyAction::None => ""
@@ -109,7 +108,7 @@ pub struct StrategyScreen {
     pub focus: StrategyFocus,
     action: StrategyAction,
 
-    new_strategy: Option<NewStrategyConstructor>,
+    pub new_strategy: Option<StrategyConstructor>,
 
     // Strategy Creation values
     indicator_choices: [(IndicatorTypes, String); 1],
@@ -234,22 +233,35 @@ impl StrategyScreen {
                 else { blank_vec }
             },
 
-            StrategyAction::CreateNew(_) => {
-                self.indicator_choices
-                    .iter()
-                    .map(|v| v.1.clone())
-                    .collect()
-            }
+            _ => { blank_vec }
         };
 
-        let btm_list: List = Self::get_btm_item_rows(&self.btm_item_data);
+        if let StrategyAction::CreateNew = self.action {
 
-        frame.render_stateful_widget(
-            btm_list,
-            nested_chunks[1],
-            &mut self.btm_state
-        );
+            if let Some(strat) = &self.new_strategy {
 
+                let rows = strat.get_form_rows();
+
+                for (i, row) in rows.iter().enumerate() {
+
+                    println!("{i}");
+
+                }
+
+            }
+
+        }
+        else {
+            
+            let btm_list: List = Self::get_btm_item_rows(&self.btm_item_data);
+
+            frame.render_stateful_widget(
+                btm_list,
+                nested_chunks[1],
+                &mut self.btm_state
+            );
+
+        }
     }
 
     pub async fn handle_key(&mut self, key: KeyEvent) {
@@ -307,8 +319,10 @@ impl StrategyScreen {
                             
                             Some(0) => {
 
-                                let mut strat = NewStrategyConstructor::new();
-                                self.new_strategy = Some(strat);
+                                if let None = self.new_strategy {
+                                    let mut strat = StrategyConstructor::new();
+                                    self.new_strategy = Some(strat);
+                                };
                                 Self::SCREEN_OPTIONS[0].clone()
                             
                             }, 
@@ -342,7 +356,7 @@ impl StrategyScreen {
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 
     const SCREEN_OPTIONS: [StrategyAction; 3] = [
-        StrategyAction::CreateNew(CreationAction::IndicatorSelect),
+        StrategyAction::CreateNew,
         StrategyAction::ModifyExisting,
         StrategyAction::Delete,
     ];

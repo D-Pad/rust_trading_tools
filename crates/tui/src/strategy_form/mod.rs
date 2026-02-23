@@ -1,14 +1,18 @@
 use strategies::{
     Strategy,
-}; 
+    MaInputs,
+};
+use crate::{
+    FormField
+};
 
 
 
-pub struct NewStrategyConstructor {
+pub struct StrategyConstructor {
     pub strategy: Strategy,
 }
 
-impl NewStrategyConstructor {
+impl StrategyConstructor {
 
     pub fn new() -> Self {
         Self {
@@ -16,15 +20,40 @@ impl NewStrategyConstructor {
         }
     }
 
-    pub fn get_form_rows(&self) -> Vec<String> {
-        
-        let mut rows: Vec<String> = Vec::new();
+    pub fn get_form_rows(&self) -> Vec<(String, FormField<StrategyKeys>)> {
 
+        let mut rows: Vec<(String, FormField<StrategyKeys>)> = Vec::new();
+
+        if let Some(ma) = &self.strategy.inputs.moving_average {
+            match ma {
+                MaInputs::SMA(inputs) => {
+                    inputs;
+                },
+                _ => {}
+            }
+        };
 
         rows
 
     }
 
+
+
 }
+
+
+
+// ---------------- STRATEGY FORM INPUT STRUCTS AND ENUMS ------------------ //
+pub enum StrategyKeys {
+    MovingAverage(MovingAverageKeys)
+}
+
+pub enum MovingAverageKeys {
+    MaType,
+    Period,
+    Phase,
+    Power,
+}
+
 
 

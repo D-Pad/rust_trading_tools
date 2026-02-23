@@ -101,19 +101,19 @@ pub mod strategy_form;
 
 // ------------------------------------------------------------------------- //
 #[derive(Clone)]
-pub struct ConfigField<K> {
+pub struct FormField<K> {
     pub label: String,
     pub kind: FieldKind,
     pub value: String,
     key: K
 }
 
-impl<K> ConfigField<K> {
+impl<K> FormField<K> {
     fn value_is_acceptable(&self) -> bool {
         match &self.kind {
             FieldKind::Bool => true, // Isn't modifiable by user anyway
             FieldKind::Integer => self.value.parse::<u64>().is_ok(),
-            // FieldKind::Float => self.value.parse::<f64>().is_ok(), 
+            FieldKind::Float => self.value.parse::<f64>().is_ok(), 
             // FieldKind::Text => true,
             FieldKind::TimeFrame => period_is_valid(&self.value),
         } 
@@ -122,7 +122,7 @@ impl<K> ConfigField<K> {
 
 pub enum FormRow<K> {
     SectionDivider(String),
-    InputRow(ConfigField<K>),
+    InputRow(FormField<K>),
 }
 
 pub enum FormMode {
@@ -134,7 +134,7 @@ pub enum FormMode {
 pub enum FieldKind {
     Bool,
     Integer,
-    // Float,
+    Float,
     // Text,
     TimeFrame,
 }
@@ -144,7 +144,7 @@ impl Display for FieldKind {
         match self {
             FieldKind::Bool => write!(f, "Bool"),
             FieldKind::Integer => write!(f, "Integer"),
-            // FieldKind::Float => write!(f, "Float"),
+            FieldKind::Float => write!(f, "Float"),
             // FieldKind::Text => write!(f, "Text"),
             FieldKind::TimeFrame => write!(f, "TimeFrame"),
         } 
