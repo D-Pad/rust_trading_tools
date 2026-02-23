@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 pub mod sma;
 pub use sma::{SimpleMovingAverage, SmaInputs};
+pub mod ema;
+pub use ema::{ExponentialMovingAverage, EmaInputs};
 
 
 // ----------------------------- COMMON TRAITS ----------------------------- //
@@ -83,19 +85,22 @@ pub enum MaError {
 ///             method on the MovingAverage trait.
 pub enum MaInputs {
     SMA(SmaInputs),
+    EMA(EmaInputs),
 }
 
 impl Display for MaInputs {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            MaInputs::SMA(_) => write!(f, "MaInputs::SMA")
+            MaInputs::SMA(_) => write!(f, "MaInputs::SMA"),
+            MaInputs::EMA(_) => write!(f, "MaInputs::EMA")
         }
     }     
 }
 
 
 pub enum MA {
-    SMA(SimpleMovingAverage)
+    SMA(SimpleMovingAverage),
+    EMA(ExponentialMovingAverage),
 }
 
 impl MA {
@@ -107,6 +112,11 @@ impl MA {
             MaInputs::SMA(sma) => {
                 let ma = SimpleMovingAverage::empty(sma);
                 MA::SMA(ma)
+            },
+
+            MaInputs::EMA(ema) => {
+                let ma = ExponentialMovingAverage::empty(ema);
+                MA::EMA(ma)
             }
         }
     }
@@ -121,6 +131,9 @@ impl Display for MA {
         let line = match self {
             MA::SMA(sma) => {
                 &sma.line  
+            },
+            MA::EMA(ema) => {
+                &ema.line
             }
         };
         

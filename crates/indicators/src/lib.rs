@@ -43,6 +43,12 @@ impl IndicatorSet {
                         sma.update(
                             bar.component_from_str(&sma.inputs.source)
                         )
+                    },
+
+                    MA::EMA(ema) => {
+                        ema.update(
+                            bar.component_from_str(&ema.inputs.source)
+                        )
                     }
                 
                 }
@@ -66,6 +72,10 @@ impl IndicatorSet {
                 match ma_inputs {
                     MaInputs::SMA(inputs) => MA::SMA(
                         SimpleMovingAverage::empty(inputs)
+                    ),
+
+                    MaInputs::EMA(inputs) => MA::EMA(
+                        ExponentialMovingAverage::empty(inputs)
                     )
                 }
             );

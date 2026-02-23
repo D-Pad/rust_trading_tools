@@ -135,6 +135,11 @@ impl Display for StrategyInputs {
                         sma.period,
                         sma.source
                     ),
+                    MaInputs::EMA(ema) => format!(
+                        "  EMA: {{ period: {}, source: {} }}",
+                        ema.period,
+                        ema.source
+                    )
                 })?;
                 Ok(())
             },
