@@ -138,7 +138,7 @@ impl MovingAverage for ExponentialMovingAverage {
 
     }
 
-    const SHORT_NAME: &'static str = "sma";
+    const SHORT_NAME: &'static str = "ema";
 
 }
 
