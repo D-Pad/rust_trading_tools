@@ -3,6 +3,7 @@ use std::{
     io::{self}, 
     time::Duration,
     sync::Arc,
+    fmt::{self, Display, Formatter}
 };
 
 
@@ -67,6 +68,8 @@ use app_core::{
     engine::Engine,
     config::{ConfigError},
 };
+use string_helpers::multi_line_to_single_line;
+use timestamp_tools::period_is_valid;
 
 mod screens;
 use screens::{
@@ -76,7 +79,6 @@ use screens::{
     },
     settings::{
         SettingsScreen,
-        FormMode, 
     },
     candles::{
         CandleScreen,
@@ -93,10 +95,61 @@ use screens::{
     move_up,
     move_down,
 };
-use string_helpers::multi_line_to_single_line;
 
 pub mod strategy_form;
 
+
+// ------------------------------------------------------------------------- //
+#[derive(Clone)]
+pub struct ConfigField<K> {
+    pub label: String,
+    pub kind: FieldKind,
+    pub value: String,
+    key: K
+}
+
+impl<K> ConfigField<K> {
+    fn value_is_acceptable(&self) -> bool {
+        match &self.kind {
+            FieldKind::Bool => true, // Isn't modifiable by user anyway
+            FieldKind::Integer => self.value.parse::<u64>().is_ok(),
+            // FieldKind::Float => self.value.parse::<f64>().is_ok(), 
+            // FieldKind::Text => true,
+            FieldKind::TimeFrame => period_is_valid(&self.value),
+        } 
+    }
+}
+
+pub enum FormRow<K> {
+    SectionDivider(String),
+    InputRow(ConfigField<K>),
+}
+
+pub enum FormMode {
+    Movement,
+    Input
+}
+
+#[derive(Clone)]
+pub enum FieldKind {
+    Bool,
+    Integer,
+    // Float,
+    // Text,
+    TimeFrame,
+}
+
+impl Display for FieldKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            FieldKind::Bool => write!(f, "Bool"),
+            FieldKind::Integer => write!(f, "Integer"),
+            // FieldKind::Float => write!(f, "Float"),
+            // FieldKind::Text => write!(f, "Text"),
+            FieldKind::TimeFrame => write!(f, "TimeFrame"),
+        } 
+    }
+}
 
 // ---------------------------- TERMINAL INTERFACE ------------------------- //
 /// # Terminal User Interface (TUI)

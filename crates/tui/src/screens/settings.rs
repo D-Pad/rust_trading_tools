@@ -16,7 +16,14 @@ use timestamp_tools::{
     VALID_PERIODS, 
     period_is_valid
 };
-use crate::{AppEvent, OutputMsg};
+use crate::{
+    AppEvent, 
+    OutputMsg,
+    ConfigField,
+    FormRow,
+    FormMode,
+    FieldKind,
+};
 
 use ratatui::{
     Frame,
@@ -46,27 +53,6 @@ use ratatui::{
 use tokio::sync::mpsc::UnboundedSender;
 
 
-#[derive(Clone)]
-pub enum FieldKind {
-    Bool,
-    Integer,
-    // Float,
-    // Text,
-    TimeFrame,
-}
-
-impl Display for FieldKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            FieldKind::Bool => write!(f, "Bool"),
-            FieldKind::Integer => write!(f, "Integer"),
-            // FieldKind::Float => write!(f, "Float"),
-            // FieldKind::Text => write!(f, "Text"),
-            FieldKind::TimeFrame => write!(f, "TimeFrame"),
-        } 
-    }
-}
-
 // ------------------------------ CONFIG KEYS ------------------------------ //
 #[derive(Clone)]
 enum ConfigFieldKey {
@@ -92,42 +78,11 @@ enum DownloadKeys {
     CacheSize
 }
 
-// ------------------------------------------------------------------------- //
-#[derive(Clone)]
-pub struct ConfigField {
-    pub label: String,
-    pub kind: FieldKind,
-    pub value: String,
-    key: ConfigFieldKey
-}
-
-impl ConfigField {
-    fn value_is_acceptable(&self) -> bool {
-        match &self.kind {
-            FieldKind::Bool => true, // Isn't modifiable by user anyway
-            FieldKind::Integer => self.value.parse::<u64>().is_ok(),
-            // FieldKind::Float => self.value.parse::<f64>().is_ok(), 
-            // FieldKind::Text => true,
-            FieldKind::TimeFrame => period_is_valid(&self.value),
-        } 
-    }
-}
-
-pub enum FormRow {
-    SectionDivider(String),
-    InputRow(ConfigField),
-}
-
-pub enum FormMode {
-    Movement,
-    Input
-}
-
 /// A ConfigForm is intended to be used as a way for the user to interface
 /// with the system settings, and make changes to it. Used in the TUI crate
 pub struct ConfigForm {
     pub focused: usize,
-    pub rows: Vec<FormRow>,
+    pub rows: Vec<FormRow<ConfigFieldKey>>,
     pub mode: FormMode,
 }
 
@@ -140,7 +95,7 @@ impl ConfigForm {
     /// settings from an interface.
     pub fn from_config(cfg: &AppConfig) -> Self {
 
-        let mut rows: Vec<FormRow> = Vec::new();
+        let mut rows: Vec<FormRow<ConfigFieldKey>> = Vec::new();
         let mode: FormMode = FormMode::Movement;           
 
         rows.push(FormRow::SectionDivider(
