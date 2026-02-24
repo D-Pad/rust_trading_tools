@@ -125,11 +125,15 @@ impl MovingAverage for ExponentialMovingAverage {
     }
 
     fn update(&mut self, input_val: &BigDecimal) {
-       
+      
+        // Lookback values are only needed for the first data point, which is 
+        // an ordinary SMA calculation.
         if let Some(ref mut vals) = self.lookback_values {
-            vals.push_back(input_val.clone());
-            if vals.len() as u16 > self.inputs.period {
+            if vals.len() as u16 >= self.inputs.period + 1 {
                 self.lookback_values = None;
+            }
+            else {
+                vals.push_back(input_val.clone());
             };
         }; 
             
