@@ -26,15 +26,16 @@ use ratatui::{
 
 use crate::{
     AppEvent, 
+    FormField, 
+    FormRow, 
     OutputMsg, 
-    FormField,
-    FormRow,
+    move_down, 
     move_up, 
-    move_down,
     strategy_form::{
-        StrategyConstructor,
-        StrategyKeys,
-    },
+        MovingAverageKeys, 
+        StrategyConstructor, 
+        StrategyKeys
+    }
 };
 use string_helpers::multi_line_to_single_line;
 use strategies::{
@@ -135,7 +136,7 @@ impl StrategyScreen {
             new_strategy: None,
             indicator_choices,
             indicator_index: 0,
-            focused_row: 0,
+            focused_row: 1,
             strategy_rows: Vec::new(),
         } 
     }
@@ -260,8 +261,11 @@ impl StrategyScreen {
                     match r {
 
                         FormRow::SectionDivider(div) => {
+                           
                             frame.render_widget(
-                                Paragraph::new(format!("~~ {div} ~~")),
+                                Paragraph::new(
+                                    format!("[{div}]"))
+                                    .style(Style::default().red()),
                                 form_rows[i] 
                             );
                         },
@@ -275,8 +279,17 @@ impl StrategyScreen {
                                 ])
                                 .split(form_rows[i]);
 
+                            let mut text = Paragraph::new(row.label.clone());
+                            
+                            if i == self.focused_row {
+                                text = text.style(Style::default()
+                                    .yellow()
+                                    .underlined());     
+                            };
+
                             frame.render_widget(
-                                Paragraph::new(row.label.clone()), cols[0]
+                                text, 
+                                cols[0]
                             );
 
                             let input = Paragraph::new(row.value.clone());
@@ -348,9 +361,22 @@ impl StrategyScreen {
                                 1
                             }
                         };
+
                         self.focused_row += step;
+                    
                     };
                 },
+
+                KeyCode::Enter => {
+
+                    let active_row = &self.strategy_rows[self.focused_row];
+
+                    if let FormRow::InputRow(row) = active_row {
+                        if let Some(ref mut strat) = self.new_strategy {
+                            strat.modify_from_form_field(row);
+                        }; 
+                    }
+                }
 
                 _ => {}
             }

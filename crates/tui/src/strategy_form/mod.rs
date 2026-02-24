@@ -49,8 +49,10 @@ impl StrategyConstructor {
         rows
 
     }
+ 
+    pub fn modify_from_form_field(&mut self, field: &FormField<StrategyKeys>) {
 
-
+    }
 
 }
 
