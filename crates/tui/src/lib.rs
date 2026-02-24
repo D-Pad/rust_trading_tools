@@ -143,6 +143,36 @@ pub enum FieldKind {
     TimeFrame,
 }
 
+impl FieldKind {
+    
+    pub fn rotate_selection_left(&mut self) {
+        
+        if let Self::Select(select) = self {
+            if select.selected == 0 {
+                select.selected = select.options.len() - 1;
+            }
+            else {
+                select.selected -= 1;
+            }
+        }
+    
+    }
+
+    pub fn rotate_selection_right(&mut self) {
+        
+        if let Self::Select(select) = self {
+            if select.selected == select.options.len() - 1 {
+                select.selected = 0;
+            }
+            else {
+                select.selected += 1;
+            }
+        }
+    
+    }
+
+}
+
 impl Display for FieldKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
