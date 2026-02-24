@@ -65,10 +65,15 @@ pub enum StrategyFocus {
     Bottom,
 }
 
+#[derive(Clone)]
+enum CreateMode {
+    Move,
+    Input,
+}
 
 #[derive(Clone)]
 enum StrategyAction {
-    CreateNew,
+    CreateNew(CreateMode),
     ModifyExisting,
     Delete,
     None,
@@ -77,7 +82,7 @@ enum StrategyAction {
 impl StrategyAction {
     fn to_title(&self) -> &'static str {
         match self {
-            StrategyAction::CreateNew => "Create New",
+            StrategyAction::CreateNew(_) => "Create New",
             StrategyAction::ModifyExisting => "Modify Existing",
             StrategyAction::Delete => "Delete Existing",
             StrategyAction::None => ""
@@ -220,7 +225,7 @@ impl StrategyScreen {
             _ => { blank_vec }
         };
 
-        if let StrategyAction::CreateNew = self.action {
+        if let StrategyAction::CreateNew(_) = self.action {
 
             if let Some(strat) = &self.new_strategy {
 
@@ -317,7 +322,7 @@ impl StrategyScreen {
 
         let top_len = Self::SCREEN_OPTIONS.len().saturating_sub(1);
 
-        if let StrategyAction::CreateNew = self.action {
+        if let StrategyAction::CreateNew(ref mode) = self.action {
 
             match key.code {
 
@@ -470,7 +475,7 @@ impl StrategyScreen {
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 
     const SCREEN_OPTIONS: [StrategyAction; 3] = [
-        StrategyAction::CreateNew,
+        StrategyAction::CreateNew(CreateMode::Move),
         StrategyAction::ModifyExisting,
         StrategyAction::Delete,
     ];
