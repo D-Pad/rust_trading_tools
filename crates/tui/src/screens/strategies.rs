@@ -96,16 +96,11 @@ pub struct StrategyScreen {
     pub msg_sender: UnboundedSender<AppEvent>,
     top_state: ListState,
     btm_state: ListState,
-    btm_option_state: ListState,
     btm_item_data: Vec<String>,
     pub focus: StrategyFocus,
     action: StrategyAction,
 
     pub new_strategy: Option<StrategyConstructor>,
-
-    // Strategy Creation values
-    indicator_choices: [(IndicatorTypes, String); 1],
-    indicator_index: usize,
 
     focused_row: usize,
     strategy_rows: Vec<FormRow<StrategyKeys>>,
@@ -120,23 +115,14 @@ impl StrategyScreen {
         let mut top_state = ListState::default();
         top_state.select(Some(0));
 
-        let indicator_choices = IndicatorTypes::list();
-        // let indicator_choices: Vec<ListItem<'a>> = IndicatorTypes::list()
-        //     .iter()
-        //     .map(|v| ListItem::new(*v))
-        //     .collect();
-
         StrategyScreen {
             msg_sender,
             top_state,
             btm_state: ListState::default(),
-            btm_option_state: ListState::default(),
             btm_item_data: Vec::new(),
             focus: StrategyFocus::Top,
             action: StrategyAction::None,
             new_strategy: None,
-            indicator_choices,
-            indicator_index: 0,
             focused_row: 1,
             strategy_rows: Vec::new(),
         } 
