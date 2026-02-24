@@ -26,7 +26,8 @@ use ratatui::{
 
 use crate::{
     AppEvent, 
-    FormField, 
+    FormField,
+    FieldKind,
     FormRow, 
     OutputMsg, 
     move_down, 
@@ -279,7 +280,8 @@ impl StrategyScreen {
                                 ])
                                 .split(form_rows[i]);
 
-                            let mut text = Paragraph::new(row.label.clone());
+                            let mut text = Paragraph::new(
+                                format!("  {}", row.label));
                             
                             if i == self.focused_row {
                                 text = text.style(Style::default()
@@ -292,7 +294,16 @@ impl StrategyScreen {
                                 cols[0]
                             );
 
-                            let input = Paragraph::new(row.value.clone());
+                            let input = Paragraph::new(
+                                if let FieldKind::Select(
+                                    ref select
+                                ) = row.kind {
+                                    select.options[select.selected].to_string() 
+                                }
+                                else {
+                                    row.value.clone()
+                                }
+                            );
                             frame.render_widget(input, cols[1]);
                         }
                     

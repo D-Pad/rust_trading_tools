@@ -109,15 +109,18 @@ pub struct FormField<K> {
 }
 
 impl<K> FormField<K> {
+    
     fn value_is_acceptable(&self) -> bool {
         match &self.kind {
             FieldKind::Bool => true, // Isn't modifiable by user anyway
             FieldKind::Integer => self.value.parse::<u64>().is_ok(),
             FieldKind::Float => self.value.parse::<f64>().is_ok(), 
+            FieldKind::Select(_) => true, 
             // FieldKind::Text => true,
             FieldKind::TimeFrame => period_is_valid(&self.value),
         } 
     }
+
 }
 
 pub enum FormRow<K> {
@@ -135,6 +138,7 @@ pub enum FieldKind {
     Bool,
     Integer,
     Float,
+    Select(SelectOption),
     // Text,
     TimeFrame,
 }
@@ -145,9 +149,25 @@ impl Display for FieldKind {
             FieldKind::Bool => write!(f, "Bool"),
             FieldKind::Integer => write!(f, "Integer"),
             FieldKind::Float => write!(f, "Float"),
+            FieldKind::Select { .. } => write!(f, "Vec<String>"),
             // FieldKind::Text => write!(f, "Text"),
             FieldKind::TimeFrame => write!(f, "TimeFrame"),
         } 
+    }
+}
+
+#[derive(Clone)]
+pub struct SelectOption {
+    selected: usize,
+    options: Vec<&'static str>
+}
+
+impl SelectOption {
+    pub fn new(options: Vec<&'static str>) -> Self {
+        Self {
+            selected: 0,
+            options,
+        }
     }
 }
 

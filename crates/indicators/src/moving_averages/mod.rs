@@ -86,13 +86,40 @@ pub enum MaInputs {
     EMA(EmaInputs),
 }
 
+impl MaInputs {
+
+    pub fn set_period(&mut self, period: u16) {
+
+        match self {
+
+            MaInputs::SMA(sma) => {
+                sma.period = period;
+            },
+
+            MaInputs::EMA(ema) => {
+                ema.period = period;
+            },
+
+        }
+
+    }
+
+    pub const MA_TYPES: [&'static str; 2] = [
+        "sma", 
+        "ema",
+    ];
+
+}
+
 impl Display for MaInputs {
+    
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             MaInputs::SMA(_) => write!(f, "MaInputs::SMA"),
             MaInputs::EMA(_) => write!(f, "MaInputs::EMA")
         }
     }     
+
 }
 
 

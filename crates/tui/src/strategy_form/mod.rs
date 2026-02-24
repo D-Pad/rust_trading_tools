@@ -1,3 +1,4 @@
+use app_core::SmaInputs;
 use strategies::{
     Strategy,
     MaInputs,
@@ -6,8 +7,17 @@ use crate::{
     FormField,
     FieldKind,
     FormRow,
+    SelectOption,
 };
 
+
+pub enum ConstructorError {
+    ParseError(StringParseError)
+}
+
+pub enum StringParseError {
+    U16,
+}
 
 
 pub struct StrategyConstructor {
@@ -29,6 +39,7 @@ impl StrategyConstructor {
         rows.push(FormRow::SectionDivider(
             "Moving Average".to_string()
         ));
+        
         rows.push(
             FormRow::InputRow(FormField {
                 label: "Enabled".to_string(),
@@ -37,7 +48,23 @@ impl StrategyConstructor {
                 key: StrategyKeys::MovingAverage(MovingAverageKeys::Enabled)
             })
         );
+        
         if let Some(ma) = &self.strategy.inputs.moving_average {
+           
+            let ma_types = MaInputs::MA_TYPES;
+
+            rows.push(
+                FormRow::InputRow(FormField {
+                    label: "MA Type".to_string(),
+                    kind: FieldKind::Select(SelectOption::new(
+                        Vec::from(ma_types))), 
+                    value: ma_types[0].to_string(),
+                    key: StrategyKeys::MovingAverage(
+                        MovingAverageKeys::MaType
+                    )
+                })
+            );
+            
             match ma {
                 MaInputs::SMA(inputs) => {
                     inputs;
@@ -50,7 +77,51 @@ impl StrategyConstructor {
 
     }
  
-    pub fn modify_from_form_field(&mut self, field: &FormField<StrategyKeys>) {
+    pub fn modify_from_form_field(&mut self, field: &FormField<StrategyKeys>) 
+        -> Result<(), ConstructorError> {
+
+        let inputs = &mut self.strategy.inputs;
+
+        match &field.key {
+            
+            StrategyKeys::MovingAverage(ma_key) => {
+                
+                match ma_key {
+                    
+                    MovingAverageKeys::Enabled => {
+                        if inputs.moving_average.is_none() {
+                            inputs.moving_average = Some(MaInputs::SMA(
+                                SmaInputs::default()
+                            ));
+                        }
+                        else {
+                            inputs.moving_average = None;
+                        }
+                    },
+
+                    MovingAverageKeys::MaType => {
+                         
+                    },
+
+                    MovingAverageKeys::Period => {
+                        if let Some(ref mut ma_inputs) = inputs.moving_average {
+                            let period = field.value.parse::<u16>()
+                                .map_err(|_| ConstructorError::ParseError(
+                                    StringParseError::U16 
+                                ))?; 
+                            ma_inputs.set_period(period); 
+                        };
+                    },
+
+                    MovingAverageKeys::Phase => {},
+
+                    MovingAverageKeys::Power => {},
+
+                };
+            }, 
+        };
+
+        Ok(())
 
     }
 
