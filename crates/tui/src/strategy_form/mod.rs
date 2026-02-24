@@ -3,7 +3,9 @@ use strategies::{
     MaInputs,
 };
 use crate::{
-    FormField
+    FormField,
+    FieldKind,
+    FormRow,
 };
 
 
@@ -20,10 +22,21 @@ impl StrategyConstructor {
         }
     }
 
-    pub fn get_form_rows(&self) -> Vec<(String, FormField<StrategyKeys>)> {
+    pub fn get_form_rows(&self) -> Vec<FormRow<StrategyKeys>> {
 
-        let mut rows: Vec<(String, FormField<StrategyKeys>)> = Vec::new();
+        let mut rows: Vec<FormRow<StrategyKeys>> = Vec::new();
 
+        rows.push(FormRow::SectionDivider(
+            "Moving Average".to_string()
+        ));
+        rows.push(
+            FormRow::InputRow(FormField {
+                label: "Enabled".to_string(),
+                kind: FieldKind::Bool,
+                value: "false".to_string(),
+                key: StrategyKeys::MovingAverage(MovingAverageKeys::Enabled)
+            })
+        );
         if let Some(ma) = &self.strategy.inputs.moving_average {
             match ma {
                 MaInputs::SMA(inputs) => {
@@ -49,6 +62,7 @@ pub enum StrategyKeys {
 }
 
 pub enum MovingAverageKeys {
+    Enabled,
     MaType,
     Period,
     Phase,

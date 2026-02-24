@@ -8,46 +8,37 @@ use tokio::{
     },
 };
 use ratatui::{
-    Frame,
-    layout::{
-        Rect,
-        Layout,
-        Direction,
-        Constraint,
-    },
-    widgets::{
-        Block,
-        Borders,
-        List,
-        ListState,
-        ListItem,
-    },
-    style::{
-        Style,
-        Modifier,
-        Color,
-    },
-    crossterm::{
-        event::{
-            KeyEvent,
-            KeyCode,
-        },
-    },
+    Frame, crossterm::event::{
+            KeyCode, KeyEvent
+        }, layout::{
+        Constraint, Direction, Layout, Rect
+    }, style::{
+        Color, Modifier, Style
+    }, widgets::{
+        Block, 
+        Borders, 
+        List, 
+        ListItem, 
+        ListState, 
+        Paragraph
+    }
 };
 
 use crate::{
     AppEvent, 
     OutputMsg, 
-    FormField, 
+    FormField,
+    FormRow,
     move_up, 
     move_down,
     strategy_form::{
-        StrategyConstructor
+        StrategyConstructor,
+        StrategyKeys,
     },
 };
 use string_helpers::multi_line_to_single_line;
 use strategies::{
-    StrategyInputs, 
+    StrategyInputs,
     load_strategy_template,
     export_strategy_template,
     fetch_available_templates,
@@ -113,6 +104,9 @@ pub struct StrategyScreen {
     // Strategy Creation values
     indicator_choices: [(IndicatorTypes, String); 1],
     indicator_index: usize,
+
+    focused_row: usize,
+    strategy_rows: Vec<FormRow<StrategyKeys>>,
 }
 
 impl StrategyScreen {
@@ -141,6 +135,8 @@ impl StrategyScreen {
             new_strategy: None,
             indicator_choices,
             indicator_index: 0,
+            focused_row: 0,
+            strategy_rows: Vec::new(),
         } 
     }
 
@@ -240,11 +236,54 @@ impl StrategyScreen {
 
             if let Some(strat) = &self.new_strategy {
 
-                let rows = strat.get_form_rows();
+                self.strategy_rows = strat.get_form_rows();
+                
+                let block = Block::default()
+                    .title("New Strategy Creation")
+                    .borders(Borders::ALL);
 
-                for (i, row) in rows.iter().enumerate() {
+                frame.render_widget(block.clone(), nested_chunks[1]);
 
-                    println!("{i}");
+                let inner = block.inner(nested_chunks[1]);
+
+                let form_rows = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints(&self.strategy_rows
+                        .iter()
+                        .map(|_| Constraint::Length(1))
+                        .collect::<Vec<Constraint>>()
+                    )
+                    .split(inner);
+
+                for (i, r) in self.strategy_rows.iter().enumerate() {
+                   
+                    match r {
+
+                        FormRow::SectionDivider(div) => {
+                            frame.render_widget(
+                                Paragraph::new(format!("~~ {div} ~~")),
+                                form_rows[i] 
+                            );
+                        },
+
+                        FormRow::InputRow(row) => {
+                            let cols = Layout::default()
+                                .direction(Direction::Horizontal)
+                                .constraints([
+                                    Constraint::Percentage(50),
+                                    Constraint::Percentage(50),
+                                ])
+                                .split(form_rows[i]);
+
+                            frame.render_widget(
+                                Paragraph::new(row.label.clone()), cols[0]
+                            );
+
+                            let input = Paragraph::new(row.value.clone());
+                            frame.render_widget(input, cols[1]);
+                        }
+                    
+                    }
 
                 }
 
@@ -268,88 +307,140 @@ impl StrategyScreen {
 
         let top_len = Self::SCREEN_OPTIONS.len().saturating_sub(1);
 
-        match key.code {
-        
-            KeyCode::Up | KeyCode::Char('k') => {
+        if let StrategyAction::CreateNew = self.action {
+
+            match key.code {
+
+                KeyCode::Up | KeyCode::Char('k') => {
+                   
+                    let step: usize = {
+                        
+                        let min_i = 1;
+                        let target = self.focused_row - 1;
+                        let next_row = &self.strategy_rows[target];
+
+                        match next_row {
+                            FormRow::SectionDivider(_) => {
+                                if target > min_i { 2 }
+                                else { 0 }  // We're at the top
+                            },
+                            FormRow::InputRow(_) => 1
+                        }
+                    };
+
+                    self.focused_row -= step;
+                }, 
                 
-                match &self.focus {
-
-                    StrategyFocus::Top => move_up(
-                        &mut self.top_state, 
-                        top_len, 
-                        1
-                    ),
+                KeyCode::Down | KeyCode::Char('j') => {
                     
-                    StrategyFocus::Bottom => move_up(
-                        &mut self.btm_state, 
-                        self.btm_item_data.len(),
-                        1
-                    ),
-                
-                }
-            },
-
-            KeyCode::Down | KeyCode::Char('j') => {
-            
-                match &self.focus {
-
-                    StrategyFocus::Top => move_down(
-                        &mut self.top_state, 
-                        top_len, 
-                        1
-                    ),
+                    let max_i = self.strategy_rows.len() - 1;
+                    let target = self.focused_row + 1;
                     
-                    StrategyFocus::Bottom => move_down(
-                        &mut self.btm_state, 
-                        self.btm_item_data.len(),
-                        1
-                    )
-                }
-            }
+                    if target < max_i {
+                    
+                        let next_row = &self.strategy_rows[target];
 
-            KeyCode::Enter => {
-
-                match &self.focus {
-
-                    StrategyFocus::Top => {
-                        
-                        self.focus = StrategyFocus::Bottom;
-                        
-                        self.action = match &self.top_state.selected() {
-                            
-                            Some(0) => {
-
-                                if let None = self.new_strategy {
-                                    let mut strat = StrategyConstructor::new();
-                                    self.new_strategy = Some(strat);
-                                };
-                                Self::SCREEN_OPTIONS[0].clone()
-                            
-                            }, 
-                            Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
-                            Some(2) => Self::SCREEN_OPTIONS[2].clone(),
-                            None | _ => StrategyAction::None,
-                        
+                        let step = match next_row {
+                            FormRow::SectionDivider(_) => {
+                                2 
+                            },
+                            FormRow::InputRow(_) => {
+                                1
+                            }
                         };
+                        self.focused_row += step;
+                    };
+                },
 
-                        self.btm_state.select(Some(0));
-                    },
+                _ => {}
+            }
+        }
+        
+        else {
+            
+            match key.code {
+            
+                KeyCode::Up | KeyCode::Char('k') => {
+                    
+                    match &self.focus {
 
-                    StrategyFocus::Bottom => {
+                        StrategyFocus::Top => move_up(
+                            &mut self.top_state, 
+                            top_len, 
+                            1
+                        ),
                         
+                        StrategyFocus::Bottom => move_up(
+                            &mut self.btm_state, 
+                            self.btm_item_data.len(),
+                            1
+                        ),
+                    
                     }
+                },
 
-                };
-
-            }
-
-            KeyCode::Esc => {
+                KeyCode::Down | KeyCode::Char('j') => {
                 
-                self.focus = StrategyFocus::Top;
+                    match &self.focus {
 
+                        StrategyFocus::Top => move_down(
+                            &mut self.top_state, 
+                            top_len, 
+                            1
+                        ),
+                        
+                        StrategyFocus::Bottom => move_down(
+                            &mut self.btm_state, 
+                            self.btm_item_data.len(),
+                            1
+                        )
+                    }
+                }
+
+                KeyCode::Enter => {
+
+                    match &self.focus {
+
+                        StrategyFocus::Top => {
+                            
+                            self.focus = StrategyFocus::Bottom;
+                            
+                            self.action = match &self.top_state.selected() {
+                                
+                                Some(0) => {
+
+                                    let mut strat = Some(
+                                        StrategyConstructor::new()
+                                    );
+                                    self.new_strategy = strat;
+                                    Self::SCREEN_OPTIONS[0].clone()
+                                
+                                }, 
+                                Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
+                                Some(2) => Self::SCREEN_OPTIONS[2].clone(),
+                                None | _ => StrategyAction::None,
+                            
+                            };
+
+                            self.btm_state.select(Some(0));
+                        },
+
+                        StrategyFocus::Bottom => {
+                            
+                        }
+
+                    };
+
+                }
+
+                KeyCode::Esc => {
+                    
+                    self.focus = StrategyFocus::Top;
+
+                }
+
+                _ => {}
             }
-
-            _ => {}
         }
     }
 
