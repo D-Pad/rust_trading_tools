@@ -324,63 +324,85 @@ impl StrategyScreen {
 
         if let StrategyAction::CreateNew(ref mode) = self.action {
 
-            match key.code {
+            if let CreateMode::Move = mode {
 
-                KeyCode::Up | KeyCode::Char('k') => {
-                   
-                    let step: usize = {
-                        
-                        let min_i = 1;
-                        let target = self.focused_row - 1;
-                        let next_row = &self.strategy_rows[target];
+                match key.code {
 
-                        match next_row {
-                            FormRow::SectionDivider(_) => {
-                                if target > min_i { 2 }
-                                else { 0 }  // We're at the top
-                            },
-                            FormRow::InputRow(_) => 1
-                        }
-                    };
+                    KeyCode::Up | KeyCode::Char('k') => {
+                       
+                        let step: usize = {
+                            
+                            let min_i = 1;
+                            let target = self.focused_row - 1;
+                            let next_row = &self.strategy_rows[target];
 
-                    self.focused_row -= step;
-                }, 
-                
-                KeyCode::Down | KeyCode::Char('j') => {
-                    
-                    let max_i = self.strategy_rows.len() - 1;
-                    let target = self.focused_row + 1;
-                    
-                    if target < max_i {
-                    
-                        let next_row = &self.strategy_rows[target];
-
-                        let step = match next_row {
-                            FormRow::SectionDivider(_) => {
-                                2 
-                            },
-                            FormRow::InputRow(_) => {
-                                1
+                            match next_row {
+                                FormRow::SectionDivider(_) => {
+                                    if target > min_i { 2 }
+                                    else { 0 }  // We're at the top
+                                },
+                                FormRow::InputRow(_) => 1
                             }
                         };
 
-                        self.focused_row += step;
+                        self.focused_row -= step;
+                    }, 
                     
-                    };
-                },
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        
+                        let max_i = self.strategy_rows.len() - 1;
+                        let target = self.focused_row + 1;
+                        
+                        if target < max_i {
+                        
+                            let next_row = &self.strategy_rows[target];
 
-                KeyCode::Enter => {
+                            let step = match next_row {
+                                FormRow::SectionDivider(_) => {
+                                    2 
+                                },
+                                FormRow::InputRow(_) => {
+                                    1
+                                }
+                            };
 
-                    let active_row = &self.strategy_rows[self.focused_row];
+                            self.focused_row += step;
+                        
+                        };
+                    },
 
-                    if let FormRow::InputRow(row) = active_row {
-                        if let Some(ref mut strat) = self.new_strategy {
-                            strat.modify_from_form_field(row);
-                        }; 
+                    KeyCode::Enter => {
+
+                        let i = self.focused_row;
+                        let active_row = &self.strategy_rows[i];
+
+                        if let FormRow::InputRow(row) = active_row {
+
+                            if let Some(ref mut strat) = self.new_strategy {
+                                strat.modify_from_form_field(row);
+                            }; 
+                        }
                     }
+
+                    _ => {}
+                }
+            }
+            else if CreateMode::Input = mode {
+                
+                match key.code {
+
+                    KeyCode::Char(c) => {
+
+                        let i = self.focused_row;
+                        let active_row = &self.strategy_rows[i];
+
+                        if let FormRow::InputRow(row) = active_row {
+                            row.value; 
+                        }
+                    }
+
                 }
 
-                _ => {}
             }
         }
         
