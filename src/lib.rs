@@ -45,6 +45,19 @@ pub async fn app_start() -> i32 {
 
     let mut exit_code: i32 = 0;
 
+    match SystemPaths::new() {
+        Ok(s) => {
+            if let Err(_) = first_time_setup(&s) {
+                exit_code = 2;
+                return exit_code
+            };  
+        },
+        Err(_) => {
+            exit_code = 2;
+            return exit_code 
+        }
+    };
+    
     let mut engine: Engine = match initialize_app_engine().await {
         Ok(s) => s,
         Err(e) => {
@@ -52,11 +65,6 @@ pub async fn app_start() -> i32 {
             exit_code = 2;
             return exit_code
         }
-    };
-
-    if let Err(_) = first_time_setup(&engine.state.paths) {
-        exit_code = 2;
-        return exit_code
     };
 
     if engine.args.dev_mode {
@@ -105,10 +113,12 @@ pub async fn app_start() -> i32 {
 
         // Start the TUI if 'start' was passed without a flag.
         else if let Server::TUI = engine.op_mode {
+            
             let mut tui = TerminalInterface::new(engine).await;
             if let Err(_) = tui.run().await {
                 exit_code = 6;
             };
+        
         };
 
     };

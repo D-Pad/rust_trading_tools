@@ -192,7 +192,10 @@ pub fn save_config(config: &AppConfig, paths: &SystemPaths)
 
     match fs::write(&path, json) {
         Ok(_) => Ok(()),
-        Err(_) => Err(ConfigError::SaveStateFailed)
+        Err(_) => {
+            eprintln!("Failed to save config file: {:?}", path); 
+            Err(ConfigError::SaveStateFailed)
+        }
     }
 }
 

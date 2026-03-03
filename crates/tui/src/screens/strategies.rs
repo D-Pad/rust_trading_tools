@@ -26,27 +26,19 @@ use ratatui::{
 
 use crate::{
     AppEvent, 
-    FormField,
     FieldKind,
     FormRow, 
     OutputMsg, 
     move_down, 
     move_up, 
     strategy_form::{
-        MovingAverageKeys, 
         StrategyConstructor, 
         StrategyKeys
     }
 };
 use string_helpers::multi_line_to_single_line;
 use strategies::{
-    StrategyInputs,
-    load_strategy_template,
-    export_strategy_template,
     fetch_available_templates,
-    indicators::{
-        IndicatorTypes,
-    },
 };
 
 
@@ -387,7 +379,7 @@ impl StrategyScreen {
                     _ => {}
                 }
             }
-            else if CreateMode::Input = mode {
+            else if let CreateMode::Input = mode {
                 
                 match key.code {
 
@@ -397,9 +389,11 @@ impl StrategyScreen {
                         let active_row = &self.strategy_rows[i];
 
                         if let FormRow::InputRow(row) = active_row {
-                            row.value; 
+                            // row.value; 
                         }
-                    }
+                    },
+
+                    _ => {}
 
                 }
 
