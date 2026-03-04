@@ -173,12 +173,12 @@ impl StrategyScreen {
             &mut self.top_state
         );
         
-        let mut width = nested_chunks[0].width;
+        let width = nested_chunks[0].width;
         let blank_vec = Vec::new();
 
         self.btm_item_data = match self.action {
                            
-            StrategyAction::ModifyExisting => { 
+            StrategyAction::ModifyExisting => {
                 blank_vec 
             },
           
@@ -222,7 +222,7 @@ impl StrategyScreen {
             if let Some(strat) = &self.new_strategy {
 
                 self.strategy_rows = strat.get_form_rows();
-                
+
                 let block = Block::default()
                     .title("New Strategy Creation")
                     .borders(Borders::ALL);
@@ -344,8 +344,8 @@ impl StrategyScreen {
                         
                         let max_i = self.strategy_rows.len() - 1;
                         let target = self.focused_row + 1;
-                        
-                        if target < max_i {
+
+                        if target <= max_i {
                         
                             let next_row = &self.strategy_rows[target];
 
@@ -367,7 +367,7 @@ impl StrategyScreen {
 
                         let i = self.focused_row;
                         let active_row = &self.strategy_rows[i];
-
+                        
                         if let FormRow::InputRow(row) = active_row {
 
                             if let Some(ref mut strat) = self.new_strategy {
