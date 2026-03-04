@@ -371,7 +371,7 @@ impl StrategyScreen {
                         if let FormRow::InputRow(row) = active_row {
 
                             if let Some(ref mut strat) = self.new_strategy {
-                                strat.modify_from_form_field(row);
+                                let _ = strat.modify_from_form_field(row);
                             }; 
                         }
                     }

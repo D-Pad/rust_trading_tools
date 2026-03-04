@@ -44,7 +44,10 @@ impl StrategyConstructor {
             FormRow::InputRow(FormField {
                 label: "Enabled".to_string(),
                 kind: FieldKind::Bool,
-                value: "false".to_string(),
+                value: match &self.strategy.inputs.moving_average.is_some() {
+                    true => "true".to_string(),
+                    false => "false".to_string()
+                },
                 key: StrategyKeys::MovingAverage(MovingAverageKeys::Enabled)
             })
         );
@@ -77,8 +80,8 @@ impl StrategyConstructor {
 
     }
  
-    pub fn modify_from_form_field(&mut self, field: &FormField<StrategyKeys>) 
-        -> Result<(), ConstructorError> {
+    pub fn modify_from_form_field(&mut self, field: &FormField<StrategyKeys>
+    ) -> Result<(), ConstructorError> {
 
         let inputs = &mut self.strategy.inputs;
 
