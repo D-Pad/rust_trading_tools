@@ -70,7 +70,16 @@ impl StrategyConstructor {
             
             match ma {
                 MaInputs::SMA(inputs) => {
-                    inputs;
+                    rows.push(
+                        FormRow::InputRow(FormField {
+                            label: "Period".to_string(),
+                            kind: FieldKind::Integer, 
+                            value: format!("{}", inputs.period),
+                            key: StrategyKeys::MovingAverage(
+                                MovingAverageKeys::Period
+                            )
+                        })
+                    );
                 },
                 _ => {}
             }
