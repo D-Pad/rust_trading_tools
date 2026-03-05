@@ -20,22 +20,7 @@ use dotenvy;
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: &Engine) { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
-   
-    let mut strat = Strategy::new("Test Strat".to_string());
-    let comp = StrategyComponentType::MA;
-    strat.inputs.add_new_default_component(comp);
-    
-    // export_strategy_template(strat); 
-    // if let Ok(s) = load_strategy_template("test_strat") {
-    //     println!("{}", s)
-    // };
-
-    let template_names = if let Ok(files) = fetch_available_templates() {
-        files
-    }
-    else {
-        Vec::new() 
-    };
+    println!("{}", engine.args);
 }
 
 

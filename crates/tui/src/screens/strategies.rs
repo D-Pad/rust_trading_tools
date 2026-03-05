@@ -25,13 +25,7 @@ use ratatui::{
 };
 
 use crate::{
-    AppEvent, 
-    FieldKind,
-    FormRow, 
-    OutputMsg, 
-    move_down, 
-    move_up, 
-    strategy_form::{
+    AppEvent, FieldKind, FormField, FormRow, OutputMsg, move_down, move_up, strategy_form::{
         StrategyConstructor, 
         StrategyKeys
     }
@@ -101,6 +95,7 @@ pub struct StrategyScreen {
 
     focused_row: usize,
     strategy_rows: Vec<FormRow<StrategyKeys>>,
+    previous_input_val: String,
 }
 
 impl StrategyScreen {
@@ -122,6 +117,7 @@ impl StrategyScreen {
             new_strategy: None,
             focused_row: 1,
             strategy_rows: Vec::new(),
+            previous_input_val: String::new(),
         } 
     }
 
@@ -369,16 +365,18 @@ impl StrategyScreen {
                         let active_row = &self.strategy_rows[i];
                         
                         if let FormRow::InputRow(row) = active_row {
-
                             if let Some(ref mut strat) = self.new_strategy {
                                 let _ = strat.modify_from_form_field(row);
-                            }; 
+                            };
                         }
                     }
 
                     _ => {}
                 }
             }
+            
+            // If we're in "create mode" and also trying to 
+            // modify an input value
             else if let CreateMode::Input = mode {
                 
                 match key.code {
