@@ -450,6 +450,12 @@ impl StrategyScreen {
                         }
                     },
 
+                    KeyCode::Esc => {
+                        self.action = StrategyAction::CreateNew(
+                            CreateMode::Move
+                        );
+                    },
+
                     _ => {}
 
                 }
