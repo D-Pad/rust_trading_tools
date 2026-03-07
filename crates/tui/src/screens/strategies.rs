@@ -504,10 +504,16 @@ impl StrategyScreen {
                                         );
                                     },
                                     Err(_) => {
-                                        let err_msg = format!(
+                                        
+                                        let mut err_msg = format!(
                                             "ERROR: Invalid input value: {}",
                                             row.value
                                         );
+
+                                        err_msg.push_str(&format!(
+                                            " | Expected: {}",
+                                            row.kind.to_str()
+                                        ));
 
                                         let _ = self.msg_sender.send(
                                             AppEvent::Output(

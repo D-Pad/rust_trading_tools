@@ -121,19 +121,6 @@ impl<K> FormField<K> {
         } 
     }
 
-    fn toggle_bool(&mut self) {
-        if let FieldKind::Bool = &self.kind {
-            if &self.value == "true" {
-                println!("TO FALSE");
-                self.value = "false".to_string();
-            }
-            else {
-                println!("TO TRUE");
-                self.value = "true".to_string();
-            }
-        }
-    }
-
 }
 
 pub enum FormRow<K> {
@@ -182,6 +169,18 @@ impl FieldKind {
             }
         }
     
+    }
+
+    fn to_str(&self) -> &'static str {
+        match self {
+
+            FieldKind::Bool => "boolean",
+            FieldKind::Integer => "u16",
+            FieldKind::Float => "f32",
+            FieldKind::Select(_) => "",
+            FieldKind::TimeFrame => "String"
+
+        }
     }
 
 }
