@@ -1,4 +1,4 @@
-use std::fmt::{self, Formatter, Display};
+use std::{fmt::{self, Display, Formatter}};
 
 use tokio::{
     sync::{
@@ -25,7 +25,13 @@ use ratatui::{
 };
 
 use crate::{
-    AppEvent, FieldKind, FormField, FormRow, OutputMsg, move_down, move_up, strategy_form::{
+    AppEvent, 
+    FieldKind, 
+    FormRow, 
+    OutputMsg, 
+    move_down, 
+    move_up, 
+    strategy_form::{
         StrategyConstructor, 
         StrategyKeys
     }
@@ -83,6 +89,8 @@ impl Display for StrategyAction {
 }
 
 
+/// # Strategy Creation Screen
+/// This screen is for creating and modifying trading strategies via the TUI
 pub struct StrategyScreen {
     pub msg_sender: UnboundedSender<AppEvent>,
     top_state: ListState,
@@ -213,85 +221,91 @@ impl StrategyScreen {
             _ => { blank_vec }
         };
 
-        if let StrategyAction::CreateNew(_) = self.action {
+        if let StrategyAction::CreateNew(mode) = self.action {
 
-            if let Some(strat) = &self.new_strategy {
+            if let CreateMode::Move = mode {
+                if let Some(strat) = &self.new_strategy {
 
-                self.strategy_rows = strat.get_form_rows();
+                    self.strategy_rows = strat.get_form_rows();
 
-                let block = Block::default()
-                    .title("New Strategy Creation")
-                    .borders(Borders::ALL);
+                    let block = Block::default()
+                        .title("New Strategy Creation")
+                        .borders(Borders::ALL);
 
-                frame.render_widget(block.clone(), nested_chunks[1]);
+                    frame.render_widget(block.clone(), nested_chunks[1]);
 
-                let inner = block.inner(nested_chunks[1]);
+                    let inner = block.inner(nested_chunks[1]);
 
-                let form_rows = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints(&self.strategy_rows
-                        .iter()
-                        .map(|_| Constraint::Length(1))
-                        .collect::<Vec<Constraint>>()
-                    )
-                    .split(inner);
+                    let form_rows = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints(&self.strategy_rows
+                            .iter()
+                            .map(|_| Constraint::Length(1))
+                            .collect::<Vec<Constraint>>()
+                        )
+                        .split(inner);
 
-                for (i, r) in self.strategy_rows.iter().enumerate() {
-                   
-                    match r {
+                    for (i, r) in self.strategy_rows.iter().enumerate() {
+                       
+                        match r {
 
-                        FormRow::SectionDivider(div) => {
-                           
-                            frame.render_widget(
-                                Paragraph::new(
-                                    format!("[{div}]"))
-                                    .style(Style::default().red()),
-                                form_rows[i] 
-                            );
-                        },
+                            FormRow::SectionDivider(div) => {
+                               
+                                frame.render_widget(
+                                    Paragraph::new(
+                                        format!("[{div}]"))
+                                        .style(Style::default().red()),
+                                    form_rows[i] 
+                                );
+                            },
 
-                        FormRow::InputRow(row) => {
-                            let cols = Layout::default()
-                                .direction(Direction::Horizontal)
-                                .constraints([
-                                    Constraint::Percentage(50),
-                                    Constraint::Percentage(50),
-                                ])
-                                .split(form_rows[i]);
+                            FormRow::InputRow(row) => {
+                                let cols = Layout::default()
+                                    .direction(Direction::Horizontal)
+                                    .constraints([
+                                        Constraint::Percentage(50),
+                                        Constraint::Percentage(50),
+                                    ])
+                                    .split(form_rows[i]);
 
-                            let mut text = Paragraph::new(
-                                format!("  {}", row.label));
-                            
-                            if i == self.focused_row {
-                                text = text.style(Style::default()
-                                    .yellow()
-                                    .underlined());     
-                            };
+                                let mut text = Paragraph::new(
+                                    format!("  {}", row.label));
+                                
+                                if i == self.focused_row {
+                                    text = text.style(Style::default()
+                                        .yellow()
+                                        .underlined());     
+                                };
 
-                            frame.render_widget(
-                                text, 
-                                cols[0]
-                            );
+                                frame.render_widget(
+                                    text, 
+                                    cols[0]
+                                );
 
-                            let input = Paragraph::new(
-                                if let FieldKind::Select(
-                                    ref select
-                                ) = row.kind {
-                                    select.options[select.selected].to_string() 
-                                }
-                                else {
-                                    row.value.clone()
-                                }
-                            );
-                            frame.render_widget(input, cols[1]);
+                                let input = Paragraph::new(
+                                    if let FieldKind::Select(
+                                        ref select
+                                    ) = row.kind {
+                                        select.options[select.selected]
+                                            .to_string() 
+                                    }
+                                    else {
+                                        row.value.clone()
+                                    }
+                                );
+                                frame.render_widget(input, cols[1]);
+                            }
+                        
                         }
-                    
+
                     }
 
                 }
-
             }
+            else if let CreateMode::Input = mode {
+ub_checks()
 
+            } 
         }
         else {
             
