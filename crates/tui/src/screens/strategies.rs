@@ -477,19 +477,53 @@ impl StrategyScreen {
                             row.value = self.previous_input_val.clone(); 
                         }
 
+                        let _ = self.msg_sender.send(
+                            AppEvent::Clear
+                        );
+
                     },
 
                     KeyCode::Enter => {
-                        self.action = StrategyAction::CreateNew(
-                            CreateMode::Move
-                        );
                         
                         if let FormRow::InputRow(row) = active_row {
+                            
                             row.value = self.user_input_buffer.clone(); 
+                            
                             if let Some(ref mut strat) = self.new_strategy {
-                                let _ = strat.modify_from_form_field(row);
-                            };
-                            self.user_input_buffer = String::new();
+                                
+                                let r = strat.modify_from_form_field(row);
+                                
+                                match r {
+                                    Ok(_) => {
+                                        self.user_input_buffer = String::new();
+                                        self.action = StrategyAction::CreateNew(
+                                            CreateMode::Move
+                                        );
+                                        let _ = self.msg_sender.send(
+                                            AppEvent::Clear
+                                        );
+                                    },
+                                    Err(_) => {
+                                        let err_msg = format!(
+                                            "ERROR: Invalid input value: {}",
+                                            row.value
+                                        );
+
+                                        let _ = self.msg_sender.send(
+                                            AppEvent::Output(
+                                                OutputMsg::new(
+                                                    err_msg,
+                                                    Color::Red,
+                                                    true,
+                                                    None,
+                                                    None,
+                                                    None
+                                                )
+                                            )
+                                        );
+                                    } 
+                                };
+                            };     
                         }
 
                     },
@@ -505,7 +539,6 @@ impl StrategyScreen {
                         else if l == 1 {
                             self.user_input_buffer = String::new();
                         } 
-
                     }
                     
                     _ => {}
