@@ -113,6 +113,7 @@ pub struct StrategyScreen {
 
     focused_row: usize,
     strategy_rows: Vec<FormRow<StrategyKeys>>,
+    user_input_buffer: String,
     previous_input_val: String,
 }
 
@@ -135,6 +136,7 @@ impl StrategyScreen {
             new_strategy: None,
             focused_row: 1,
             strategy_rows: Vec::new(),
+            user_input_buffer: String::new(),
             previous_input_val: String::new(),
         } 
     }
@@ -297,7 +299,15 @@ impl StrategyScreen {
                                 text = text.style(Style::default()
                                     .yellow()
                                     .underlined());
-                                
+                              
+                                if let StrategyAction::CreateNew(
+                                    CreateMode::Input
+                                ) = self.action {
+                                    input = Paragraph::new(
+                                        self.user_input_buffer.clone()
+                                    );
+                                };
+
                                 input = input.style(
                                     match mode {
                                         CreateMode::Move => {
@@ -410,21 +420,27 @@ impl StrategyScreen {
                             };
                             
                             match row.kind {
+                                
                                 FieldKind::Float |
                                 FieldKind::Integer => {
 
                                     self.action = StrategyAction::CreateNew(
-                                        CreateMode::Input
-                                    );
+                                        CreateMode::Input);
                                     
                                     self.previous_input_val = row
                                         .value
                                         .clone();
 
+                                    self.user_input_buffer = row
+                                        .value
+                                        .clone();
+
                                 },
+                                
                                 FieldKind::Select(ref opts) => {
                                     println!("OPTS: {:?}", opts.options);
                                 },
+                                
                                 _ => {}
                             }
                         } 
@@ -437,25 +453,61 @@ impl StrategyScreen {
             // If we're in "create mode" and also trying to 
             // modify an input value
             else if let CreateMode::Input = mode {
-               
+
+                let i = self.focused_row;
+                let active_row = &mut self.strategy_rows[i];
+
                 match key.code {
 
                     KeyCode::Char(c) => {
 
-                        let i = self.focused_row;
-                        let active_row = &self.strategy_rows[i];
-
-                        if let FormRow::InputRow(row) = active_row {
-                            // row.value; 
+                        if let FormRow::InputRow(_) = active_row {
+                            self.user_input_buffer.push_str(&c.to_string());  
                         }
+
                     },
 
                     KeyCode::Esc => {
+                        
                         self.action = StrategyAction::CreateNew(
                             CreateMode::Move
                         );
+
+                        if let FormRow::InputRow(row) = active_row {
+                            row.value = self.previous_input_val.clone(); 
+                        }
+
                     },
 
+                    KeyCode::Enter => {
+                        self.action = StrategyAction::CreateNew(
+                            CreateMode::Move
+                        );
+                        
+                        if let FormRow::InputRow(row) = active_row {
+                            row.value = self.user_input_buffer.clone(); 
+                            if let Some(ref mut strat) = self.new_strategy {
+                                let _ = strat.modify_from_form_field(row);
+                            };
+                            self.user_input_buffer = String::new();
+                        }
+
+                    },
+
+                    KeyCode::Backspace => {
+
+                        let l = self.user_input_buffer.len();
+                        
+                        if l > 1 {
+                            self.user_input_buffer = self
+                                .user_input_buffer[..l - 1].to_string(); 
+                        }
+                        else if l == 1 {
+                            self.user_input_buffer = String::new();
+                        } 
+
+                    }
+                    
                     _ => {}
 
                 }
