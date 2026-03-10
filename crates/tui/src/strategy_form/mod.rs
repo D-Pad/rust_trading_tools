@@ -36,6 +36,21 @@ impl StrategyConstructor {
 
         let mut rows: Vec<FormRow<StrategyKeys>> = Vec::new();
 
+        // ---------------------- General Section ---------------------- //
+        rows.push(FormRow::SectionDivider(
+            "General".to_string()
+        ));
+
+        rows.push(FormRow::InputRow(
+            FormField { 
+                label: "Strategy Name".to_string(), 
+                kind: FieldKind::Text, 
+                value: String::new(), 
+                key: StrategyKeys::General(GeneralSettings::Name) 
+            }
+        ));
+
+        // ----------------------- Moving Average --------------------- //
         rows.push(FormRow::SectionDivider(
             "Moving Average".to_string()
         ));
@@ -145,7 +160,12 @@ impl StrategyConstructor {
 
 // ---------------- STRATEGY FORM INPUT STRUCTS AND ENUMS ------------------ //
 pub enum StrategyKeys {
-    MovingAverage(MovingAverageKeys)
+    General(GeneralSettings),
+    MovingAverage(MovingAverageKeys),
+}
+
+pub enum GeneralSettings {
+    Name
 }
 
 pub enum MovingAverageKeys {
