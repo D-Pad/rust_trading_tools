@@ -414,7 +414,8 @@ impl StrategyScreen {
                             match row.kind {
                                 
                                 FieldKind::Float |
-                                FieldKind::Integer => {
+                                FieldKind::Integer |
+                                FieldKind::Text => {
 
                                     self.action = StrategyAction::NewMod(
                                         CreateMode::Input);

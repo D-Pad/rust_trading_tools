@@ -45,7 +45,7 @@ impl StrategyConstructor {
             FormField { 
                 label: "Strategy Name".to_string(), 
                 kind: FieldKind::Text, 
-                value: String::new(), 
+                value: self.strategy.name.clone(), 
                 key: StrategyKeys::General(GeneralSettings::Name) 
             }
         ));
@@ -147,7 +147,19 @@ impl StrategyConstructor {
                     MovingAverageKeys::Power => {},
 
                 };
-            }, 
+            },
+
+            StrategyKeys::General(gen_settings) => {
+                
+                match gen_settings {
+                    
+                    GeneralSettings::Name => {
+                        self.strategy.name = field.value.clone();
+                    }
+                
+                }
+            
+            }
         };
 
         Ok(())
