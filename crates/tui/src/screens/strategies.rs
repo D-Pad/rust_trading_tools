@@ -52,11 +52,9 @@ use strategies::{
 };
 
 
-const INFO_STRINGS: [&'static str; 3] = [
+const INFO_STRINGS: [&'static str; 2] = [
     r#"Create a new strategy by choosing indicator components and entry 
     conditions."#,
-    
-    r#"Modify the input values of an existing strategy."#,
 
     r#"Remove any existing strategy templates. This action cannot be undone"#
 ];
@@ -75,8 +73,7 @@ enum CreateMode {
 
 #[derive(Clone)]
 enum StrategyAction {
-    CreateNew(CreateMode),
-    ModifyExisting,
+    NewMod(CreateMode),  // Create new or modify existing
     Delete,
     None,
 }
@@ -84,8 +81,7 @@ enum StrategyAction {
 impl StrategyAction {
     fn to_title(&self) -> &'static str {
         match self {
-            StrategyAction::CreateNew(_) => "Create New",
-            StrategyAction::ModifyExisting => "Modify Existing",
+            StrategyAction::NewMod(_) => "Create/Modify",
             StrategyAction::Delete => "Delete Existing",
             StrategyAction::None => ""
         }
@@ -194,10 +190,6 @@ impl StrategyScreen {
 
         self.btm_item_data = match self.action {
                            
-            StrategyAction::ModifyExisting => {
-                blank_vec 
-            },
-          
             StrategyAction::Delete => {
                 match fetch_available_templates() {
                     Ok(t) => t,
@@ -233,7 +225,7 @@ impl StrategyScreen {
             _ => { blank_vec }
         };
 
-        if let StrategyAction::CreateNew(ref mode) = self.action {
+        if let StrategyAction::NewMod(ref mode) = self.action {
 
             if let Some(strat) = &self.new_strategy {
 
@@ -300,7 +292,7 @@ impl StrategyScreen {
                                     .yellow()
                                     .underlined());
                               
-                                if let StrategyAction::CreateNew(
+                                if let StrategyAction::NewMod(
                                     CreateMode::Input
                                 ) = self.action {
                                     input = Paragraph::new(
@@ -359,7 +351,7 @@ impl StrategyScreen {
 
         let top_len = Self::SCREEN_OPTIONS.len().saturating_sub(1);
 
-        if let StrategyAction::CreateNew(ref mode) = self.action {
+        if let StrategyAction::NewMod(ref mode) = self.action {
 
             if let CreateMode::Move = mode {
 
@@ -424,7 +416,7 @@ impl StrategyScreen {
                                 FieldKind::Float |
                                 FieldKind::Integer => {
 
-                                    self.action = StrategyAction::CreateNew(
+                                    self.action = StrategyAction::NewMod(
                                         CreateMode::Input);
                                     
                                     self.previous_input_val = row
@@ -469,7 +461,7 @@ impl StrategyScreen {
 
                     KeyCode::Esc => {
                         
-                        self.action = StrategyAction::CreateNew(
+                        self.action = StrategyAction::NewMod(
                             CreateMode::Move
                         );
 
@@ -496,7 +488,7 @@ impl StrategyScreen {
                                 match r {
                                     Ok(_) => {
                                         self.user_input_buffer = String::new();
-                                        self.action = StrategyAction::CreateNew(
+                                        self.action = StrategyAction::NewMod(
                                             CreateMode::Move
                                         );
                                         let _ = self.msg_sender.send(
@@ -615,7 +607,6 @@ impl StrategyScreen {
                                 
                                 }, 
                                 Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
-                                Some(2) => Self::SCREEN_OPTIONS[2].clone(),
                                 None | _ => StrategyAction::None,
                             
                             };
@@ -644,9 +635,8 @@ impl StrategyScreen {
 
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 
-    const SCREEN_OPTIONS: [StrategyAction; 3] = [
-        StrategyAction::CreateNew(CreateMode::Move),
-        StrategyAction::ModifyExisting,
+    const SCREEN_OPTIONS: [StrategyAction; 2] = [
+        StrategyAction::NewMod(CreateMode::Move),
         StrategyAction::Delete,
     ];
 

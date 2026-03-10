@@ -116,7 +116,7 @@ impl<K> FormField<K> {
             FieldKind::Integer => self.value.parse::<u64>().is_ok(),
             FieldKind::Float => self.value.parse::<f64>().is_ok(), 
             FieldKind::Select(_) => true, 
-            // FieldKind::Text => true,
+            FieldKind::Text => true,
             FieldKind::TimeFrame => period_is_valid(&self.value),
         } 
     }
@@ -139,7 +139,7 @@ pub enum FieldKind {
     Integer,
     Float,
     Select(SelectOption),
-    // Text,
+    Text,
     TimeFrame,
 }
 
@@ -178,6 +178,7 @@ impl FieldKind {
             FieldKind::Integer => "u16",
             FieldKind::Float => "f32",
             FieldKind::Select(_) => "",
+            FieldKind::Text => "String", 
             FieldKind::TimeFrame => "String"
 
         }
@@ -192,7 +193,7 @@ impl Display for FieldKind {
             FieldKind::Integer => write!(f, "Integer"),
             FieldKind::Float => write!(f, "Float"),
             FieldKind::Select { .. } => write!(f, "Vec<String>"),
-            // FieldKind::Text => write!(f, "Text"),
+            FieldKind::Text => write!(f, "String"),
             FieldKind::TimeFrame => write!(f, "TimeFrame"),
         } 
     }

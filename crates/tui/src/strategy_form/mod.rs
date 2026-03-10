@@ -89,7 +89,9 @@ impl StrategyConstructor {
 
     }
  
-    pub fn modify_from_form_field(&mut self, field: &FormField<StrategyKeys>
+    pub fn modify_from_form_field(
+        &mut self, 
+        field: &FormField<StrategyKeys>
     ) -> Result<(), ConstructorError> {
 
         let inputs = &mut self.strategy.inputs;
