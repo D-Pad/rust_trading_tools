@@ -513,7 +513,7 @@ impl StrategyScreen {
                     },
 
                     KeyCode::Enter => {
-                        
+
                         if let FormRow::InputRow(row) = active_row {
                             
                             row.value = self.user_input_buffer.clone(); 
@@ -656,6 +656,23 @@ impl StrategyScreen {
                         }
 
                     };
+                   
+                    let files = match fetch_available_templates()
+                    {
+                        Ok(d) => d,
+                        Err(_) => return
+                    };
+                    let _ = self.msg_sender.send(AppEvent::Output(
+                        OutputMsg::new(
+                            format!("{:?}", files),
+                            Color::Red,
+                            false,
+                            None,
+                            None,
+                            None
+                        )
+                    ));
+
 
                 }
 
