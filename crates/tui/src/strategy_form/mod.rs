@@ -15,6 +15,7 @@ pub enum ConstructorError {
     ParseError(StringParseError)
 }
 
+
 pub enum StringParseError {
     U16,
 }
@@ -187,6 +188,5 @@ pub enum MovingAverageKeys {
     Phase,
     Power,
 }
-
 
 

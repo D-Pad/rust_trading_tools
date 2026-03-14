@@ -52,9 +52,11 @@ use strategies::{
 };
 
 
-const INFO_STRINGS: [&'static str; 2] = [
+const INFO_STRINGS: [&'static str; 3] = [
     r#"Create a new strategy by choosing indicator components and entry 
     conditions."#,
+
+    r#"Modify the input values of an existing strategy."#,
 
     r#"Remove any existing strategy templates. This action cannot be undone"#
 ];
@@ -66,14 +68,15 @@ pub enum StrategyFocus {
 }
 
 #[derive(Clone)]
-enum CreateMode {
+enum EditMode {
     Move,
     Input,
 }
 
 #[derive(Clone)]
 enum StrategyAction {
-    NewMod(CreateMode),  // Create new or modify existing
+    Create(EditMode),  // Create new or modify existing
+    Modify(EditMode), 
     Delete,
     None,
 }
@@ -81,7 +84,8 @@ enum StrategyAction {
 impl StrategyAction {
     fn to_title(&self) -> &'static str {
         match self {
-            StrategyAction::NewMod(_) => "Create/Modify",
+            StrategyAction::Create(_) => "Create New",
+            StrategyAction::Modify(_) => "Modify Existing",
             StrategyAction::Delete => "Delete Existing",
             StrategyAction::None => ""
         }
@@ -190,7 +194,9 @@ impl StrategyScreen {
 
         self.btm_item_data = match self.action {
                            
-            StrategyAction::Delete => {
+            StrategyAction::Delete |
+            
+            StrategyAction::Modify(_)=> {
                 match fetch_available_templates() {
                     Ok(t) => t,
                     Err(_) => {
@@ -225,7 +231,7 @@ impl StrategyScreen {
             _ => { blank_vec }
         };
 
-        if let StrategyAction::NewMod(ref mode) = self.action {
+        if let StrategyAction::Create(ref mode) = self.action {
 
             if let Some(strat) = &self.new_strategy {
 
@@ -292,8 +298,8 @@ impl StrategyScreen {
                                     .yellow()
                                     .underlined());
                               
-                                if let StrategyAction::NewMod(
-                                    CreateMode::Input
+                                if let StrategyAction::Create(
+                                    EditMode::Input
                                 ) = self.action {
                                     input = Paragraph::new(
                                         self.user_input_buffer.clone()
@@ -302,19 +308,19 @@ impl StrategyScreen {
 
                                 input = input.style(
                                     match mode {
-                                        CreateMode::Move => {
+                                        EditMode::Move => {
                                             Style::default()
                                                 .green()
                                                 .underlined()
                                         },
-                                        CreateMode::Input => {
+                                        EditMode::Input => {
                                             Style::default()
                                                 .add_modifier(
                                                     Modifier::REVERSED
                                                 )
                                                 .green()
 
-                                        }
+                                        },
                                     } 
                                 );
                             
@@ -351,9 +357,9 @@ impl StrategyScreen {
 
         let top_len = Self::SCREEN_OPTIONS.len().saturating_sub(1);
 
-        if let StrategyAction::NewMod(ref mode) = self.action {
+        if let StrategyAction::Create(ref mode) = self.action {
 
-            if let CreateMode::Move = mode {
+            if let EditMode::Move = mode {
 
                 match key.code {
 
@@ -417,8 +423,8 @@ impl StrategyScreen {
                                 FieldKind::Integer |
                                 FieldKind::Text => {
 
-                                    self.action = StrategyAction::NewMod(
-                                        CreateMode::Input);
+                                    self.action = StrategyAction::Create(
+                                        EditMode::Input);
                                     
                                     self.previous_input_val = row
                                         .value
@@ -439,13 +445,43 @@ impl StrategyScreen {
                         } 
                     }
 
+                    KeyCode::Esc => {
+
+                        if let Some(ref strat) = self.new_strategy {
+                           
+                            let mut msg = String::new();
+                            let mut col = Color::Green;
+
+                            if let Ok(_) = strat.strategy.export() {
+                                msg.push_str("Strategy template saved.");
+                            }
+                            else {
+                                msg.push_str("Failed to save template");
+                                col = Color::Red;
+                            }
+
+                            let _ = self.msg_sender.send(AppEvent::Output(
+                                OutputMsg::new( 
+                                    msg, 
+                                    col, 
+                                    false, 
+                                    None, 
+                                    None, 
+                                    None 
+                                )
+                            ));
+
+                        }; 
+
+                    }
+
                     _ => {}
                 }
             }
             
             // If we're in "create mode" and also trying to 
             // modify an input value
-            else if let CreateMode::Input = mode {
+            else if let EditMode::Input = mode {
 
                 let i = self.focused_row;
                 let active_row = &mut self.strategy_rows[i];
@@ -462,8 +498,8 @@ impl StrategyScreen {
 
                     KeyCode::Esc => {
                         
-                        self.action = StrategyAction::NewMod(
-                            CreateMode::Move
+                        self.action = StrategyAction::Create(
+                            EditMode::Move
                         );
 
                         if let FormRow::InputRow(row) = active_row {
@@ -489,8 +525,8 @@ impl StrategyScreen {
                                 match r {
                                     Ok(_) => {
                                         self.user_input_buffer = String::new();
-                                        self.action = StrategyAction::NewMod(
-                                            CreateMode::Move
+                                        self.action = StrategyAction::Create(
+                                            EditMode::Move
                                         );
                                         let _ = self.msg_sender.send(
                                             AppEvent::Clear
@@ -624,9 +660,7 @@ impl StrategyScreen {
                 }
 
                 KeyCode::Esc => {
-                    
                     self.focus = StrategyFocus::Top;
-
                 }
 
                 _ => {}
@@ -636,8 +670,9 @@ impl StrategyScreen {
 
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 
-    const SCREEN_OPTIONS: [StrategyAction; 2] = [
-        StrategyAction::NewMod(CreateMode::Move),
+    const SCREEN_OPTIONS: [StrategyAction; 3] = [
+        StrategyAction::Create(EditMode::Move),
+        StrategyAction::Modify(EditMode::Move),
         StrategyAction::Delete,
     ];
 

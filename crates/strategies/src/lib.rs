@@ -45,6 +45,10 @@ impl Strategy {
         }
     }
 
+    pub fn export(&self) -> Result<(), StrategyError> {
+        export_strategy_template(self) 
+    }
+
 }
 
 
@@ -170,7 +174,7 @@ pub fn fetch_available_templates()
     Ok(files)
 }
 
-pub fn export_strategy_template(strategy: Strategy) 
+pub fn export_strategy_template(strategy: &Strategy) 
     -> Result<(), StrategyError> {
 
     let sys_paths: SystemPaths = SystemPaths::new()
