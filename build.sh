@@ -2,5 +2,5 @@
 
 
 cd src 
-cargo run main.rs --dev 
+cargo run main.rs start 
 

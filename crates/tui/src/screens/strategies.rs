@@ -115,6 +115,8 @@ pub struct StrategyScreen {
     strategy_rows: Vec<FormRow<StrategyKeys>>,
     user_input_buffer: String,
     previous_input_val: String,
+    
+    confirming: bool,
 }
 
 impl StrategyScreen {
@@ -138,6 +140,7 @@ impl StrategyScreen {
             strategy_rows: Vec::new(),
             user_input_buffer: String::new(),
             previous_input_val: String::new(),
+            confirming: false,
         } 
     }
 
@@ -196,9 +199,11 @@ impl StrategyScreen {
                            
             StrategyAction::Delete |
             
-            StrategyAction::Modify(_)=> {
+            StrategyAction::Modify(_) => {
                 match fetch_available_templates() {
-                    Ok(t) => t,
+                    Ok(t) => {
+                        t
+                    },
                     Err(_) => {
                         let _ = self.msg_sender.send(AppEvent::Output(
                             OutputMsg::new(
@@ -225,7 +230,9 @@ impl StrategyScreen {
                         ),
                     ])
                 }
-                else { blank_vec }
+                else { 
+                    blank_vec
+                }
             },
 
             _ => { blank_vec }
@@ -342,7 +349,34 @@ impl StrategyScreen {
         }
         else {
             
-            let btm_list: List = Self::get_btm_item_rows(&self.btm_item_data);
+            let btm_list: List = Self::get_btm_item_rows(&self.btm_item_data)
+                .block(
+                    Block::default()
+                        .title(Self::SCREEN_NAME)
+                        .borders(Borders::ALL)
+                )
+                .highlight_style(
+                    
+                    match self.focus {
+                        
+                        StrategyFocus::Bottom => {
+                            
+                            let style = Style::default()
+                                .add_modifier(Modifier::REVERSED);
+                            
+                            if self.confirming {
+                                style.yellow()
+                            }
+                            else {
+                                style.green() 
+                            }
+                        
+                        },
+                        
+                        _ => Style::default()
+                    }
+                );
+ 
 
             frame.render_stateful_widget(
                 btm_list,
@@ -584,7 +618,7 @@ impl StrategyScreen {
         }
         
         else {
-            
+                                 
             match key.code {
             
                 KeyCode::Up | KeyCode::Char('k') => {
@@ -622,7 +656,7 @@ impl StrategyScreen {
                             1
                         )
                     }
-                }
+                },
 
                 KeyCode::Enter => {
 
@@ -633,17 +667,25 @@ impl StrategyScreen {
                             self.focus = StrategyFocus::Bottom;
                             
                             self.action = match &self.top_state.selected() {
-                                
+                               
+                                // Create mode
                                 Some(0) => {
 
-                                    let mut strat = Some(
+                                    let strat = Some(
                                         StrategyConstructor::new()
                                     );
                                     self.new_strategy = strat;
                                     Self::SCREEN_OPTIONS[0].clone()
                                 
-                                }, 
+                                },
+
+                                // Modify mode 
                                 Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
+                                
+                                // Delete mode
+                                Some(2) => Self::SCREEN_OPTIONS[2].clone(), 
+                                
+                                // For making the compiler happy
                                 None | _ => StrategyAction::None,
                             
                             };
@@ -657,24 +699,7 @@ impl StrategyScreen {
 
                     };
                    
-                    let files = match fetch_available_templates()
-                    {
-                        Ok(d) => d,
-                        Err(_) => return
-                    };
-                    let _ = self.msg_sender.send(AppEvent::Output(
-                        OutputMsg::new(
-                            format!("{:?}", files),
-                            Color::Red,
-                            false,
-                            None,
-                            None,
-                            None
-                        )
-                    ));
-
-
-                }
+                },
 
                 KeyCode::Esc => {
                     self.focus = StrategyFocus::Top;
