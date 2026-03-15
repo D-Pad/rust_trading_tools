@@ -13,7 +13,8 @@ use serde::{Serialize, Deserialize};
 pub enum StrategyError {
     MaInput(MaError),
     FileNotFound,
-    ExportFailed,
+    DeleteFailed,
+    ExportFailed(&'static str),
     ImportFailed,
     LookupFailed,
 }
@@ -178,7 +179,9 @@ pub fn export_strategy_template(strategy: &Strategy)
     -> Result<(), StrategyError> {
 
     let sys_paths: SystemPaths = SystemPaths::new()
-        .map_err(|_| StrategyError::ExportFailed)?;
+        .map_err(|_| StrategyError::ExportFailed(
+            "Failed to initialize system paths"
+        ))?;
 
     let mut file_name: String = strategy.name.replace(" ", "_").to_lowercase();
     let num_chars: usize = file_name.len();  
@@ -191,15 +194,26 @@ pub fn export_strategy_template(strategy: &Strategy)
     let file_path = sys_paths.strategy_templates.join(file_name);
 
     if let Ok(o) = serde_json::to_string_pretty(&strategy.inputs) {
-        
-        fs::write(file_path, o)
-            .map_err(|_| StrategyError::ExportFailed)?;
-        
-        Ok(())
+       
+        if !file_path.exists() {
+            fs::write(file_path, o)
+                .map_err(|_| StrategyError::ExportFailed(
+                    "Failed to export strategy template"
+                ))?;
+            
+            Ok(())
+        }
+        else {
+            Err(StrategyError::ExportFailed(
+                "Strategy template already exists. Try a different name"
+            ))
+        }
 
     }
     else {
-        Err(StrategyError::ExportFailed)
+        Err(StrategyError::ExportFailed(
+            "Failed to convert strategy template to json format"
+        ))
     }
 
 }
@@ -233,5 +247,29 @@ pub fn load_strategy_template (strategy_name: &str)
     else {
         Err(StrategyError::FileNotFound)
     }
+}
+
+
+pub fn delete_strategy(strategy_name: &str) 
+    -> Result<(), StrategyError> {
+
+    let sys_paths: SystemPaths = SystemPaths::new()
+        .map_err(|_| StrategyError::ImportFailed)?;
+
+    let mut file_name = strategy_name.to_lowercase();
+    if !file_name.contains(".json") {
+        file_name.push_str(".json");
+    }; 
+
+    let expected_path: PathBuf = sys_paths.strategy_templates.join(file_name);
+    if expected_path.exists() {
+        fs::remove_file(expected_path)
+            .map_err(|_| StrategyError::DeleteFailed)?;
+        Ok(())
+    }
+    else {
+        Err(StrategyError::DeleteFailed)
+    }
+
 }
 

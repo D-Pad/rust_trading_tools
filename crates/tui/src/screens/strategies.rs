@@ -49,6 +49,8 @@ use crate::{
 use string_helpers::multi_line_to_single_line;
 use strategies::{
     fetch_available_templates,
+    delete_strategy,
+    StrategyError
 };
 
 
@@ -117,6 +119,8 @@ pub struct StrategyScreen {
     previous_input_val: String,
     
     confirming: bool,
+    width: u16,
+    existing_strategies: Vec<String>
 }
 
 impl StrategyScreen {
@@ -128,7 +132,7 @@ impl StrategyScreen {
         let mut top_state = ListState::default();
         top_state.select(Some(0));
 
-        StrategyScreen {
+        let mut screen = StrategyScreen {
             msg_sender,
             top_state,
             btm_state: ListState::default(),
@@ -141,7 +145,13 @@ impl StrategyScreen {
             user_input_buffer: String::new(),
             previous_input_val: String::new(),
             confirming: false,
-        } 
+            width: 30,
+            existing_strategies: Vec::new()
+        };
+
+        screen.set_btm_item_data();
+        screen.set_strategy_template_names();
+        screen
     }
 
     pub fn get_btm_item_rows(data: &[String]) -> List {
@@ -191,52 +201,13 @@ impl StrategyScreen {
             nested_chunks[0],
             &mut self.top_state
         );
-        
-        let width = nested_chunks[0].width;
-        let blank_vec = Vec::new();
-
-        self.btm_item_data = match self.action {
-                           
-            StrategyAction::Delete |
-            
-            StrategyAction::Modify(_) => {
-                match fetch_available_templates() {
-                    Ok(t) => {
-                        t
-                    },
-                    Err(_) => {
-                        let _ = self.msg_sender.send(AppEvent::Output(
-                            OutputMsg::new(
-                                "Failed to fetch existing templates"
-                                    .to_string(),
-                                Color::Red,
-                                true,
-                                None,
-                                None,
-                                None,
-                            )
-                        ));
-                        blank_vec 
-                    }
-                }
-            },
-
-            StrategyAction::None => {
-                if let Some(i) = self.top_state.selected() {
-                    Vec::from([
-                        multi_line_to_single_line(
-                            INFO_STRINGS[i], 
-                            width
-                        ),
-                    ])
-                }
-                else { 
-                    blank_vec
-                }
-            },
-
-            _ => { blank_vec }
+      
+        let width: u16 = nested_chunks[0].width;
+        if width != self.width {
+            self.width = width;
         };
+        
+        self.set_btm_item_data(); 
 
         if let StrategyAction::Create(ref mode) = self.action {
 
@@ -486,12 +457,19 @@ impl StrategyScreen {
                             let mut msg = String::new();
                             let mut col = Color::Green;
 
-                            if let Ok(_) = strat.strategy.export() {
-                                msg.push_str("Strategy template saved.");
-                            }
-                            else {
-                                msg.push_str("Failed to save template");
-                                col = Color::Red;
+                            match strat.strategy.export() {
+                                Ok(_) => {
+                                    msg.push_str("Strategy template saved.");
+                                    self.focus = StrategyFocus::Top;
+                                    self.action = StrategyAction::None;
+                                },
+                                Err(f) => {
+                                    msg.push_str("Failed to save template");
+                                    if let StrategyError::ExportFailed(e) = f { 
+                                        msg.push_str(&format!(": {}", e));
+                                    }
+                                    col = Color::Red;
+                                }
                             }
 
                             let _ = self.msg_sender.send(AppEvent::Output(
@@ -603,7 +581,7 @@ impl StrategyScreen {
                         
                         if l > 1 {
                             self.user_input_buffer = self
-                                .user_input_buffer[..l - 1].to_string(); 
+                                .user_input_buffer[..l - 1].to_string();
                         }
                         else if l == 1 {
                             self.user_input_buffer = String::new();
@@ -615,6 +593,7 @@ impl StrategyScreen {
                 }
 
             }
+            
         }
         
         else {
@@ -683,7 +662,32 @@ impl StrategyScreen {
                                 Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
                                 
                                 // Delete mode
-                                Some(2) => Self::SCREEN_OPTIONS[2].clone(), 
+                                Some(2) => {
+
+                                    if self.existing_strategies.len() == 0 {
+
+                                        self.focus = StrategyFocus::Top;
+                                        
+                                        let msg = AppEvent::Output(
+                                            OutputMsg::new(
+                                                String::from(
+                                                    "No strategies exist yet"
+                                                ),
+                                                Color::Red,
+                                                true,
+                                                None,
+                                                None,
+                                                None
+                                            )
+                                        );
+                                        
+                                        let _ = self.msg_sender.send(msg);
+                                        StrategyAction::None 
+                                    }
+                                    else {
+                                        Self::SCREEN_OPTIONS[2].clone()
+                                    }
+                                }, 
                                 
                                 // For making the compiler happy
                                 None | _ => StrategyAction::None,
@@ -694,7 +698,48 @@ impl StrategyScreen {
                         },
 
                         StrategyFocus::Bottom => {
+        
+                            let strat_name: String;
+                            if let Some(i) = self.btm_state.selected() {
+                                strat_name = self.btm_item_data[i].clone();
+                            }
+                            else { return }
                             
+                            match self.action {
+
+                                StrategyAction::Delete => {
+
+                                    if !self.confirming {
+                                        self.confirming = true;
+                                        let _ = self.msg_sender.send(
+                                            AppEvent::Output(
+                                                OutputMsg::new(
+                                                    format!(
+                                                        "Delete {}? (y/n)",
+                                                        strat_name 
+                                                    ),
+                                                    Color::Yellow,
+                                                    false,
+                                                    None,
+                                                    None,
+                                                    None,
+                                                )
+                                            )
+                                        );
+                                    };
+
+                                },
+
+                                StrategyAction::Modify(_) => {
+
+                                    
+
+                                }
+
+                                _ => {}
+
+                            }
+
                         }
 
                     };
@@ -705,9 +750,128 @@ impl StrategyScreen {
                     self.focus = StrategyFocus::Top;
                 }
 
-                _ => {}
+                KeyCode::Char('y') => {
+
+                    if self.confirming {
+
+                        let strat_name: String;
+                        if let Some(i) = self.btm_state.selected() {
+                            strat_name = self.btm_item_data[i].clone();
+                        }
+                        else { return }
+
+                        let col: Color;
+                        let msg = match delete_strategy(
+                            &strat_name
+                        )
+                        {
+                            Ok(_) => {
+                                col = Color::Green;
+                                format!(
+                                    "Deleted {}", 
+                                    strat_name
+                                )
+                            },
+                            Err(_) => {
+                                col = Color::Red;
+                                format!(
+                                    "Failed to delete {}", 
+                                    strat_name
+                                )
+                            }
+
+                        };
+                        
+                        let _ = self.msg_sender.send(
+                            AppEvent::Output(
+                                OutputMsg::new(
+                                    msg,
+                                    col,
+                                    true,
+                                    None,
+                                    None,
+                                    None,
+                                )
+                            )
+                        );
+
+                        self.confirming = false;
+                        self.set_strategy_template_names();
+                        if self.existing_strategies.len() == 0 {
+                            self.focus = StrategyFocus::Top;
+                        }
+                    }
+                }
+
+                _ => {
+                    self.confirming = false;
+                    let _ = self.msg_sender.send(AppEvent::Clear);
+                }
             }
         }
+    }
+
+    fn set_btm_item_data(&mut self) {
+
+        let blank_vec = Vec::new();
+
+        self.btm_item_data = match self.action {
+                           
+            StrategyAction::Delete |
+            
+            StrategyAction::Modify(_) => {
+                self.set_strategy_template_names();
+                if self.existing_strategies.len() > 0 { 
+                    self.existing_strategies.clone()
+                }
+                else {
+                    blank_vec
+                }
+            },
+
+            StrategyAction::None => {
+                if let Some(i) = self.top_state.selected() {
+                    Vec::from([
+                        multi_line_to_single_line(
+                            INFO_STRINGS[i], 
+                            self.width
+                        ),
+                    ])
+                }
+                else { 
+                    blank_vec
+                }
+            },
+
+            _ => { blank_vec }
+        };
+
+    }
+
+    fn set_strategy_template_names(&mut self) {
+
+        let blank_vec = Vec::new();
+
+        self.existing_strategies = match fetch_available_templates() {
+            Ok(t) => {
+                t
+            },
+            Err(_) => {
+                let _ = self.msg_sender.send(AppEvent::Output(
+                    OutputMsg::new(
+                        "Failed to fetch existing templates"
+                            .to_string(),
+                        Color::Red,
+                        true,
+                        None,
+                        None,
+                        None,
+                    )
+                ));
+                blank_vec 
+            }
+        }
+
     }
 
     pub const SCREEN_NAME: &'static str = "Strategy Manager";

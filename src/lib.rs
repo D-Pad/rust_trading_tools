@@ -21,29 +21,11 @@ use dotenvy;
 async fn dev_testing(engine: &Engine) { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
     println!("{}", engine.args);
-    
-    let sys_paths: SystemPaths = match SystemPaths::new() {
-        Ok(d) => d,
-        Err(_) => return ()
+
+    match delete_strategy("scratch") {
+        Ok(_) => println!("Deleted scratch"),
+        Err(_) => println!("Failed")
     };
-
-    let files = fs::read_dir(sys_paths.strategy_templates);
-    if let Ok(d) = files {
-        let f_names: Vec<String> = d.filter_map(|res| res.ok())
-            .filter_map(|e| {
-                e.path()
-                    .file_stem()?
-                    .to_str()?
-                    .to_owned()
-                    .into()
-            })
-            .collect();
-        
-        println!("{:?}", f_names); 
-    }; 
-    
-
-
 }
 
 
