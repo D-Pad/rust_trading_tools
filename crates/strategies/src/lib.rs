@@ -185,7 +185,13 @@ pub fn export_strategy_template(strategy: &Strategy)
 
     let mut file_name: String = strategy.name.replace(" ", "_").to_lowercase();
     let num_chars: usize = file_name.len();  
-   
+ 
+    if file_name == "" {
+        return Err(StrategyError::ExportFailed(
+            "Strategy name not provided"
+        ))
+    }
+
     if num_chars <= 5 || 
         (num_chars > 5 && &file_name[&num_chars - 5..] != ".json") 
     {

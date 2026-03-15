@@ -103,6 +103,12 @@ impl Display for StrategyAction {
 
 /// # Strategy Creation Screen
 /// This screen is for creating and modifying trading strategies via the TUI
+enum Confirm {
+    None,
+    Deleting,
+    AbortCreation,
+}
+
 pub struct StrategyScreen {
     pub msg_sender: UnboundedSender<AppEvent>,
     top_state: ListState,
@@ -118,7 +124,7 @@ pub struct StrategyScreen {
     user_input_buffer: String,
     previous_input_val: String,
     
-    confirming: bool,
+    confirming: Confirm,
     width: u16,
     existing_strategies: Vec<String>
 }
@@ -144,7 +150,7 @@ impl StrategyScreen {
             strategy_rows: Vec::new(),
             user_input_buffer: String::new(),
             previous_input_val: String::new(),
-            confirming: false,
+            confirming: Confirm::None,
             width: 30,
             existing_strategies: Vec::new()
         };
@@ -335,7 +341,7 @@ impl StrategyScreen {
                             let style = Style::default()
                                 .add_modifier(Modifier::REVERSED);
                             
-                            if self.confirming {
+                            if let Confirm::Deleting = self.confirming {
                                 style.yellow()
                             }
                             else {
@@ -442,6 +448,7 @@ impl StrategyScreen {
                                 },
                                 
                                 FieldKind::Select(ref opts) => {
+                                    // FIXME: Load options as selection 
                                     println!("OPTS: {:?}", opts.options);
                                 },
                                 
@@ -458,17 +465,50 @@ impl StrategyScreen {
                             let mut col = Color::Green;
 
                             match strat.strategy.export() {
+                                
                                 Ok(_) => {
                                     msg.push_str("Strategy template saved.");
                                     self.focus = StrategyFocus::Top;
                                     self.action = StrategyAction::None;
                                 },
+                                
                                 Err(f) => {
+                                   
+                                    if let Confirm::AbortCreation = 
+                                        self.confirming {
+                                        
+                                        self.focus = StrategyFocus::Top;
+                                        self.action = StrategyAction::None;
+                                        
+                                        let _ = self.msg_sender.send(
+                                            AppEvent::Clear);
+                                        
+                                        let _ = self.msg_sender.send(
+                                            AppEvent::Output(
+                                            OutputMsg::new(
+                                                format!(
+                                                    "Strategy creation aborted"
+                                                ),
+                                                Color::Yellow,
+                                                true,
+                                                None,
+                                                None,
+                                                None
+                                            )
+                                        ));
+                                        self.confirming = Confirm::None;
+                                        return 
+                                    };
+
                                     msg.push_str("Failed to save template");
                                     if let StrategyError::ExportFailed(e) = f { 
                                         msg.push_str(&format!(": {}", e));
                                     }
+                                    msg.push_str(
+                                        ". Press 'Esc' again to abort creation"
+                                    );
                                     col = Color::Red;
+                                    self.confirming = Confirm::AbortCreation;
                                 }
                             }
 
@@ -664,6 +704,7 @@ impl StrategyScreen {
                                 // Delete mode
                                 Some(2) => {
 
+                                    self.set_strategy_template_names();
                                     if self.existing_strategies.len() == 0 {
 
                                         self.focus = StrategyFocus::Top;
@@ -709,8 +750,8 @@ impl StrategyScreen {
 
                                 StrategyAction::Delete => {
 
-                                    if !self.confirming {
-                                        self.confirming = true;
+                                    if let Confirm::None = self.confirming {
+                                        self.confirming = Confirm::Deleting;
                                         let _ = self.msg_sender.send(
                                             AppEvent::Output(
                                                 OutputMsg::new(
@@ -752,7 +793,7 @@ impl StrategyScreen {
 
                 KeyCode::Char('y') => {
 
-                    if self.confirming {
+                    if let Confirm::Deleting = self.confirming {
 
                         let strat_name: String;
                         if let Some(i) = self.btm_state.selected() {
@@ -767,6 +808,7 @@ impl StrategyScreen {
                         {
                             Ok(_) => {
                                 col = Color::Green;
+                                let _ = self.msg_sender.send(AppEvent::Clear);
                                 format!(
                                     "Deleted {}", 
                                     strat_name
@@ -795,7 +837,7 @@ impl StrategyScreen {
                             )
                         );
 
-                        self.confirming = false;
+                        self.confirming = Confirm::None;
                         self.set_strategy_template_names();
                         if self.existing_strategies.len() == 0 {
                             self.focus = StrategyFocus::Top;
@@ -804,7 +846,7 @@ impl StrategyScreen {
                 }
 
                 _ => {
-                    self.confirming = false;
+                    self.confirming = Confirm::None;
                     let _ = self.msg_sender.send(AppEvent::Clear);
                 }
             }
