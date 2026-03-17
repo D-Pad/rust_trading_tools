@@ -243,7 +243,6 @@ impl StrategyScreen {
                     match r {
 
                         FormRow::SectionDivider(div) => {
-                           
                             frame.render_widget(
                                 Paragraph::new(
                                     format!("[{div}]"))
@@ -364,492 +363,518 @@ impl StrategyScreen {
         }
     }
 
-    pub async fn handle_key(&mut self, key: KeyEvent) {
-
+    pub async fn handle_other(&mut self, key: KeyEvent) {
+        
         let top_len = Self::SCREEN_OPTIONS.len().saturating_sub(1);
-
-        if let StrategyAction::Create(ref mode) = self.action {
-
-            if let EditMode::Move = mode {
-
-                match key.code {
-
-                    KeyCode::Up | KeyCode::Char('k') => {
-                       
-                        let step: usize = {
-                            
-                            let min_i = 1;
-                            let target = self.focused_row - 1;
-                            let next_row = &self.strategy_rows[target];
-
-                            match next_row {
-                                FormRow::SectionDivider(_) => {
-                                    if target > min_i { 2 }
-                                    else { 0 }  // We're at the top
-                                },
-                                FormRow::InputRow(_) => 1
-                            }
-                        };
-
-                        self.focused_row -= step;
-                    }, 
-                    
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        
-                        let max_i = self.strategy_rows.len() - 1;
-                        let target = self.focused_row + 1;
-
-                        if target <= max_i {
-                        
-                            let next_row = &self.strategy_rows[target];
-
-                            let step = match next_row {
-                                FormRow::SectionDivider(_) => {
-                                    2 
-                                },
-                                FormRow::InputRow(_) => {
-                                    1
-                                }
-                            };
-
-                            self.focused_row += step;
-                        
-                        };
-                    },
-
-                    KeyCode::Enter => {
-
-                        let i = self.focused_row;
-                        let active_row = &self.strategy_rows[i];
-                        
-                        if let FormRow::InputRow(row) = active_row {
-                            
-                            if let Some(ref mut strat) = self.new_strategy {
-                                let _ = strat.modify_from_form_field(row);
-                            };
-                            
-                            match row.kind {
-                                
-                                FieldKind::Float |
-                                FieldKind::Integer |
-                                FieldKind::Text => {
-
-                                    self.action = StrategyAction::Create(
-                                        EditMode::Input);
-                                    
-                                    self.previous_input_val = row
-                                        .value
-                                        .clone();
-
-                                    self.user_input_buffer = row
-                                        .value
-                                        .clone();
-
-                                },
-                                
-                                FieldKind::Select(ref opts) => {
-                                    // FIXME: Load options as selection 
-                                    println!("OPTS: {:?}", opts.options);
-                                },
-                                
-                                _ => {}
-                            }
-                        } 
-                    }
-
-                    KeyCode::Esc => {
-
-                        if let Some(ref strat) = self.new_strategy {
-                           
-                            let mut msg = String::new();
-                            let mut col = Color::Green;
-
-                            match strat.strategy.export() {
-                                
-                                Ok(_) => {
-                                    msg.push_str("Strategy template saved.");
-                                    self.focus = StrategyFocus::Top;
-                                    self.action = StrategyAction::None;
-                                },
-                                
-                                Err(f) => {
-                                   
-                                    if let Confirm::AbortCreation = 
-                                        self.confirming {
-                                        
-                                        self.focus = StrategyFocus::Top;
-                                        self.action = StrategyAction::None;
-                                        
-                                        let _ = self.msg_sender.send(
-                                            AppEvent::Clear);
-                                        
-                                        let _ = self.msg_sender.send(
-                                            AppEvent::Output(
-                                            OutputMsg::new(
-                                                format!(
-                                                    "Strategy creation aborted"
-                                                ),
-                                                Color::Yellow,
-                                                true,
-                                                None,
-                                                None,
-                                                None
-                                            )
-                                        ));
-                                        self.confirming = Confirm::None;
-                                        return 
-                                    };
-
-                                    msg.push_str("Failed to save template");
-                                    if let StrategyError::ExportFailed(e) = f { 
-                                        msg.push_str(&format!(": {}", e));
-                                    }
-                                    msg.push_str(
-                                        ". Press 'Esc' again to abort creation"
-                                    );
-                                    col = Color::Red;
-                                    self.confirming = Confirm::AbortCreation;
-                                }
-                            }
-
-                            let _ = self.msg_sender.send(AppEvent::Output(
-                                OutputMsg::new( 
-                                    msg, 
-                                    col, 
-                                    false, 
-                                    None, 
-                                    None, 
-                                    None 
-                                )
-                            ));
-
-                        }; 
-
-                    }
-
-                    _ => {}
-                }
-            }
-            
-            // If we're in "create mode" and also trying to 
-            // modify an input value
-            else if let EditMode::Input = mode {
-
-                let i = self.focused_row;
-                let active_row = &mut self.strategy_rows[i];
-
-                match key.code {
-
-                    KeyCode::Char(c) => {
-
-                        if let FormRow::InputRow(_) = active_row {
-                            self.user_input_buffer.push_str(&c.to_string());  
-                        }
-
-                    },
-
-                    KeyCode::Esc => {
-                        
-                        self.action = StrategyAction::Create(
-                            EditMode::Move
-                        );
-
-                        if let FormRow::InputRow(row) = active_row {
-                            row.value = self.previous_input_val.clone(); 
-                        }
-
-                        let _ = self.msg_sender.send(
-                            AppEvent::Clear
-                        );
-
-                    },
-
-                    KeyCode::Enter => {
-
-                        if let FormRow::InputRow(row) = active_row {
-                            
-                            row.value = self.user_input_buffer.clone(); 
-                            
-                            if let Some(ref mut strat) = self.new_strategy {
-                                
-                                let r = strat.modify_from_form_field(row);
-                                
-                                match r {
-                                    Ok(_) => {
-                                        self.user_input_buffer = String::new();
-                                        self.action = StrategyAction::Create(
-                                            EditMode::Move
-                                        );
-                                        let _ = self.msg_sender.send(
-                                            AppEvent::Clear
-                                        );
-                                    },
-                                    Err(_) => {
-                                        
-                                        let mut err_msg = format!(
-                                            "ERROR: Invalid input value: {}",
-                                            row.value
-                                        );
-
-                                        err_msg.push_str(&format!(
-                                            " | Expected: {}",
-                                            row.kind.to_str()
-                                        ));
-
-                                        let _ = self.msg_sender.send(
-                                            AppEvent::Output(
-                                                OutputMsg::new(
-                                                    err_msg,
-                                                    Color::Red,
-                                                    true,
-                                                    None,
-                                                    None,
-                                                    None
-                                                )
-                                            )
-                                        );
-                                    } 
-                                };
-                            };     
-                        }
-
-                    },
-
-                    KeyCode::Backspace => {
-
-                        let l = self.user_input_buffer.len();
-                        
-                        if l > 1 {
-                            self.user_input_buffer = self
-                                .user_input_buffer[..l - 1].to_string();
-                        }
-                        else if l == 1 {
-                            self.user_input_buffer = String::new();
-                        } 
-                    }
-                    
-                    _ => {}
-
-                }
-
-            }
-            
-        }
         
-        else {
-                                 
-            match key.code {
-            
-                KeyCode::Up | KeyCode::Char('k') => {
-                    
-                    match &self.focus {
-
-                        StrategyFocus::Top => move_up(
-                            &mut self.top_state, 
-                            top_len, 
-                            1
-                        ),
-                        
-                        StrategyFocus::Bottom => move_up(
-                            &mut self.btm_state, 
-                            self.btm_item_data.len(),
-                            1
-                        ),
-                    
-                    }
-                },
-
-                KeyCode::Down | KeyCode::Char('j') => {
+        match key.code {
+        
+            KeyCode::Up | KeyCode::Char('k') => {
                 
-                    match &self.focus {
+                match &self.focus {
 
-                        StrategyFocus::Top => move_down(
-                            &mut self.top_state, 
-                            top_len, 
-                            1
-                        ),
-                        
-                        StrategyFocus::Bottom => move_down(
-                            &mut self.btm_state, 
-                            self.btm_item_data.len(),
-                            1
-                        )
-                    }
-                },
-
-                KeyCode::Enter => {
-
-                    match &self.focus {
-
-                        StrategyFocus::Top => {
-                            
-                            self.focus = StrategyFocus::Bottom;
-                            
-                            self.action = match &self.top_state.selected() {
-                               
-                                // Create mode
-                                Some(0) => {
-
-                                    let strat = Some(
-                                        StrategyConstructor::new()
-                                    );
-                                    self.new_strategy = strat;
-                                    Self::SCREEN_OPTIONS[0].clone()
-                                
-                                },
-
-                                // Modify mode 
-                                Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
-                                
-                                // Delete mode
-                                Some(2) => {
-
-                                    self.set_strategy_template_names();
-                                    if self.existing_strategies.len() == 0 {
-
-                                        self.focus = StrategyFocus::Top;
-                                        
-                                        let msg = AppEvent::Output(
-                                            OutputMsg::new(
-                                                String::from(
-                                                    "No strategies exist yet"
-                                                ),
-                                                Color::Red,
-                                                true,
-                                                None,
-                                                None,
-                                                None
-                                            )
-                                        );
-                                        
-                                        let _ = self.msg_sender.send(msg);
-                                        StrategyAction::None 
-                                    }
-                                    else {
-                                        Self::SCREEN_OPTIONS[2].clone()
-                                    }
-                                }, 
-                                
-                                // For making the compiler happy
-                                None | _ => StrategyAction::None,
-                            
-                            };
-
-                            self.btm_state.select(Some(0));
-                        },
-
-                        StrategyFocus::Bottom => {
-        
-                            let strat_name: String;
-                            if let Some(i) = self.btm_state.selected() {
-                                strat_name = self.btm_item_data[i].clone();
-                            }
-                            else { return }
-                            
-                            match self.action {
-
-                                StrategyAction::Delete => {
-
-                                    if let Confirm::None = self.confirming {
-                                        self.confirming = Confirm::Deleting;
-                                        let _ = self.msg_sender.send(
-                                            AppEvent::Output(
-                                                OutputMsg::new(
-                                                    format!(
-                                                        "Delete {}? (y/n)",
-                                                        strat_name 
-                                                    ),
-                                                    Color::Yellow,
-                                                    false,
-                                                    None,
-                                                    None,
-                                                    None,
-                                                )
-                                            )
-                                        );
-                                    };
-
-                                },
-
-                                StrategyAction::Modify(_) => {
-
-                                    
-
-                                }
-
-                                _ => {}
-
-                            }
-
-                        }
-
-                    };
-                   
-                },
-
-                KeyCode::Esc => {
-                    self.focus = StrategyFocus::Top;
+                    StrategyFocus::Top => move_up(
+                        &mut self.top_state, 
+                        top_len, 
+                        1
+                    ),
+                    
+                    StrategyFocus::Bottom => move_up(
+                        &mut self.btm_state, 
+                        self.btm_item_data.len(),
+                        1
+                    ),
+                
                 }
+            },
 
-                KeyCode::Char('y') => {
+            KeyCode::Down | KeyCode::Char('j') => {
+            
+                match &self.focus {
 
-                    if let Confirm::Deleting = self.confirming {
+                    StrategyFocus::Top => move_down(
+                        &mut self.top_state, 
+                        top_len, 
+                        1
+                    ),
+                    
+                    StrategyFocus::Bottom => move_down(
+                        &mut self.btm_state, 
+                        self.btm_item_data.len(),
+                        1
+                    )
+                }
+            },
 
+            KeyCode::Enter => {
+
+                match &self.focus {
+
+                    StrategyFocus::Top => {
+                        
+                        self.focus = StrategyFocus::Bottom;
+                        
+                        self.action = match &self.top_state.selected() {
+                           
+                            // Create mode
+                            Some(0) => {
+
+                                let strat = Some(
+                                    StrategyConstructor::new()
+                                );
+                                self.new_strategy = strat;
+                                Self::SCREEN_OPTIONS[0].clone()
+                            
+                            },
+
+                            // Modify mode 
+                            Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
+                            
+                            // Delete mode
+                            Some(2) => {
+
+                                self.set_strategy_template_names();
+                                if self.existing_strategies.len() == 0 {
+
+                                    self.focus = StrategyFocus::Top;
+                                    
+                                    let msg = AppEvent::Output(
+                                        OutputMsg::new(
+                                            String::from(
+                                                "No strategies exist yet"
+                                            ),
+                                            Color::Red,
+                                            true,
+                                            None,
+                                            None,
+                                            None
+                                        )
+                                    );
+                                    
+                                    let _ = self.msg_sender.send(msg);
+                                    StrategyAction::None 
+                                }
+                                else {
+                                    Self::SCREEN_OPTIONS[2].clone()
+                                }
+                            }, 
+                            
+                            // For making the compiler happy
+                            None | _ => StrategyAction::None,
+                        
+                        };
+
+                        self.btm_state.select(Some(0));
+                    },
+
+                    StrategyFocus::Bottom => {
+        
                         let strat_name: String;
                         if let Some(i) = self.btm_state.selected() {
                             strat_name = self.btm_item_data[i].clone();
                         }
                         else { return }
+                        
+                        match self.action {
 
-                        let col: Color;
-                        let msg = match delete_strategy(
-                            &strat_name
-                        )
-                        {
-                            Ok(_) => {
-                                col = Color::Green;
-                                let _ = self.msg_sender.send(AppEvent::Clear);
-                                format!(
-                                    "Deleted {}", 
-                                    strat_name
-                                )
+                            StrategyAction::Delete => {
+
+                                if let Confirm::None = self.confirming {
+                                    self.confirming = Confirm::Deleting;
+                                    let _ = self.msg_sender.send(
+                                        AppEvent::Output(
+                                            OutputMsg::new(
+                                                format!(
+                                                    "Delete {}? (y/n)",
+                                                    strat_name 
+                                                ),
+                                                Color::Yellow,
+                                                false,
+                                                None,
+                                                None,
+                                                None,
+                                            )
+                                        )
+                                    );
+                                };
+
                             },
-                            Err(_) => {
-                                col = Color::Red;
-                                format!(
-                                    "Failed to delete {}", 
-                                    strat_name
-                                )
+
+                            StrategyAction::Modify(_) => {
+
+                                 
+
                             }
 
-                        };
-                        
-                        let _ = self.msg_sender.send(
-                            AppEvent::Output(
-                                OutputMsg::new(
-                                    msg,
-                                    col,
-                                    true,
-                                    None,
-                                    None,
-                                    None,
-                                )
-                            )
-                        );
+                            _ => {}
 
-                        self.confirming = Confirm::None;
-                        self.set_strategy_template_names();
-                        if self.existing_strategies.len() == 0 {
-                            self.focus = StrategyFocus::Top;
                         }
+
+                    }
+
+                };
+               
+            },
+
+            KeyCode::Esc => {
+                self.focus = StrategyFocus::Top;
+            }
+
+            KeyCode::Char('y') => {
+
+                if let Confirm::Deleting = self.confirming {
+
+                    let strat_name: String;
+                    if let Some(i) = self.btm_state.selected() {
+                        strat_name = self.btm_item_data[i].clone();
+                    }
+                    else { return }
+
+                    let col: Color;
+                    let msg = match delete_strategy(
+                        &strat_name
+                    )
+                    {
+                        Ok(_) => {
+                            col = Color::Green;
+                            let _ = self.msg_sender.send(
+                                AppEvent::Clear
+                            );
+                            format!(
+                                "Deleted {}", 
+                                strat_name
+                            )
+                        },
+                        Err(_) => {
+                            col = Color::Red;
+                            format!(
+                                "Failed to delete {}", 
+                                strat_name
+                            )
+                        }
+
+                    };
+                    
+                    let _ = self.msg_sender.send(
+                        AppEvent::Output(
+                            OutputMsg::new(
+                                msg,
+                                col,
+                                true,
+                                None,
+                                None,
+                                None,
+                            )
+                        )
+                    );
+
+                    self.confirming = Confirm::None;
+                    self.set_strategy_template_names();
+                    if self.existing_strategies.len() == 0 {
+                        self.focus = StrategyFocus::Top;
                     }
                 }
-
-                _ => {
-                    self.confirming = Confirm::None;
-                    let _ = self.msg_sender.send(AppEvent::Clear);
-                }
             }
+
+            _ => {
+                self.confirming = Confirm::None;
+                let _ = self.msg_sender.send(AppEvent::Clear);
+            }
+        }
+    }
+
+    pub async fn handle_edit_mode_input(&mut self, key: KeyEvent) {
+        
+        let i = self.focused_row;
+        let active_row = &mut self.strategy_rows[i];
+
+        match key.code {
+
+            KeyCode::Char(c) => {
+
+                if let FormRow::InputRow(_) = active_row {
+                    self.user_input_buffer.push_str(&c.to_string());  
+                }
+
+            },
+
+            KeyCode::Esc => {
+                
+                self.action = StrategyAction::Create(
+                    EditMode::Move
+                );
+
+                if let FormRow::InputRow(row) = active_row {
+                    row.value = self.previous_input_val.clone(); 
+                }
+
+                let _ = self.msg_sender.send(
+                    AppEvent::Clear
+                );
+
+            },
+
+            KeyCode::Enter => {
+
+                if let FormRow::InputRow(row) = active_row {
+                    
+                    row.value = self.user_input_buffer.clone(); 
+                    
+                    if let Some(ref mut strat) = self.new_strategy {
+                        
+                        let r = strat.modify_from_form_field(row);
+                        
+                        match r {
+                            Ok(_) => {
+                                self.user_input_buffer = String::new();
+                                self.action = StrategyAction::Create(
+                                    EditMode::Move
+                                );
+                                let _ = self.msg_sender.send(
+                                    AppEvent::Clear
+                                );
+                            },
+                            Err(_) => {
+                                
+                                let mut err_msg = format!(
+                                    "ERROR: Invalid input value: {}",
+                                    row.value
+                                );
+
+                                err_msg.push_str(&format!(
+                                    " | Expected: {}",
+                                    row.kind.to_str()
+                                ));
+
+                                let _ = self.msg_sender.send(
+                                    AppEvent::Output(
+                                        OutputMsg::new(
+                                            err_msg,
+                                            Color::Red,
+                                            true,
+                                            None,
+                                            None,
+                                            None
+                                        )
+                                    )
+                                );
+                            } 
+                        };
+                    };     
+                }
+
+            },
+
+            KeyCode::Backspace => {
+
+                let l = self.user_input_buffer.len();
+                
+                if l > 1 {
+                    self.user_input_buffer = self
+                        .user_input_buffer[..l - 1].to_string();
+                }
+                else if l == 1 {
+                    self.user_input_buffer = String::new();
+                } 
+            }
+            
+            _ => {}
+
+        }
+    }
+
+    pub async fn handle_edit_mode_move(&mut self, key: KeyEvent) {
+        
+        match key.code {
+
+            KeyCode::Up | KeyCode::Char('k') => {
+               
+                let step: usize = {
+                    
+                    let min_i = 1;
+                    let target = self.focused_row - 1;
+                    let next_row = &self.strategy_rows[target];
+
+                    match next_row {
+                        FormRow::SectionDivider(_) => {
+                            if target > min_i { 2 }
+                            else { 0 }  // We're at the top
+                        },
+                        FormRow::InputRow(_) => 1
+                    }
+                };
+
+                self.focused_row -= step;
+            }, 
+            
+            KeyCode::Down | KeyCode::Char('j') => {
+                
+                let max_i = self.strategy_rows.len() - 1;
+                let target = self.focused_row + 1;
+
+                if target <= max_i {
+                
+                    let next_row = &self.strategy_rows[target];
+
+                    let step = match next_row {
+                        FormRow::SectionDivider(_) => {
+                            2 
+                        },
+                        FormRow::InputRow(_) => {
+                            1
+                        }
+                    };
+
+                    self.focused_row += step;
+                
+                };
+            },
+
+            KeyCode::Enter => {
+
+                let i = self.focused_row;
+                let active_row = &self.strategy_rows[i];
+                
+                if let FormRow::InputRow(row) = active_row {
+                    
+                    if let Some(ref mut strat) = 
+                        self.new_strategy {
+                        let _ = strat.modify_from_form_field(
+                            row
+                        );
+                    };
+                    
+                    match row.kind {
+                        
+                        FieldKind::Float |
+                        FieldKind::Integer |
+                        FieldKind::Text => {
+
+                            self.action = StrategyAction::Create(
+                                EditMode::Input);
+                            
+                            self.previous_input_val = row
+                                .value
+                                .clone();
+
+                            self.user_input_buffer = row
+                                .value
+                                .clone();
+
+                        },
+                        
+                        FieldKind::Select(ref opts) => {
+                            println!("OPTS: {:?}", opts.options);
+                        },
+                        
+                        _ => {}
+                    }
+                } 
+            }
+
+            KeyCode::Esc => {
+
+                if let Some(ref strat) = self.new_strategy {
+                   
+                    let mut msg = String::new();
+                    let mut col = Color::Green;
+
+                    match strat.strategy.export() {
+                        
+                        Ok(_) => {
+                            msg.push_str(
+                                "Strategy template saved."
+                            );
+                            self.focus = StrategyFocus::Top;
+                            self.action = StrategyAction::None;
+                        },
+                        
+                        Err(f) => {
+                           
+                            
+                            if let Confirm::AbortCreation = 
+                                self.confirming {
+                                
+                                let abort_msg = 
+                                "Strategy creation aborted" 
+                                    .to_string();
+                                
+                                self.focus = StrategyFocus::Top;
+                                self.action = StrategyAction::None;
+                                
+                                let _ = self.msg_sender.send(
+                                    AppEvent::Clear);
+                                
+                                let _ = self.msg_sender.send(
+                                    AppEvent::Output(
+                                    OutputMsg::new(
+                                        abort_msg, 
+                                        Color::Yellow,
+                                        true,
+                                        None,
+                                        None,
+                                        None
+                                    )
+                                ));
+                                self.confirming = Confirm::None;
+                                return 
+                            };
+
+                            msg.push_str("Failed to save template");
+                            if let StrategyError::ExportFailed(e) = f { 
+                                msg.push_str(&format!(": {}", e));
+                            }
+                            msg.push_str(
+                                ". Press 'Esc' again to abort"
+                            );
+                            col = Color::Red;
+                            self.confirming = 
+                                Confirm::AbortCreation;
+                        }
+                    }
+
+                    let _ = self.msg_sender.send(AppEvent::Output(
+                        OutputMsg::new( 
+                            msg, 
+                            col, 
+                            false, 
+                            None, 
+                            None, 
+                            None 
+                        )
+                    ));
+
+                }; 
+
+            }
+
+            _ => {}
+        }
+    }
+
+    pub async fn handle_key(&mut self, key: KeyEvent) {
+
+        match self.action {
+
+            StrategyAction::Create(ref mode) | 
+            StrategyAction::Modify(ref mode) => {
+
+                match mode {
+                    EditMode::Move => {
+                        self.handle_edit_mode_move(key).await;
+                    },
+                    // If we're in "create mode" and also trying to 
+                    // modify an input value
+                    EditMode::Input => {
+                        self.handle_edit_mode_input(key).await;
+                    }
+                }
+                
+            },
+            StrategyAction::Delete |
+            StrategyAction::None => {
+                self.handle_other(key).await;
+            } 
         }
     }
 
