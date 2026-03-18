@@ -71,6 +71,7 @@ pub enum StrategyFocus {
 
 #[derive(Clone)]
 enum EditMode {
+    Select, 
     Move,
     Input,
 }
@@ -304,6 +305,9 @@ impl StrategyScreen {
                                                 .green()
 
                                         },
+                                        _ => {
+                                            Style::default()  // Not possible
+                                        }
                                     } 
                                 );
                             
@@ -411,7 +415,7 @@ impl StrategyScreen {
                 match &self.focus {
 
                     StrategyFocus::Top => {
-                        
+                       
                         self.focus = StrategyFocus::Bottom;
                         
                         self.action = match &self.top_state.selected() {
@@ -453,6 +457,7 @@ impl StrategyScreen {
                                     
                                     let _ = self.msg_sender.send(msg);
                                     StrategyAction::None 
+                                
                                 }
                                 else {
                                     Self::SCREEN_OPTIONS[2].clone()
@@ -860,13 +865,39 @@ impl StrategyScreen {
             StrategyAction::Modify(ref mode) => {
 
                 match mode {
+                    
                     EditMode::Move => {
                         self.handle_edit_mode_move(key).await;
                     },
+                    
                     // If we're in "create mode" and also trying to 
                     // modify an input value
                     EditMode::Input => {
                         self.handle_edit_mode_input(key).await;
+                    },
+                    
+                    EditMode::Select => {
+                        match key.code {
+
+                            KeyCode::Char('j') | KeyCode::Down => {
+
+                            },
+
+                            KeyCode::Char('k') | KeyCode::Up => {
+
+                            },
+
+                            KeyCode::Enter => {
+                            
+                            },
+
+                            KeyCode::Esc => {
+
+                            }
+
+                            _ => {}
+
+                        }    
                     }
                 }
                 
@@ -941,11 +972,26 @@ impl StrategyScreen {
 
     }
 
+    fn test_msg(&self, msg: &str) {
+
+        let _ = self.msg_sender.send(AppEvent::Output(
+            OutputMsg::new(
+                msg.to_string(),
+                Color::Red,
+                true,
+                Some(Color::Yellow),
+                None,
+                None
+            )
+        ));
+
+    }
+
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 
     const SCREEN_OPTIONS: [StrategyAction; 3] = [
         StrategyAction::Create(EditMode::Move),
-        StrategyAction::Modify(EditMode::Move),
+        StrategyAction::Modify(EditMode::Select),
         StrategyAction::Delete,
     ];
 
