@@ -18,6 +18,7 @@ pub enum ConstructorError {
 
 pub enum StringParseError {
     U16,
+    Bool,
 }
 
 
@@ -47,11 +48,23 @@ impl StrategyConstructor {
                 FormField { 
                     label: "Strategy Name".to_string(), 
                     kind: FieldKind::Text, 
-                    value: self.strategy.name.clone(), 
+                    value: self.strategy.general_settings.name.clone(), 
                     key: StrategyKeys::General(GeneralSettings::Name) 
                 }
             ));
         }
+
+        rows.push(FormRow::InputRow(
+            FormField { 
+                label: "Inside Bar Strategy".to_string(), 
+                kind: FieldKind::Bool, 
+                value: match &self.strategy.general_settings.inside_bar {
+                    true => "true".to_string(),
+                    false => "false".to_string()
+                }, 
+                key: StrategyKeys::General(GeneralSettings::InsideBar) 
+            }
+        ));
 
         // ----------------------- Moving Average --------------------- //
         rows.push(FormRow::SectionDivider(
@@ -157,7 +170,19 @@ impl StrategyConstructor {
                 match gen_settings {
                     
                     GeneralSettings::Name => {
-                        self.strategy.name = field.value.clone();
+                        self.strategy
+                            .general_settings
+                            .name = field.value.clone();
+                    },
+
+                    GeneralSettings::InsideBar => {
+                        let old: bool = field.value.parse::<bool>()
+                            .map_err(|_| ConstructorError::ParseError(
+                                StringParseError::Bool
+                            ))?;
+                        self.strategy
+                            .general_settings
+                            .inside_bar = !old;
                     }
                 
                 }
@@ -180,7 +205,8 @@ pub enum StrategyKeys {
 }
 
 pub enum GeneralSettings {
-    Name
+    Name,
+    InsideBar,
 }
 
 pub enum MovingAverageKeys {

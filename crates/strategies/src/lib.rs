@@ -27,7 +27,7 @@ pub enum StrategyError {
 /// calculations to determine entry and exit trading signals.
 #[derive(Serialize, Deserialize)]
 pub struct Strategy {
-    pub name: String,
+    pub general_settings: GeneralStrategySettings,
     pub inputs: StrategyInputs
 }
 
@@ -35,20 +35,20 @@ impl Strategy {
     
     pub fn new(name: String) -> Self {
         Self { 
-            name, 
+            general_settings: GeneralStrategySettings::new(name), 
             inputs: StrategyInputs::empty()
         }
     }
 
     pub fn empty() -> Self {
         Self { 
-            name: String::new(), 
+            general_settings: GeneralStrategySettings::new(String::new()), 
             inputs: StrategyInputs::empty()
         }
     }
 
-    pub fn export(&self) -> Result<(), StrategyError> {
-        export_strategy_template(self) 
+    pub fn export(&self, modifying: bool) -> Result<(), StrategyError> {
+        export_strategy_template(self, modifying) 
     }
 
 }
@@ -62,6 +62,26 @@ impl Strategy {
 /// a strategy.
 pub enum StrategyComponentType {
     MA,
+}
+
+
+#[derive(Serialize, Deserialize)]
+/// # General Strategy Settings
+///
+/// A struct for managing high level strategy input values, outside of normal
+/// indicator input values.
+pub struct GeneralStrategySettings {
+    pub name: String,
+    pub inside_bar: bool,
+}
+
+impl GeneralStrategySettings {
+    pub fn new(name: String) -> Self {
+        GeneralStrategySettings { 
+            name, 
+            inside_bar: true 
+        }
+    }
 }
 
 
@@ -176,7 +196,7 @@ pub fn fetch_available_templates()
     Ok(files)
 }
 
-pub fn export_strategy_template(strategy: &Strategy) 
+pub fn export_strategy_template(strategy: &Strategy, modifying: bool) 
     -> Result<(), StrategyError> {
 
     let sys_paths: SystemPaths = SystemPaths::new()
@@ -184,7 +204,12 @@ pub fn export_strategy_template(strategy: &Strategy)
             "Failed to initialize system paths"
         ))?;
 
-    let mut file_name: String = strategy.name.replace(" ", "_").to_lowercase();
+    let mut file_name: String = strategy
+        .general_settings
+        .name
+        .replace(" ", "_")
+        .to_lowercase();
+    
     let num_chars: usize = file_name.len();  
  
     if file_name == "" {
@@ -201,8 +226,10 @@ pub fn export_strategy_template(strategy: &Strategy)
     let file_path = sys_paths.strategy_templates.join(file_name);
 
     if let Ok(o) = serde_json::to_string_pretty(&strategy) {
-       
-        if !file_path.exists() {
+      
+        let exists: bool = file_path.exists();
+
+        if !exists || (exists && modifying) {
             fs::write(file_path, o)
                 .map_err(|_| StrategyError::ExportFailed(
                     "Failed to export strategy template"

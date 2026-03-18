@@ -218,51 +218,56 @@ impl StrategyScreen {
         
         self.set_btm_item_data(); 
 
-        if let StrategyAction::Create(_) = self.action {
-
-            self.render_template_rows(
-                frame, 
-                nested_chunks[1],
-            );
-
-        }
-        else {
+        match self.action { 
             
-            let btm_list: List = Self::get_btm_item_rows(&self.btm_item_data)
-                .block(
-                    Block::default()
-                        .title(Self::SCREEN_NAME)
-                        .borders(Borders::ALL)
-                )
-                .highlight_style(
-                    
-                    match self.focus {
-                        
-                        StrategyFocus::Bottom => {
-                            
-                            let style = Style::default()
-                                .add_modifier(Modifier::REVERSED);
-                            
-                            if let Confirm::Deleting = self.confirming {
-                                style.yellow()
-                            }
-                            else {
-                                style.green() 
-                            }
-                        
-                        },
-                        
-                        _ => Style::default()
-                    }
+            StrategyAction::Create(_) |
+            StrategyAction::Modify(EditMode::Move) |
+            StrategyAction::Modify(EditMode::Input) =>  {
+
+                self.render_template_rows(
+                    frame, 
+                    nested_chunks[1],
                 );
- 
 
-            frame.render_stateful_widget(
-                btm_list,
-                nested_chunks[1],
-                &mut self.btm_state
-            );
+            }
+           
+            _ => {
+                
+                let btm_list: List = Self::get_btm_item_rows(
+                    &self.btm_item_data)
+                    .block(
+                        Block::default()
+                            .title(Self::SCREEN_NAME)
+                            .borders(Borders::ALL)
+                    )
+                    .highlight_style(
+                        
+                        match self.focus {
+                            
+                            StrategyFocus::Bottom => {
+                                
+                                let style = Style::default()
+                                    .add_modifier(Modifier::REVERSED);
+                                
+                                if let Confirm::Deleting = self.confirming {
+                                    style.yellow()
+                                }
+                                else {
+                                    style.green() 
+                                }
+                            
+                            },
+                            
+                            _ => Style::default()
+                        }
+                    );
 
+                frame.render_stateful_widget(
+                    btm_list,
+                    nested_chunks[1],
+                    &mut self.btm_state
+                );
+            }
         }
     }
 
@@ -682,8 +687,13 @@ impl StrategyScreen {
                    
                     let mut msg = String::new();
                     let mut col = Color::Green;
+                    
+                    let mut modifying: bool = false;
+                    if let StrategyAction::Modify(_) = self.action {
+                        modifying = true;
+                    };
 
-                    match strat.strategy.export() {
+                    match strat.strategy.export(modifying) {
                         
                         Ok(_) => {
                             msg.push_str(
@@ -779,11 +789,19 @@ impl StrategyScreen {
                         match key.code {
 
                             KeyCode::Char('j') | KeyCode::Down => {
-
+                                move_down(
+                                    &mut self.btm_state,
+                                    self.btm_item_data.len(),
+                                    1
+                                );
                             },
 
                             KeyCode::Char('k') | KeyCode::Up => {
-
+                                move_up(
+                                    &mut self.btm_state,
+                                    self.btm_item_data.len(),
+                                    1
+                                );
                             },
 
                             KeyCode::Enter => {
@@ -812,10 +830,16 @@ impl StrategyScreen {
                                 };
 
                                 self.new_strategy = Some(strat_constructor);
+                                self.action = StrategyAction::Modify(
+                                    EditMode::Move
+                                );
 
                             },
 
                             KeyCode::Esc => {
+
+                                self.action = StrategyAction::None;
+                                self.focus = StrategyFocus::Top;
 
                             }
 
@@ -841,7 +865,7 @@ impl StrategyScreen {
                            
             StrategyAction::Delete |
             
-            StrategyAction::Modify(_) => {
+            StrategyAction::Modify(EditMode::Select) => {
                 self.set_strategy_template_names();
                 if self.existing_strategies.len() > 0 { 
                     self.existing_strategies.clone()
