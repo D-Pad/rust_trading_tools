@@ -304,7 +304,7 @@ impl SettingsScreen {
                     );
 
                     let input = Paragraph::new(
-                        format!("> {}", input_row.value.as_str())
+                        format!("| {}", input_row.value.as_str())
                     );
                     frame.render_widget(
                         

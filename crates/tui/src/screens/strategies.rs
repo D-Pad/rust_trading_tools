@@ -329,13 +329,17 @@ impl StrategyScreen {
                                 let strat = Some(
                                     StrategyConstructor::new()
                                 );
+                                self.focused_row = 1; 
                                 self.new_strategy = strat;
                                 Self::SCREEN_OPTIONS[0].clone()
                             
                             },
 
                             // Modify mode 
-                            Some(1) => Self::SCREEN_OPTIONS[1].clone(), 
+                            Some(1) => {
+                                self.focused_row = 1; 
+                                Self::SCREEN_OPTIONS[1].clone()
+                            }, 
                             
                             // Delete mode
                             Some(2) => {
@@ -814,8 +818,6 @@ impl StrategyScreen {
                                     Some(x) => x.clone(),
                                     None => return
                                 };
-                                
-                                self.test_msg(&format!("Loading {}", name));
                                 
                                 let strategy = match load_strategy_template(
                                     &name) 
