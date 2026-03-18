@@ -25,6 +25,7 @@ pub enum StrategyError {
 ///
 /// A trading strategy stores a group of indicators, and uses their 
 /// calculations to determine entry and exit trading signals.
+#[derive(Serialize, Deserialize)]
 pub struct Strategy {
     pub name: String,
     pub inputs: StrategyInputs
@@ -199,7 +200,7 @@ pub fn export_strategy_template(strategy: &Strategy)
     };
     let file_path = sys_paths.strategy_templates.join(file_name);
 
-    if let Ok(o) = serde_json::to_string_pretty(&strategy.inputs) {
+    if let Ok(o) = serde_json::to_string_pretty(&strategy) {
        
         if !file_path.exists() {
             fs::write(file_path, o)
@@ -226,13 +227,14 @@ pub fn export_strategy_template(strategy: &Strategy)
 
 
 pub fn load_strategy_template (strategy_name: &str) 
-    -> Result<StrategyInputs, StrategyError> {
+    -> Result<Strategy, StrategyError> {
 
     let sys_paths: SystemPaths = SystemPaths::new()
         .map_err(|_| StrategyError::ImportFailed)?;
 
     let mut file_name = strategy_name.to_lowercase();
     let num_chars: usize = file_name.len();  
+    
     if num_chars <= 5 || 
         (num_chars > 5 && &file_name[&num_chars - 5..] != ".json") 
     {
@@ -240,19 +242,23 @@ pub fn load_strategy_template (strategy_name: &str)
     }; 
 
     let expected_path: PathBuf = sys_paths.strategy_templates.join(file_name);
+    
     if expected_path.exists() {
        
         let json = fs::read_to_string(&expected_path)
             .map_err(|_| StrategyError::ImportFailed)?;
 
-        let inputs = serde_json::from_str::<StrategyInputs>(&json)
+        let inputs = serde_json::from_str::<Strategy>(&json)
             .map_err(|_| StrategyError::ImportFailed)?;
         
         Ok(inputs)
+    
     }
+    
     else {
         Err(StrategyError::FileNotFound)
     }
+
 }
 
 
@@ -268,11 +274,13 @@ pub fn delete_strategy(strategy_name: &str)
     }; 
 
     let expected_path: PathBuf = sys_paths.strategy_templates.join(file_name);
+    
     if expected_path.exists() {
         fs::remove_file(expected_path)
             .map_err(|_| StrategyError::DeleteFailed)?;
         Ok(())
     }
+    
     else {
         Err(StrategyError::DeleteFailed)
     }

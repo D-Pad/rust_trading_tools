@@ -48,9 +48,11 @@ use crate::{
 };
 use string_helpers::multi_line_to_single_line;
 use strategies::{
-    fetch_available_templates,
-    delete_strategy,
-    StrategyError
+    StrategyError, 
+    Strategy, 
+    delete_strategy, 
+    fetch_available_templates, 
+    load_strategy_template
 };
 
 
@@ -888,7 +890,32 @@ impl StrategyScreen {
                             },
 
                             KeyCode::Enter => {
-                            
+                           
+                                let i = match self.btm_state.selected() {
+                                    Some(x) => x,
+                                    None => return
+                                };
+
+                                let name = match self.btm_item_data.get(i) {
+                                    Some(x) => x.clone(),
+                                    None => return
+                                };
+                                
+                                self.test_msg(&format!("Loading {}", name));
+                                
+                                let strategy = match load_strategy_template(
+                                    &name) 
+                                {
+                                    Ok(i) => i,
+                                    Err(_) => return
+                                };
+                                
+                                let strat_constructor = StrategyConstructor {
+                                    strategy
+                                };
+
+                                self.new_strategy = Some(strat_constructor);
+
                             },
 
                             KeyCode::Esc => {
