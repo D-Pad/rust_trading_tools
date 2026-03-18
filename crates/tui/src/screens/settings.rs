@@ -49,15 +49,9 @@ use tokio::sync::mpsc::UnboundedSender;
 // ------------------------------ CONFIG KEYS ------------------------------ //
 #[derive(Clone)]
 enum ConfigFieldKey {
-    BackTest(BackTestKeys),
     Downloads(DownloadKeys),
     Exchanges,
     Charts(ChartParams), 
-}
-
-#[derive(Clone)]
-enum BackTestKeys {
-    InsideBar,
 }
 
 #[derive(Clone)]
@@ -75,7 +69,7 @@ enum DownloadKeys {
 /// with the system settings, and make changes to it. Used in the TUI crate
 pub struct ConfigForm {
     pub focused: usize,
-    pub rows: Vec<FormRow<ConfigFieldKey>>,
+    rows: Vec<FormRow<ConfigFieldKey>>,
     pub mode: FormMode,
 }
 
@@ -90,18 +84,6 @@ impl ConfigForm {
 
         let mut rows: Vec<FormRow<ConfigFieldKey>> = Vec::new();
         let mode: FormMode = FormMode::Movement;           
-
-        rows.push(FormRow::SectionDivider(
-            "Backtest Settings".to_string()
-        ));
-        rows.push(FormRow::InputRow(
-            FormField {
-                label: "Inside Bar Testing".to_string(),
-                kind: FieldKind::Bool,
-                value: cfg.backtesting.inside_bar.to_string(),
-                key: ConfigFieldKey::BackTest(BackTestKeys::InsideBar),
-            })
-        );
 
         rows.push(FormRow::SectionDivider(
             "Chart Parameters".to_string()
@@ -177,18 +159,6 @@ impl ConfigForm {
 
                     },
                     
-                    ConfigFieldKey::BackTest(bt) => {
-                        match bt {
-                            BackTestKeys::InsideBar => {
-                                let parsed = inp
-                                    .value
-                                    .parse::<bool>()
-                                    .unwrap_or(true);
-                                config.backtesting.inside_bar = parsed;
-                            }
-                        }
-                    },
-
                     ConfigFieldKey::Charts(ch) => {
                         match ch {
                             ChartParams::LogScale => {
@@ -223,11 +193,6 @@ impl ConfigForm {
                 };
             }; 
         };
-
-        // BackTest(BackTestKeys),
-        // Downloads(DownloadKeys),
-        // Exchanges,
-        // Charts(ChartParams), 
 
         config
     

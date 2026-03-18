@@ -73,7 +73,6 @@ impl AppState {
 /// by the Engine.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppConfig {
-    pub backtesting: BackTestSettings,
     pub supported_exchanges: SupportedExchanges,
     pub data_download: DataDownload, 
     pub chart_parameters: ChartParams,
@@ -82,9 +81,6 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn default() -> Self {
         Self {
-            backtesting: BackTestSettings { 
-                inside_bar: true 
-            },
             supported_exchanges: SupportedExchanges { 
                 active: HashMap::from([
                     ("kraken".to_string(), true)

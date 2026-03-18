@@ -49,7 +49,6 @@ use crate::{
 use string_helpers::multi_line_to_single_line;
 use strategies::{
     StrategyError, 
-    Strategy, 
     delete_strategy, 
     fetch_available_templates, 
     load_strategy_template
