@@ -163,7 +163,7 @@ impl StrategyScreen {
         screen
     }
 
-    pub fn get_btm_item_rows(data: &[String]) -> List {
+    pub fn get_btm_item_rows(data: &[String]) -> List<'_> {
         data
             .iter()
             .map(|i| ListItem::new(i.clone()))
@@ -218,116 +218,13 @@ impl StrategyScreen {
         
         self.set_btm_item_data(); 
 
-        if let StrategyAction::Create(ref mode) = self.action {
+        if let StrategyAction::Create(_) = self.action {
 
-            if let Some(strat) = &self.new_strategy {
+            self.render_template_rows(
+                frame, 
+                nested_chunks[1],
+            );
 
-                self.strategy_rows = strat.get_form_rows();
-
-                let block = Block::default()
-                    .title("New Strategy Creation")
-                    .borders(Borders::ALL);
-
-                frame.render_widget(block.clone(), nested_chunks[1]);
-
-                let inner = block.inner(nested_chunks[1]);
-
-                let form_rows = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints(&self.strategy_rows
-                        .iter()
-                        .map(|_| Constraint::Length(1))
-                        .collect::<Vec<Constraint>>()
-                    )
-                    .split(inner);
-
-                for (i, r) in self.strategy_rows.iter().enumerate() {
-                   
-                    match r {
-
-                        FormRow::SectionDivider(div) => {
-                            frame.render_widget(
-                                Paragraph::new(
-                                    format!("[{div}]"))
-                                    .style(Style::default().red()),
-                                form_rows[i] 
-                            );
-                        },
-
-                        FormRow::InputRow(row) => {
-                            let cols = Layout::default()
-                                .direction(Direction::Horizontal)
-                                .constraints([
-                                    Constraint::Percentage(50),
-                                    Constraint::Percentage(50),
-                                ])
-                                .split(form_rows[i]);
-
-                            let mut text = Paragraph::new(
-                                format!("  {}", row.label));
-                            
-                            let mut input = Paragraph::new(
-                                if let FieldKind::Select(
-                                    ref select
-                                ) = row.kind {
-                                    select.options[select.selected]
-                                        .to_string() 
-                                }
-                                else {
-                                    row.value.clone()
-                                }
-                            );
-
-                            if i == self.focused_row {
-                                
-                                text = text.style(Style::default()
-                                    .yellow()
-                                    .underlined());
-                              
-                                if let StrategyAction::Create(
-                                    EditMode::Input
-                                ) = self.action {
-                                    input = Paragraph::new(
-                                        self.user_input_buffer.clone()
-                                    );
-                                };
-
-                                input = input.style(
-                                    match mode {
-                                        EditMode::Move => {
-                                            Style::default()
-                                                .green()
-                                                .underlined()
-                                        },
-                                        EditMode::Input => {
-                                            Style::default()
-                                                .add_modifier(
-                                                    Modifier::REVERSED
-                                                )
-                                                .green()
-
-                                        },
-                                        _ => {
-                                            Style::default()  // Not possible
-                                        }
-                                    } 
-                                );
-                            
-                            };
-                            
-                            frame.render_widget(
-                                text, 
-                                cols[0]
-                            );
-
-                            frame.render_widget(input, cols[1]);
-                        }
-                    
-                    }
-
-                }
-
-            }
         }
         else {
             
@@ -971,6 +868,132 @@ impl StrategyScreen {
             _ => { blank_vec }
         };
 
+    }
+
+    fn render_template_rows(
+        &mut self, 
+        frame: &mut Frame, 
+        rect: Rect,
+    ) {
+
+        let strat = match &self.new_strategy {
+            Some(s) => s,
+            None => return
+        };
+
+        let mut is_new_strat: bool = true;
+        let mode = match &self.action {
+            StrategyAction::Create(m) => m,
+            StrategyAction::Modify(m) => {
+                is_new_strat = false;
+                m
+            },
+            _ => { return }
+        };
+
+        self.strategy_rows = strat.get_form_rows(is_new_strat);
+
+        let block = Block::default()
+            .title("New Strategy Creation")
+            .borders(Borders::ALL);
+
+        frame.render_widget(block.clone(), rect);
+
+        let inner = block.inner(rect);
+
+        let form_rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(&self.strategy_rows
+                .iter()
+                .map(|_| Constraint::Length(1))
+                .collect::<Vec<Constraint>>()
+            )
+            .split(inner);
+
+        for (i, r) in self.strategy_rows.iter().enumerate() {
+           
+            match r {
+
+                FormRow::SectionDivider(div) => {
+                    frame.render_widget(
+                        Paragraph::new(
+                            format!("[{div}]"))
+                            .style(Style::default().red()),
+                        form_rows[i] 
+                    );
+                },
+
+                FormRow::InputRow(row) => {
+                    let cols = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([
+                            Constraint::Percentage(50),
+                            Constraint::Percentage(50),
+                        ])
+                        .split(form_rows[i]);
+
+                    let mut text = Paragraph::new(
+                        format!("  {}", row.label));
+                    
+                    let mut input = Paragraph::new(
+                        if let FieldKind::Select(
+                            ref select
+                        ) = row.kind {
+                            select.options[select.selected]
+                                .to_string() 
+                        }
+                        else {
+                            row.value.clone()
+                        }
+                    );
+
+                    if i == self.focused_row {
+                        
+                        text = text.style(Style::default()
+                            .yellow()
+                            .underlined());
+                      
+                        if let StrategyAction::Create(
+                            EditMode::Input
+                        ) = self.action {
+                            input = Paragraph::new(
+                                self.user_input_buffer.clone()
+                            );
+                        };
+
+                        input = input.style(
+                            match mode {
+                                EditMode::Move => {
+                                    Style::default()
+                                        .green()
+                                        .underlined()
+                                },
+                                EditMode::Input => {
+                                    Style::default()
+                                        .add_modifier(
+                                            Modifier::REVERSED
+                                        )
+                                        .green()
+
+                                },
+                                _ => {
+                                    // Not possible
+                                    Style::default() 
+                                }
+                            } 
+                        );
+                    
+                    };
+                    
+                    frame.render_widget(
+                        text, 
+                        cols[0]
+                    );
+
+                    frame.render_widget(input, cols[1]);
+                }
+            }
+        }
     }
 
     fn set_strategy_template_names(&mut self) {

@@ -33,7 +33,7 @@ impl StrategyConstructor {
         }
     }
 
-    pub fn get_form_rows(&self) -> Vec<FormRow<StrategyKeys>> {
+    pub fn get_form_rows(&self, is_new: bool) -> Vec<FormRow<StrategyKeys>> {
 
         let mut rows: Vec<FormRow<StrategyKeys>> = Vec::new();
 
@@ -42,14 +42,16 @@ impl StrategyConstructor {
             "General".to_string()
         ));
 
-        rows.push(FormRow::InputRow(
-            FormField { 
-                label: "Strategy Name".to_string(), 
-                kind: FieldKind::Text, 
-                value: self.strategy.name.clone(), 
-                key: StrategyKeys::General(GeneralSettings::Name) 
-            }
-        ));
+        if is_new {
+            rows.push(FormRow::InputRow(
+                FormField { 
+                    label: "Strategy Name".to_string(), 
+                    kind: FieldKind::Text, 
+                    value: self.strategy.name.clone(), 
+                    key: StrategyKeys::General(GeneralSettings::Name) 
+                }
+            ));
+        }
 
         // ----------------------- Moving Average --------------------- //
         rows.push(FormRow::SectionDivider(
