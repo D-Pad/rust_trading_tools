@@ -119,7 +119,7 @@ impl MaInputs {
     }
 
     pub fn get_id(&self) -> &'static str {
-        
+      
         match self {
             MaInputs::SMA(_) => {
                 SmaInputs::SHORT_NAME 

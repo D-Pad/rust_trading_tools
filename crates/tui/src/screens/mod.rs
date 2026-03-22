@@ -92,6 +92,7 @@ pub struct OutputMsg {
 }
 
 impl OutputMsg {
+    
     pub fn new(
         text: String, 
         color: Color, 
@@ -103,6 +104,20 @@ impl OutputMsg {
         -> Self {
         OutputMsg { text, color, bold, bg_color, exchange, ticker }
     }
+
+    pub fn plain(msg: &str) -> Self {
+
+        Self::new(
+            msg.to_string(),
+            Color::Yellow,
+            true,
+            None,
+            None,
+            None
+        )
+
+    }
+
 }
 
 impl From<DataDownloadStatus> for OutputMsg {

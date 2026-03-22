@@ -1,6 +1,7 @@
 use app_core::{
     SmaInputs,
-    EmaInputs
+    EmaInputs,
+    JmaInputs
 };
 use strategies::{
     Strategy,
@@ -187,11 +188,10 @@ impl StrategyConstructor {
                         let ma: MaInputs;
 
                         if let Some(s) = &self.strategy.inputs.moving_average {
-                            
+                          
                             let p = s.get_period();
                             let source = s.get_source();
 
-                            println!("{}", field.value);
                             if field.value == "sma" {
                                 ma = MaInputs::SMA(SmaInputs::new(
                                     p, Some(source)
@@ -200,6 +200,11 @@ impl StrategyConstructor {
                             else if field.value == "ema" {
                                 ma = MaInputs::EMA(EmaInputs::new(
                                     p, Some(source)
+                                ));
+                            }
+                            else if field.value == "jma" {
+                                ma = MaInputs::JMA(JmaInputs::new(
+                                    p, Some(source), 3.0, 1.0
                                 ));
                             }
                             else {

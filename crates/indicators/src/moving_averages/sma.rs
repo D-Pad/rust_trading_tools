@@ -108,7 +108,7 @@ impl MovingAverage for SimpleMovingAverage {
 
 
 impl MaInputVals for SmaInputs {
-    const SHORT_NAME: &'static str = "ema";
+    const SHORT_NAME: &'static str = "sma";
 }
 
 

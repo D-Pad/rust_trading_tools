@@ -329,7 +329,8 @@ impl StrategyScreen {
                                 let strat = Some(
                                     StrategyConstructor::new()
                                 );
-                                self.focused_row = 1; 
+
+                                self.focused_row = 1;
                                 self.new_strategy = strat;
                                 Self::SCREEN_OPTIONS[0].clone()
                             
@@ -881,7 +882,7 @@ impl StrategyScreen {
                                     Ok(i) => i,
                                     Err(_) => return
                                 };
-                                
+ 
                                 let strat_constructor = StrategyConstructor {
                                     strategy
                                 };
