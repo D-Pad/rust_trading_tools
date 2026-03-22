@@ -642,6 +642,66 @@ impl StrategyScreen {
                 };
             },
 
+            KeyCode::Left | KeyCode::Char('h') => {
+                let row = match self.strategy_rows.get_mut(self.focused_row) {
+                    Some(r) => r,
+                    None => return
+                }; 
+               
+                if let FormRow::InputRow(r) = row {
+                    
+                    if let FieldKind::Select(_) = r.kind {
+                       
+                        r.rotate_selection_left();
+                        
+                        if let Some(strat) = &mut self.new_strategy {
+                            if let Err(_) = strat.modify_from_form_field(r) {
+                                let _ = self.msg_sender.send(AppEvent::Output(
+                                    OutputMsg::new(
+                                        "Failed to modify row".to_string(),
+                                        Color::Red,
+                                        true,
+                                        None,
+                                        None,
+                                        None
+                                    )
+                                )); 
+                            };
+                        }
+                    }
+                }
+            }
+
+            KeyCode::Right | KeyCode::Char('l') => {
+                let row = match self.strategy_rows.get_mut(self.focused_row) {
+                    Some(r) => r,
+                    None => return
+                }; 
+                
+                if let FormRow::InputRow(r) = row {
+                    
+                    if let FieldKind::Select(_) = r.kind {
+                        
+                        r.rotate_selection_right();
+                        
+                        if let Some(strat) = &mut self.new_strategy {
+                            if let Err(_) = strat.modify_from_form_field(r) {
+                                let _ = self.msg_sender.send(AppEvent::Output(
+                                    OutputMsg::new(
+                                        "Failed to modify row".to_string(),
+                                        Color::Red,
+                                        true,
+                                        None,
+                                        None,
+                                        None
+                                    )
+                                )); 
+                            };
+                        }
+                    }
+                }
+            }
+
             KeyCode::Enter => {
 
                 let i = self.focused_row;
@@ -673,10 +733,6 @@ impl StrategyScreen {
                                 .value
                                 .clone();
 
-                        },
-                        
-                        FieldKind::Select(ref opts) => {
-                            println!("OPTS: {:?}", opts.options);
                         },
                         
                         _ => {}
@@ -964,8 +1020,16 @@ impl StrategyScreen {
                         if let FieldKind::Select(
                             ref select
                         ) = row.kind {
-                            select.options[select.selected]
-                                .to_string() 
+
+                            let opt = select.options[select.selected]
+                                .to_string();
+
+                            if i == self.focused_row {
+                                format!("◀ {} ▶", opt)
+                            }
+                            else {  
+                                opt
+                            }
                         }
                         else {
                             row.value.clone()
@@ -1021,6 +1085,7 @@ impl StrategyScreen {
         }
     }
 
+    /// Fetches available strategy templates from ~/.config/dtrade/strategies
     fn set_strategy_template_names(&mut self) {
 
         let blank_vec = Vec::new();
@@ -1047,20 +1112,20 @@ impl StrategyScreen {
 
     }
 
-    fn test_msg(&self, msg: &str) {
+    // fn test_msg(&self, msg: &str) {
 
-        let _ = self.msg_sender.send(AppEvent::Output(
-            OutputMsg::new(
-                msg.to_string(),
-                Color::Red,
-                true,
-                Some(Color::Yellow),
-                None,
-                None
-            )
-        ));
+    //     let _ = self.msg_sender.send(AppEvent::Output(
+    //         OutputMsg::new(
+    //             msg.to_string(),
+    //             Color::Red,
+    //             true,
+    //             Some(Color::Yellow),
+    //             None,
+    //             None
+    //         )
+    //     ));
 
-    }
+    // }
 
     pub const SCREEN_NAME: &'static str = "Strategy Manager";
 

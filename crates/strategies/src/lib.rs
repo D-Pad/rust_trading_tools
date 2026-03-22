@@ -165,7 +165,15 @@ impl Display for StrategyInputs {
                         "  EMA: {{ period: {}, source: {} }}",
                         ema.period,
                         ema.source
-                    )
+                    ),
+                    MaInputs::JMA(jma) => {
+                        let mut text = format!(
+                            "  JMA: {{ period: {}, ", jma.period);
+                        text.push_str(&format!("source: {}, ", jma.source));
+                        text.push_str(&format!("phase: {}, ", jma.phase));
+                        text.push_str(&format!("power: {} }}", jma.power));
+                        text
+                    },
                 })?;
                 Ok(())
             },

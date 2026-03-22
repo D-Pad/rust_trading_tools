@@ -50,7 +50,12 @@ impl IndicatorSet {
                             bar.component_from_str(&ema.inputs.source)
                         )
                     }
-                
+ 
+                    MA::JMA(jma) => {
+                        jma.update(
+                            bar.component_from_str(&jma.inputs.source)
+                        )
+                    }               
                 }
             
             }
@@ -70,12 +75,17 @@ impl IndicatorSet {
         if self.moving_average.is_none() {
             self.moving_average = Some(
                 match ma_inputs {
+
                     MaInputs::SMA(inputs) => MA::SMA(
                         SimpleMovingAverage::empty(inputs)
                     ),
 
                     MaInputs::EMA(inputs) => MA::EMA(
                         ExponentialMovingAverage::empty(inputs)
+                    ),
+
+                    MaInputs::JMA(inputs) => MA::JMA(
+                        JurikMovingAverage::empty(inputs)
                     )
                 }
             );

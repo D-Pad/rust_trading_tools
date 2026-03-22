@@ -1,4 +1,7 @@
-use app_core::SmaInputs;
+use app_core::{
+    SmaInputs,
+    EmaInputs
+};
 use strategies::{
     Strategy,
     MaInputs,
@@ -12,7 +15,8 @@ use crate::{
 
 
 pub enum ConstructorError {
-    ParseError(StringParseError)
+    ParseError(StringParseError),
+    InvalidType(String),
 }
 
 
@@ -85,14 +89,21 @@ impl StrategyConstructor {
         
         if let Some(ma) = &self.strategy.inputs.moving_average {
            
-            let ma_types = MaInputs::MA_TYPES;
+            let ma_type = ma.get_id();
+            let options = Vec::from(MaInputs::MA_TYPES);
+            let selected = options 
+                .iter()
+                .position(|&opt| opt == ma_type)
+                .unwrap_or(0);
 
             rows.push(
                 FormRow::InputRow(FormField {
                     label: "MA Type".to_string(),
-                    kind: FieldKind::Select(SelectOption::new(
-                        Vec::from(ma_types))), 
-                    value: ma_types[0].to_string(),
+                    kind: FieldKind::Select(SelectOption {
+                        selected,
+                        options,
+                    }), 
+                    value: ma_type.to_string(),
                     key: StrategyKeys::MovingAverage(
                         MovingAverageKeys::MaType
                     )
@@ -100,6 +111,7 @@ impl StrategyConstructor {
             );
             
             match ma {
+
                 MaInputs::SMA(inputs) => {
                     rows.push(
                         FormRow::InputRow(FormField {
@@ -112,7 +124,33 @@ impl StrategyConstructor {
                         })
                     );
                 },
-                _ => {}
+
+                MaInputs::EMA(inputs) => {
+                    rows.push(
+                        FormRow::InputRow(FormField {
+                            label: "Period".to_string(),
+                            kind: FieldKind::Integer, 
+                            value: format!("{}", inputs.period),
+                            key: StrategyKeys::MovingAverage(
+                                MovingAverageKeys::Period
+                            )
+                        })
+                    );
+                },
+
+                MaInputs::JMA(inputs) => {
+                    rows.push(
+                        FormRow::InputRow(FormField {
+                            label: "Period".to_string(),
+                            kind: FieldKind::Integer, 
+                            value: format!("{}", inputs.period),
+                            key: StrategyKeys::MovingAverage(
+                                MovingAverageKeys::Period
+                            )
+                        })
+                    );
+                },
+
             }
         };
 
@@ -145,7 +183,35 @@ impl StrategyConstructor {
                     },
 
                     MovingAverageKeys::MaType => {
-                         
+                       
+                        let ma: MaInputs;
+
+                        if let Some(s) = &self.strategy.inputs.moving_average {
+                            
+                            let p = s.get_period();
+                            let source = s.get_source();
+
+                            println!("{}", field.value);
+                            if field.value == "sma" {
+                                ma = MaInputs::SMA(SmaInputs::new(
+                                    p, Some(source)
+                                ));
+                            }
+                            else if field.value == "ema" {
+                                ma = MaInputs::EMA(EmaInputs::new(
+                                    p, Some(source)
+                                ));
+                            }
+                            else {
+                                return Err(ConstructorError::InvalidType(
+                                    field.value.to_string() 
+                                ))
+                            }
+
+                            self.strategy.inputs.moving_average = Some(ma);
+
+                        }
+                    
                     },
 
                     MovingAverageKeys::Period => {

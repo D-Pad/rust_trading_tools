@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use serde::{Serialize, Deserialize};
 use bigdecimal::BigDecimal;
 
-use crate::MovingAverage;
+use crate::{MovingAverage, MaInputVals};
 
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -19,7 +19,7 @@ pub struct EmaInputs {
 }
 
 impl EmaInputs {
-    
+
     pub fn new(period: u16, src: Option<String>) -> Self {
 
         let source = match src {
@@ -37,6 +37,11 @@ impl EmaInputs {
     pub fn default() -> Self {
         Self::new(13, None)
     }
+
+}
+
+impl MaInputVals for EmaInputs {
+    const SHORT_NAME: &'static str = "ema";
 }
 
 pub struct ExponentialMovingAverage {
@@ -141,8 +146,6 @@ impl MovingAverage for ExponentialMovingAverage {
         self.line.push(val);
 
     }
-
-    const SHORT_NAME: &'static str = "ema";
 
 }
 

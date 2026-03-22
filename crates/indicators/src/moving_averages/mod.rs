@@ -13,12 +13,14 @@ pub mod sma;
 pub use sma::{SimpleMovingAverage, SmaInputs};
 pub mod ema;
 pub use ema::{ExponentialMovingAverage, EmaInputs};
+pub mod jma;
+pub use jma::{JurikMovingAverage, JmaInputs};
 
 
 // ----------------------------- COMMON TRAITS ----------------------------- //
 pub trait MovingAverage {
    
-    /// # Calculat the Latest Moving Average Point
+    /// # Calculate the Latest Moving Average Point
     ///
     /// This method only performs the calculation of the most recent moving
     /// average, and returns it. It does NOT mutate or modify any attributes.
@@ -40,8 +42,15 @@ pub trait MovingAverage {
     /// append the line with the newly calculated value.
     fn update(&mut self, input_val: &BigDecimal);
 
-    const SHORT_NAME: &'static str;
+}
 
+pub trait MaInputVals {
+    /// # MA Type Name
+    ///
+    /// The identifier of the moving average type. A 3-4 character string slice
+    /// that's used to identify which moving average type needs to be 
+    /// constructed when choosing moving average types and input values.
+    const SHORT_NAME: &'static str;
 }
 
 
@@ -84,6 +93,7 @@ pub enum MaError {
 pub enum MaInputs {
     SMA(SmaInputs),
     EMA(EmaInputs),
+    JMA(JmaInputs),
 }
 
 impl MaInputs {
@@ -99,14 +109,77 @@ impl MaInputs {
             MaInputs::EMA(ema) => {
                 ema.period = period;
             },
+            
+            MaInputs::JMA(jma) => {
+                jma.period = period;
+            },
 
         }
 
     }
 
-    pub const MA_TYPES: [&'static str; 2] = [
+    pub fn get_id(&self) -> &'static str {
+        
+        match self {
+            MaInputs::SMA(_) => {
+                SmaInputs::SHORT_NAME 
+            }
+
+            MaInputs::EMA(_) => {
+                EmaInputs::SHORT_NAME
+            }
+
+            MaInputs::JMA(_) => {
+                JmaInputs::SHORT_NAME
+            }
+        }
+
+    }
+
+    pub fn get_period(&self) -> u16 {
+        
+        match self {
+
+            MaInputs::SMA(sma) => {
+                sma.period
+            }
+
+            MaInputs::EMA(ema) => {
+                ema.period
+            }
+
+            MaInputs::JMA(jma) => {
+                jma.period
+            }
+
+        }
+    
+    }
+
+    pub fn get_source(&self) -> String {
+
+        match self {
+
+            MaInputs::SMA(sma) => {
+                sma.source.clone()
+            }
+
+            MaInputs::EMA(ema) => {
+                ema.source.clone()
+            }
+            
+            MaInputs::JMA(jma) => {
+                jma.source.clone()
+            }
+
+        }
+
+    }
+
+    pub const MA_TYPES: [&'static str; 3] = [
         "sma", 
         "ema",
+        "jma",
     ];
 
 }
@@ -116,7 +189,8 @@ impl Display for MaInputs {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             MaInputs::SMA(_) => write!(f, "MaInputs::SMA"),
-            MaInputs::EMA(_) => write!(f, "MaInputs::EMA")
+            MaInputs::EMA(_) => write!(f, "MaInputs::EMA"),
+            MaInputs::JMA(_) => write!(f, "MaInputs::JMA")
         }
     }     
 
@@ -126,6 +200,7 @@ impl Display for MaInputs {
 pub enum MA {
     SMA(SimpleMovingAverage),
     EMA(ExponentialMovingAverage),
+    JMA(JurikMovingAverage),
 }
 
 impl MA {
@@ -143,6 +218,11 @@ impl MA {
                 let ma = ExponentialMovingAverage::empty(ema);
                 MA::EMA(ma)
             }
+
+            MaInputs::JMA(jma) => {
+                let ma = JurikMovingAverage::empty(jma);
+                MA::JMA(ma)
+            }
         }
     }
 }
@@ -156,10 +236,16 @@ impl Display for MA {
         let line = match self {
             MA::SMA(sma) => {
                 &sma.line  
-            },
+            }
+
             MA::EMA(ema) => {
                 &ema.line
             }
+
+            MA::JMA(jma) => {
+                &jma.line
+            }
+
         };
         
         let length = line.len();

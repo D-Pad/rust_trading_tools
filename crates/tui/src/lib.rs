@@ -121,6 +121,37 @@ impl<K> FormField<K> {
         } 
     }
 
+    pub fn rotate_selection_left(&mut self) {
+        
+        if let FieldKind::Select(ref mut select) = self.kind {
+            
+            if select.selected == 0 {
+                select.selected = select.options.len() - 1;
+            }
+            else {
+                select.selected -= 1;
+            }
+
+            self.value = select.options[select.selected].to_string();
+        } 
+    
+    }
+
+    pub fn rotate_selection_right(&mut self) {
+        
+        if let FieldKind::Select(ref mut select) = self.kind {
+            if select.selected == select.options.len() - 1 {
+                select.selected = 0;
+            }
+            else {
+                select.selected += 1;
+            }
+
+            self.value = select.options[select.selected].to_string();
+        }
+    
+    }
+
 }
 
 pub enum FormRow<K> {
@@ -145,32 +176,6 @@ pub enum FieldKind {
 
 impl FieldKind {
     
-    pub fn rotate_selection_left(&mut self) {
-        
-        if let Self::Select(select) = self {
-            if select.selected == 0 {
-                select.selected = select.options.len() - 1;
-            }
-            else {
-                select.selected -= 1;
-            }
-        }
-    
-    }
-
-    pub fn rotate_selection_right(&mut self) {
-        
-        if let Self::Select(select) = self {
-            if select.selected == select.options.len() - 1 {
-                select.selected = 0;
-            }
-            else {
-                select.selected += 1;
-            }
-        }
-    
-    }
-
     fn to_str(&self) -> &'static str {
         match self {
 

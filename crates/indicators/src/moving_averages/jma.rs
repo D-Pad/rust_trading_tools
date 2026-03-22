@@ -10,44 +10,58 @@ use crate::{
 
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-/// # Simple Moving Average Inputs
+/// # Jurik Moving Average Inputs
 ///
 /// Input values for a simple moving average.
 ///   - period: The number of periods to lookback on for each new calculation.
 ///   - source: Only applicable when calling the 'build_from_bar_set' method.
-pub struct SmaInputs {
+///   - power: Sets the exponent in the Jurik Adaptive MA calculation.
+///   - phase: Used in the Jurik Adaptive MA calculation.
+pub struct JmaInputs {
     pub period: u16,
     pub source: String,
+    pub phase: f32,
+    pub power: f32,
 }
 
-impl SmaInputs {
+impl JmaInputs {
     
-    pub fn new(period: u16, src: Option<String>) -> Self {
+    pub fn new(
+        period: u16, 
+        src: Option<String>,
+        phase: f32,
+        power: f32
+    ) -> Self {
 
         let source = match src {
             Some(s) => s,
             None => "close".to_string()
         };
 
-        Self { period, source }
+        Self { period, source, phase, power }
 
     }
 
     pub fn default() -> Self {
-        Self { period: 13, source: "close".to_string() }
+        Self { 
+            period: 13, 
+            source: "close".to_string(), 
+            phase: 3.0, 
+            power: 2.0
+        }
     }
 
 }
 
-pub struct SimpleMovingAverage {
-    pub inputs: SmaInputs, 
+pub struct JurikMovingAverage {
+    pub inputs: JmaInputs, 
     pub line: Vec<Option<BigDecimal>>,
     lookback_values: VecDeque<BigDecimal>,
 }
 
-impl SimpleMovingAverage {
+impl JurikMovingAverage {
 
-    pub fn empty(inputs: SmaInputs) -> Self {
+    pub fn empty(inputs: JmaInputs) -> Self {
 
         let line: Vec<Option<BigDecimal>> = Vec::new();
         let lookback_values: VecDeque<BigDecimal> = VecDeque::new();
@@ -61,7 +75,7 @@ impl SimpleMovingAverage {
 
 }
 
-impl MovingAverage for SimpleMovingAverage {
+impl MovingAverage for JurikMovingAverage {
     
     fn calculate(&self, _input_val: Option<&BigDecimal>) -> Option<BigDecimal> {
         
@@ -107,8 +121,8 @@ impl MovingAverage for SimpleMovingAverage {
 }
 
 
-impl MaInputVals for SmaInputs {
-    const SHORT_NAME: &'static str = "ema";
+impl MaInputVals for JmaInputs {
+    const SHORT_NAME: &'static str = "jma";
 }
 
 
