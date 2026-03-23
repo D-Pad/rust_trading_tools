@@ -105,18 +105,18 @@ impl OutputMsg {
         OutputMsg { text, color, bold, bg_color, exchange, ticker }
     }
 
-    pub fn plain(msg: &str) -> Self {
+    // pub fn plain(msg: &str) -> Self {
 
-        Self::new(
-            msg.to_string(),
-            Color::Yellow,
-            true,
-            None,
-            None,
-            None
-        )
+    //     Self::new(
+    //         msg.to_string(),
+    //         Color::Yellow,
+    //         true,
+    //         None,
+    //         None,
+    //         None
+    //     )
 
-    }
+    // }
 
 }
 

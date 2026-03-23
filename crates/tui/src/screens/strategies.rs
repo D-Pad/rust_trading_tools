@@ -277,7 +277,9 @@ impl StrategyScreen {
         match key.code {
         
             KeyCode::Up | KeyCode::Char('k') => {
-                
+              
+                if let Confirm::Deleting = self.confirming { return };
+
                 match &self.focus {
 
                     StrategyFocus::Top => move_up(
@@ -296,6 +298,8 @@ impl StrategyScreen {
             },
 
             KeyCode::Down | KeyCode::Char('j') => {
+                
+                if let Confirm::Deleting = self.confirming { return };
             
                 match &self.focus {
 
@@ -394,6 +398,7 @@ impl StrategyScreen {
 
                                 if let Confirm::None = self.confirming {
                                     self.confirming = Confirm::Deleting;
+
                                     let _ = self.msg_sender.send(
                                         AppEvent::Output(
                                             OutputMsg::new(
@@ -412,13 +417,7 @@ impl StrategyScreen {
                                 };
 
                             },
-
-                            StrategyAction::Modify(_) => {
-
-                                 
-
-                            }
-
+                            
                             _ => {}
 
                         }
@@ -430,7 +429,13 @@ impl StrategyScreen {
             },
 
             KeyCode::Esc => {
-                self.focus = StrategyFocus::Top;
+                match self.confirming {
+                    Confirm::None |
+                    Confirm::AbortCreation => {
+                        self.focus = StrategyFocus::Top;
+                    },
+                    _ => {} 
+                }
             }
 
             KeyCode::Char('y') => {
@@ -763,8 +768,7 @@ impl StrategyScreen {
                             self.action = StrategyAction::None;
                         },
                         
-                        Err(f) => {
-                           
+                        Err(f) => { 
                             
                             if let Confirm::AbortCreation = 
                                 self.confirming {
@@ -1018,6 +1022,7 @@ impl StrategyScreen {
                         format!("  {}", row.label));
                     
                     let mut input = Paragraph::new(
+                        
                         if let FieldKind::Select(
                             ref select
                         ) = row.kind {
