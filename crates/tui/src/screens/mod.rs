@@ -17,7 +17,6 @@ use app_core::{
     }
 };
 
-
 use ratatui::{
     widgets::ListState,
     crossterm::{
@@ -27,8 +26,6 @@ use ratatui::{
         Color
     },
 };
-
-
 
 
 pub fn move_up(state: &mut ListState, len: usize, step: usize) {

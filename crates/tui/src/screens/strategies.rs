@@ -652,28 +652,45 @@ impl StrategyScreen {
                 let row = match self.strategy_rows.get_mut(self.focused_row) {
                     Some(r) => r,
                     None => return
-                }; 
-               
+                };
+
+                // if let Some(ref mut strat) = 
+                //     self.new_strategy {
+                //     let _ = strat.modify_from_form_field(
+                //         row
+                //     );
+                // };
+
                 if let FormRow::InputRow(r) = row {
                     
                     if let FieldKind::Select(_) = r.kind {
-                       
                         r.rotate_selection_left();
-                        
-                        if let Some(strat) = &mut self.new_strategy {
-                            if let Err(_) = strat.modify_from_form_field(r) {
-                                let _ = self.msg_sender.send(AppEvent::Output(
-                                    OutputMsg::new(
-                                        "Failed to modify row".to_string(),
-                                        Color::Red,
-                                        true,
-                                        None,
-                                        None,
-                                        None
-                                    )
-                                )); 
-                            };
+                    }
+                   
+                    // FIXME: Not working
+                    else if let FieldKind::Bool = r.kind {
+                        if r.value == "true" {
+                            r.value = "false".to_string() 
                         }
+                        else if &r.value == "false" { 
+                            r.value = "true".to_string() 
+                        }
+                        return
+                    }
+                    
+                    if let Some(strat) = &mut self.new_strategy {
+                        if let Err(_) = strat.modify_from_form_field(r) {
+                            let _ = self.msg_sender.send(AppEvent::Output(
+                                OutputMsg::new(
+                                    "Failed to modify row".to_string(),
+                                    Color::Red,
+                                    true,
+                                    None,
+                                    None,
+                                    None
+                                )
+                            )); 
+                        };
                     }
                 }
             }
