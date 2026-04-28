@@ -3,13 +3,7 @@ use std::{
 };
 
 use app_core::{
-    errors::{error_handler, ConfigError, RunTimeError}, 
-    engine::{Engine, Server},
-    strategies::*,
-    Response,
-    DataResponse,
-    initialize_app_engine,
-    config::SystemPaths,
+    DataResponse, Response, config::SystemPaths, database_ops::fetch_enabled_assets, engine::{Engine, Server}, errors::{ConfigError, RunTimeError, error_handler}, initialize_app_engine, strategies::*
 };
 use tui::{TerminalInterface};
 use webserver::{WebServer};
@@ -20,12 +14,7 @@ use dotenvy;
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: &Engine) { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
-    println!("{}", engine.args);
-
-    match delete_strategy("scratch") {
-        Ok(_) => println!("Deleted scratch"),
-        Err(_) => println!("Failed")
-    };
+    let _ = fetch_enabled_assets(engine.database.get_pool()).await;
 }
 
 

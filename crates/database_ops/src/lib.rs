@@ -159,6 +159,36 @@ pub async fn fetch_first_tick_by_time_column(
     row
 }
 
+/// Fetches all exchanges and pairs from _enabled_assets
+pub async fn fetch_enabled_assets(
+    db_pool: PgPool 
+) -> Result<BTreeMap<String, Vec<String>>, DbError> {
+
+    let table_query: &'static str = "SELECT * FROM _enabled_assets;";
+
+    type Vrow = Vec<(String, String, bool)>;
+    let tables: Vrow = match sqlx::query_as(table_query)
+        .fetch_all(&db_pool)
+        .await 
+    {
+        Ok(d) => d,
+        Err(_) => return Err(DbError::QueryFailed(
+            "Failed to fetch table names".to_string() 
+        ))
+    };
+
+    let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (exchange, asset, enabled) in tables {
+        if enabled {
+            map.entry(exchange)
+                .or_insert(Vec::new())
+                .push(asset);
+        }      
+    }
+
+    Ok(map)
+
+}
 
 /// Returns the name of all database tables in the database
 pub async fn fetch_tables(
