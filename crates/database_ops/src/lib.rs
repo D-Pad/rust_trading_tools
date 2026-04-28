@@ -55,7 +55,7 @@ pub async fn drop_pair(
     db_pool: PgPool
 ) -> Result<(), DbError> {
     
-    let query = format!(r#"
+    let mut query = format!(r#"
     DROP TABLE asset_{exchange}_{ticker} 
     "#);
 
@@ -81,6 +81,19 @@ pub async fn drop_pair(
                 ))?;
 
     };
+
+    query = format!(r#" 
+    DELETE FROM _enabled_assets 
+    WHERE asset = '{}'
+    AND exchange = '{}';
+    "#, ticker.to_uppercase(), exchange);
+
+    sqlx::query(&query)
+        .execute(&db_pool)
+        .await
+        .map_err(|e| DbError::QueryFailed(
+            format!("{}: {}", e, query.to_string())
+        ))?;
 
     Ok(())
 }
@@ -386,8 +399,10 @@ pub async fn first_time_setup(
 
                 let query: &'static str = r#"
                     CREATE TABLE IF NOT EXISTS _enabled_assets (
-                        asset VARCHAR(12) NOT NULL PRIMARY KEY,
-                        enabled BOOLEAN NOT NULL DEFAULT TRUE
+                        exchange VARCHAR(20) NOT NULL,
+                        asset VARCHAR(12) NOT NULL,
+                        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        PRIMARY KEY (exchange, asset)
                     ); 
                 "#;
                 if let Err(_) = sqlx::query(&query)

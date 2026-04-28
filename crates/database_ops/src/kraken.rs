@@ -263,7 +263,28 @@ pub async fn add_new_db_table(
         return Err(
             DbError::QueryFailed(
                 format!(
-                    "Failed to fetch _last_tick_history for {}",
+                    "Failed to set _last_tick_history for {}",
+                    ticker
+                )
+            )
+        ); 
+    };
+
+    let asset_enabled_query: String = String::from(r#"
+        INSERT INTO _enabled_assets (exchange, asset, enabled) 
+        VALUES ($1, $2, TRUE)
+        ON CONFLICT (exchange, asset) DO NOTHING;"#);
+
+    if let Err(_) = sqlx::query(&asset_enabled_query)
+        .bind("kraken")
+        .bind(ticker)
+        .execute(&mut *conn)
+        .await 
+    {
+        return Err(
+            DbError::QueryFailed(
+                format!(
+                    "Failed to set _enabled_assets for {}",
                     ticker
                 )
             )
@@ -271,7 +292,7 @@ pub async fn add_new_db_table(
     };
 
     sleep(Duration::from_millis(500)).await;
-   
+
     let initial_fetch_time = current_ts - start_date_unix_timestamp_offset;  
 
     let initial_data: TickDataResponse = request_tick_data_from_kraken(
