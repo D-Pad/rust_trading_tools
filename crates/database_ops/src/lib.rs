@@ -381,6 +381,26 @@ pub async fn first_time_setup(
                     ); 
                 };
             };
+
+            if !tables.contains(&"_enabled_assets".to_string()) {
+
+                let query: &'static str = r#"
+                    CREATE TABLE IF NOT EXISTS _enabled_assets (
+                        asset VARCHAR(12) NOT NULL PRIMARY KEY,
+                        enabled BOOLEAN NOT NULL DEFAULT TRUE
+                    ); 
+                "#;
+                if let Err(_) = sqlx::query(&query)
+                    .execute(&mut *conn)
+                    .await 
+                {
+                    return Err(DbError::QueryFailed(
+                            "Failed to create '_enabled_assets'".to_string()
+                        )
+                    ); 
+                };
+            };
+
         };
     };
 
