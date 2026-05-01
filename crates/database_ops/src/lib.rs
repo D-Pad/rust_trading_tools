@@ -49,6 +49,18 @@ pub async fn add_new_pair(
 }
 
 
+async fn asset_is_enabled(exchange: &str, ticker: &String, db_pool: PgPool) 
+    -> Result<bool, DbError> {
+    
+    let enabled_assets = fetch_enabled_assets(db_pool.clone()).await?; 
+    if let Some(v) = enabled_assets.get(exchange) {
+        return Ok(v.contains(ticker)); 
+    } 
+
+    Ok(false)
+}
+
+
 pub async fn drop_pair(
     exchange: &str, 
     ticker: &str,
@@ -477,6 +489,61 @@ pub async fn initialize(active_exchanges: &Vec<String>) -> Result<Db, DbError> {
 }
 
 
+pub async fn toggle_active_table(
+    exchange: &String, 
+    ticker: &String,
+    db_pool: PgPool
+) -> Result<(), DbError> {
+  
+    let table_name = get_table_name(exchange, ticker);
+
+    let table_query: &'static str = r#"
+        SELECT * FROM _enabled_assets
+        WHERE asset = $1
+        AND exchange = $2;
+    "#;
+
+    type Vrow = Vec<(String, String, bool)>;
+    let rows: Vrow = match sqlx::query_as(table_query)
+        .bind(ticker.to_uppercase())
+        .bind(exchange)
+        .fetch_all(&db_pool)
+        .await 
+    {
+        Ok(d) => d,
+        Err(_) => return Err(DbError::QueryFailed(
+            "Failed to fetch table names".to_string() 
+        ))
+    };
+
+    if rows.len() == 0 { return Err(DbError::NoDataReturned) }
+    let is_enabled = rows[0].2;
+
+    let toggle_query: String = String::from(r#"
+        UPDATE _enabled_assets
+        SET enabled = $1 
+        WHERE asset = $2
+        AND exchange = $3;
+        "#
+    );
+
+    // QUERY FAILS HERE
+    if let Err(_) = sqlx::query(&toggle_query)
+        .bind(!is_enabled)
+        .bind(ticker)
+        .bind(exchange)
+        .execute(&db_pool) 
+        .await 
+    {
+        return Err(DbError::QueryFailed(
+            "Failed to fetch update _last_tick_history".to_string()
+        )); 
+    };
+
+    Ok(())
+}
+
+
 /// # Update Database Tables 
 ///
 /// Updates all database tables by default. If an exchange is given, then only
@@ -507,21 +574,34 @@ pub async fn update_database_tables(
             .filter(|x| x.contains(exchange_name))
             .collect();
 
-        if exchange_name == "kraken" {
+        for table in &exchange_tables {
 
-            for table in &exchange_tables {
+            let ticker: String = match table.split('_').last() {
+                Some(a) => a.to_uppercase(),
+                None => continue 
+            };
 
-                let ticker: String = match table.split('_').last() {
-                    Some(a) => a.to_uppercase(),
-                    None => continue 
-                };
-        
-                if let Some(e) = ticker_sym && e != ticker { continue };
-               
-                let task_db_pool = db_pool.clone();
-                let task_tx = progress_tx.clone();
-                let task_client = client.clone();
+            // Skip any disabled token pairs.
+            if !matches!(
+                asset_is_enabled(
+                    &exchange_name, 
+                    &ticker, 
+                    db_pool.clone()
+                ).await,
+                Ok(true)
+            ) {
+                println!("Skipping {exchange_name} {ticker}");
+                continue 
+            }; 
 
+            if let Some(e) = ticker_sym && e != ticker { continue };
+
+            let task_db_pool = db_pool.clone();
+            let task_tx = progress_tx.clone();
+            let task_client = client.clone();
+
+            // Exchange specific update methods
+            if exchange_name == "kraken" {
                 tasks.spawn(async move {
                     kraken::download_new_data_to_db_table(
                         &ticker, 
@@ -532,6 +612,7 @@ pub async fn update_database_tables(
                     ).await 
                 });
             };
+
         };
     };
 

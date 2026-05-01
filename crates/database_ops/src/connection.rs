@@ -62,6 +62,7 @@ pub enum DbError {
     Fetch(FetchError),
     InitFailure,
     SQL(sqlx::Error),
+    NoDataReturned,
     ParseError,
     QueryFailed(String),
     TableCreationFailed(String),
@@ -103,6 +104,9 @@ impl std::fmt::Display for DbError {
             ),
             DbError::QueryFailed(e) => write!(
                 f, "DbError: Query Failed: {} ", e
+            ),
+            DbError::NoDataReturned => write!(
+                f, "DbError: Query returned no data:",
             ),
             DbError::TableCreationFailed(e) => write!(
                 f, "DbError: Failed to create new table: {} ", e

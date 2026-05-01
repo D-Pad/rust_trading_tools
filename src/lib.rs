@@ -3,7 +3,22 @@ use std::{
 };
 
 use app_core::{
-    DataResponse, Response, config::SystemPaths, database_ops::fetch_enabled_assets, engine::{Engine, Server}, errors::{ConfigError, RunTimeError, error_handler}, initialize_app_engine, strategies::*
+    DataResponse, 
+    Response, 
+    config::SystemPaths, 
+    database_ops::{
+        toggle_active_table
+    }, 
+    engine::{
+        Engine, 
+        Server
+    }, 
+    errors::{
+        ConfigError, 
+        RunTimeError, 
+        error_handler
+    }, 
+    initialize_app_engine, 
 };
 use tui::{TerminalInterface};
 use webserver::{WebServer};
@@ -14,7 +29,11 @@ use dotenvy;
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: &Engine) { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
-    let _ = fetch_enabled_assets(engine.database.get_pool()).await;
+    let _ = toggle_active_table(
+        &String::from("kraken"), 
+        &String::from("SOLUSD"), 
+        engine.database.get_pool()
+    ).await;
 }
 
 
