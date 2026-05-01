@@ -7,7 +7,8 @@ use app_core::{
     Response, 
     config::SystemPaths, 
     database_ops::{
-        toggle_active_table
+        toggle_active_table,
+        update_database_tables
     }, 
     engine::{
         Engine, 
@@ -29,11 +30,11 @@ use dotenvy;
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: &Engine) { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
-    let _ = toggle_active_table(
-        &String::from("kraken"), 
-        &String::from("SOLUSD"), 
-        engine.database.get_pool()
-    ).await;
+    // let _ = toggle_active_table(
+    //     &String::from("kraken"), 
+    //     &String::from("SOLUSD"), 
+    //     engine.database.get_pool()
+    // ).await;
 }
 
 

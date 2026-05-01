@@ -495,8 +495,6 @@ pub async fn toggle_active_table(
     db_pool: PgPool
 ) -> Result<(), DbError> {
   
-    let table_name = get_table_name(exchange, ticker);
-
     let table_query: &'static str = r#"
         SELECT * FROM _enabled_assets
         WHERE asset = $1
@@ -590,7 +588,6 @@ pub async fn update_database_tables(
                 ).await,
                 Ok(true)
             ) {
-                println!("Skipping {exchange_name} {ticker}");
                 continue 
             }; 
 
