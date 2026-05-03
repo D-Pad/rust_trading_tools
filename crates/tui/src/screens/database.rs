@@ -179,7 +179,11 @@ impl DatabaseScreen {
 
         self.btm_item_data = match self.selected_action {
             
-            Some(DbAction::RemovePairs | DbAction::UpdateData) => {
+            Some(
+                DbAction::RemovePairs | 
+                DbAction::UpdateData  | 
+                DbAction::ToggleActive
+            ) => {
                 let mut items = Vec::from(["Update all tables".to_string()]);
                 for (key, vals) in &self.token_pairs {
                     for v in vals {
@@ -555,6 +559,7 @@ enum DbAction {
     AddPairs,
     RemovePairs,
     UpdateData,
+    ToggleActive, 
     None
 }
 
