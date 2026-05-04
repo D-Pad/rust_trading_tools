@@ -234,12 +234,13 @@ pub async fn fetch_tables(
 pub async fn fetch_exchanges_and_pairs_from_db(db_pool: PgPool) 
     -> HashMap<String, Vec<String>> {
    
-    let tables: Vec<String> = fetch_tables(db_pool)
+    let tables: Vec<String> = fetch_tables(db_pool.clone())
         .await
         .unwrap_or(Vec::new());
 
+    let active_pairs = fetch_enabled_assets(db_pool).await;
     let mut exchanges_and_pairs: HashMap<String, Vec<String>> = HashMap::new();
-   
+
     for table in tables {
         if table.starts_with("asset_") { 
             
@@ -247,7 +248,15 @@ pub async fn fetch_exchanges_and_pairs_from_db(db_pool: PgPool)
             let [_, exchange, asset] = parts.as_slice() else {
                 continue;
             };
-            
+           
+            if let Ok(ref active) = active_pairs {
+                if let Some(m) = active.get(*exchange) {
+                    // FIXME:
+                    // Use this block to filter out token pairs that aren't 
+                    // set as active.
+                }
+            }
+
             let title: String = capitlize_first_letter(
                 &exchange.to_string()
             );

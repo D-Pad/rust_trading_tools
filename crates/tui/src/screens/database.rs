@@ -1,4 +1,3 @@
-// Local imports
 use std::{
     collections::{
         BTreeMap,
@@ -56,13 +55,7 @@ use super::{
 };
 use app_core::{
     database_ops::{
-        self,
-        kraken::{
-            AssetPairInfo,
-        },
-        fetch_exchanges_and_pairs_from_db,
-        DataDownloadStatus, 
-        update_database_tables,
+        self, DataDownloadStatus, fetch_enabled_assets, fetch_exchanges_and_pairs_from_db, kraken::AssetPairInfo, toggle_active_table, update_database_tables
     },
     engine::Engine,
 };
@@ -72,12 +65,17 @@ use string_helpers::{
 };
 
 
-const INFO_STRINGS: [&'static str; 3] = [
+const INFO_STRINGS: [&'static str; 4] = [
     r#"Downloads new tick data for the given pair to the database."#,
 
     r#"Deletes data from the database."#,
 
-    r#"Updates database tables, depending on the asset pair that's chosen."#
+    r#"Updates database tables, depending on the asset pair that's chosen."#,
+
+    r#"Enable or disable token pairs. When a pair is disabled it will not be
+    updated during update operations, and live data feeds will not be 
+    subscribed to it.
+    "#
 ];
 
 
@@ -98,8 +96,16 @@ pub struct DatabaseScreen {
     btm_state: ListState,
     btm_item_data: Vec<String>,
     selected_action: Option<DbAction>,
+    
+    // All pairs in database
     token_pairs: HashMap<String, Vec<String>>,
+
+    // Pairs in database that are currently activated for updates/live streams
+    active_pairs: BTreeMap<String, Vec<String>>,
+
+    // All available assets on the exchanges
     asset_pairs: Arc<BTreeMap<String, BTreeMap<String, AssetPairInfo>>>,
+
     db_pool: PgPool,
     transmitter: UnboundedSender<AppEvent>,
     is_busy: bool,
@@ -127,6 +133,7 @@ impl DatabaseScreen {
             btm_item_data: Vec::new(),
             selected_action: None,
             token_pairs: HashMap::new(),
+            active_pairs: BTreeMap::new(),
             asset_pairs,
             db_pool,
             transmitter,
@@ -140,6 +147,14 @@ impl DatabaseScreen {
     pub async fn pre_draw(&mut self) {
         let pool = self.db_pool.clone();
         self.token_pairs = fetch_exchanges_and_pairs_from_db(pool).await;
+        let active_pairs = fetch_enabled_assets(self.db_pool.clone()).await;
+        self.active_pairs = match active_pairs {
+            Ok(v) => v,
+            Err(_) => {
+                let m: BTreeMap<String, Vec<String>> = BTreeMap::new();
+                m
+            }
+        }
     }
 
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
@@ -177,24 +192,27 @@ impl DatabaseScreen {
             &mut self.top_state
         );
 
+        let mut items = Vec::new();
         self.btm_item_data = match self.selected_action {
             
             Some(
-                DbAction::RemovePairs | 
-                DbAction::UpdateData  | 
-                DbAction::ToggleActive
+                DbAction::UpdateData
             ) => {
-                let mut items = Vec::from(["Update all tables".to_string()]);
-                for (key, vals) in &self.token_pairs {
-                    for v in vals {
-                        items.push(format!("{key} - {v}"))
+                items.push("Update all tables".to_string()); 
+                for (exchange, pairs) in &self.token_pairs {
+                    let x = exchange.to_lowercase(); 
+                    for p in pairs {
+                        if let Some(v) = self.active_pairs.get(&x) {
+                            if v.contains(p) {
+                                items.push(format!("{exchange} - {p}"))
+                            }
+                        }
                     }
                 };
                 items
             },
             
             Some(DbAction::AddPairs) => {
-                let mut items = Vec::new();
                 for (key, pairs) in self.asset_pairs.iter() {
                     let exchange_title: String = capitlize_first_letter(key); 
                     for (asset, _) in pairs.iter() {
@@ -203,7 +221,48 @@ impl DatabaseScreen {
                 };
                 items
             },
-            
+
+            Some(DbAction::RemovePairs) => {
+                for (exchange, pairs) in &self.token_pairs {
+                    for p in pairs {
+                        items.push(format!("{exchange} - {p}"))
+                    }
+                };
+                items
+            },
+
+            Some(DbAction::ToggleActive) => {
+
+                const STRING_WIDTH: usize = 20;
+                
+                for (exchange, pairs) in &self.token_pairs {
+                    
+                    let x = exchange.to_lowercase();
+
+                    for p in pairs {
+                        
+                        let mut s = format!("{exchange} - {p}");
+                        let padding = STRING_WIDTH.saturating_sub(s.len());
+                        s.push_str(&" ".repeat(padding));
+                        
+                        if let Some(v) = self.active_pairs.get(&x) {
+                            if v.contains(p) {
+                                s.push_str("| enabled"); 
+                            }
+                            else {
+                                s.push_str("| disabled"); 
+                            }
+                        }
+                        else {
+                            s.push_str("| disabled"); 
+                        }
+                        
+                        items.push(s)
+                    }
+                };
+                items               
+            },
+
             Some(DbAction::None) | None => {
                 if let Some(i) = self.top_state.selected() {
                     let width: u16 = nested_chunks[0].width; 
@@ -248,7 +307,7 @@ impl DatabaseScreen {
  
         let action = match &self.selected_action {
             Some(a) => a.clone(),
-            None => Self::SCREEN_OPTIONS[3].clone()
+            None => Self::SCREEN_OPTIONS[4].clone()
         };
 
         if let Some(i) = self.btm_state.selected() {
@@ -424,6 +483,38 @@ impl DatabaseScreen {
                         
                     }));
                 };
+            }
+
+            else if let DbAction::ToggleActive = action {
+
+                if self.btm_item_data.len() > 0 {
+
+                    let tokens: Vec<&str> = self.btm_item_data[i]
+                        .split(" ")
+                        .collect();
+
+                    let exchange: String = tokens[0].to_lowercase();
+                    let ticker: String = tokens[2].to_uppercase();
+                    let tx = self.transmitter.clone();
+                    let db_pool = engine.database.get_pool();
+
+                    if let Err(_) = toggle_active_table(
+                        &exchange, &ticker, db_pool
+                    ).await {
+                        let _ = tx.send(AppEvent::Output(OutputMsg::new(
+                            format!(
+                                "Failed to toggle {} - {}",
+                                exchange,
+                                ticker
+                            ),
+                            Color::Red,
+                            true,
+                            None,
+                            None,
+                            None
+                        )));
+                    };
+                }
             };
         }
     }
@@ -540,10 +631,11 @@ impl DatabaseScreen {
 
     pub const SCREEN_NAME: &'static str = "Database Management";
 
-    const SCREEN_OPTIONS: [DbAction; 4] = [
+    const SCREEN_OPTIONS: [DbAction; 5] = [
         DbAction::AddPairs, 
         DbAction::RemovePairs, 
         DbAction::UpdateData,
+        DbAction::ToggleActive, 
         DbAction::None
     ];
 
@@ -569,6 +661,7 @@ impl DbAction {
             DbAction::AddPairs => "Add new pairs",
             DbAction::RemovePairs => "Delete pairs",
             DbAction::UpdateData => "Update data",
+            DbAction::ToggleActive => "Toggle active pairs",
             _ => ""
         }
     }

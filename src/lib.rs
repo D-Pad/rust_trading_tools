@@ -27,6 +27,8 @@ use webserver::{WebServer};
 use dotenvy;
 
 
+use std::collections::BTreeMap;
+
 // ------------------------ MAIN PROGRAM FUNCTIONS ------------------------- //
 async fn dev_testing(engine: &Engine) { 
     println!("\x1b[1;33m------------- DEVELOPMENT MODE -------------\x1b[0m");
@@ -35,6 +37,14 @@ async fn dev_testing(engine: &Engine) {
     //     &String::from("SOLUSD"), 
     //     engine.database.get_pool()
     // ).await;
+    let m = BTreeMap::from(
+        [("test", "some_val")]
+    );
+
+    if let Some(v) = m.get("test") {
+        println!("ENTRY: {}", v);
+    }
+     
 }
 
 
