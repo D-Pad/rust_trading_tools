@@ -1,7 +1,7 @@
 # Rust Trading Tools
-This app is in very early development, but will eventually facilitate the
-creation of trading tools that can be used for automated trading. Currently 
-only works with Kraken, as Kraken is the only API in the US that I'm aware of 
+This app is in early development, but will eventually facilitate the
+creation of tools that can be used for automated trading. Currently, it 
+only works with Kraken, as Kraken is the only API in the US (to my knowledge) 
 that offers free data. The candles are built from raw tick data, allowing for 
 an unlimited number of candle period sizes. Kraken only returns 1000 trades 
 per API request, so downloading historical data can take awhile depending on 
@@ -47,7 +47,7 @@ example of what the TUI looks like when using the
 │  SOLUSD: 4%                                                       │
 └───────────────────────────────────────────────────────────────────┘
 ```
-The `Output` window is reserve for status messages.
+The `Output` window is reserved for status messages.
 
 
 ## Command Line Arguments
@@ -61,15 +61,15 @@ dtrade --help
 
 ### Adding and Removing Pairs
 To add a new pair to the database, you can pass the `--add-pairs` flag on 
-launch, followed by the exchange name, then any number of desired asset pair 
+launch followed by the exchange name, then any number of desired asset pair 
 names. Do the same, but with the `--rm-pairs` flag to remove pairs from the 
-database. 
+database.
 ```bash
 dtrade database --add-pairs kraken SOLUSD ETHUSD
 dtrade database --rm-pairs kraken SOLUSD ETHUSD
 ```
 Adding pairs will create new database tables, and download some initial seed 
-data, meaning there will only be 1000 trades stored in the database for each 
+data. Meaning there will only be 1000 trades stored in the database for each 
 pair that's added via this command.  
 
 The seed data of each pair will be offset back in time by a set amount 
