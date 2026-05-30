@@ -113,7 +113,7 @@ Valid time periods for candles are as follows:
 | t   | Ticks   | 
 
 A period value of `5m` will result in 5-minute candles, meaning that the close
-date of each candle will be 5 minutes ahead of the candle before it. Tick 
+date of each candle will be 5 minutes later than the candle before it. Tick 
 based candles are also available. A period of `100t` means that each candle
 contains exactly 100 ticks (trades). Weekly candles always begin on Sunday, 
 and monthly candles always begin on the first of the month.
