@@ -116,10 +116,10 @@ A period value of `5m` will result in 5-minute candles, meaning that the close
 date of each candle will be 5 minutes later than the candle before it. Tick 
 based candles are also available. A period of `100t` means that each candle
 contains exactly 100 ticks (trades). Weekly candles always begin on Sunday, 
-and monthly candles always begin on the first of the month.
+and monthly candles always begin on the first day of the month.
 
 Candle data is displayed in CSV format to the terminal, and can easily be 
-exported via output redirection
+exported via output redirection on a Linux based system
 ```bash 
 dtrade candles kraken SOLUSD 50t > candles_50_tick.csv
 ```
